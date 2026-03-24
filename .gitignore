@@ -36,3 +36,4 @@ wheels/
 *.swp
 *.swo
 .geminiignore
+POSTMAN_TESTING.md

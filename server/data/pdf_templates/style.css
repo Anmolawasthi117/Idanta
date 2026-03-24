@@ -1,0 +1,131 @@
+/* ═══════════════════════════════════════════════════════════════
+   Idanta PDF Templates — Shared Stylesheet
+   Used by hang_tag.html and label.html
+   ══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500&display=swap');
+
+/* WeasyPrint page config */
+@page hang-tag {
+    size: 7cm 12cm;
+    margin: 0.5cm;
+}
+
+@page label {
+    size: 10cm 5cm;
+    margin: 0.4cm;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    font-size: 9pt;
+    color: #1a1a1a;
+    line-height: 1.4;
+}
+
+/* ── Brand Header ─────────────────────────────────────────────── */
+.brand-header {
+    text-align: center;
+    padding-bottom: 0.3cm;
+    border-bottom: 1.5pt solid var(--accent, #8B2635);
+    margin-bottom: 0.3cm;
+}
+
+.brand-logo-svg {
+    width: 2cm;
+    height: 2cm;
+    margin: 0 auto 0.15cm;
+}
+
+.brand-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--primary, #1a1a1a);
+}
+
+.brand-tagline {
+    font-size: 7pt;
+    font-weight: 300;
+    color: var(--secondary, #555);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0.05cm;
+}
+
+/* ── Product Info ─────────────────────────────────────────────── */
+.product-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 10pt;
+    font-weight: 600;
+    margin-bottom: 0.1cm;
+}
+
+.product-meta {
+    font-size: 7.5pt;
+    color: #444;
+    margin-bottom: 0.05cm;
+}
+
+.product-meta span {
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+/* ── Price ────────────────────────────────────────────────────── */
+.price-block {
+    margin: 0.2cm 0;
+    padding: 0.15cm 0.2cm;
+    background: var(--primary, #8B2635);
+    border-radius: 2pt;
+    display: inline-block;
+}
+
+.price-label {
+    font-size: 6pt;
+    color: rgba(255,255,255,0.75);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.price-value {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #fff;
+    font-family: 'Playfair Display', serif;
+}
+
+/* ── QR / Divider ─────────────────────────────────────────────── */
+.divider {
+    border: none;
+    border-top: 0.5pt solid #ddd;
+    margin: 0.2cm 0;
+}
+
+.footer-text {
+    font-size: 6pt;
+    color: #888;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* ── Care Icons Block ─────────────────────────────────────────── */
+.care-block {
+    margin-top: 0.2cm;
+    font-size: 7pt;
+    color: #555;
+}
+
+.care-block .care-title {
+    font-weight: 500;
+    margin-bottom: 0.05cm;
+    color: #1a1a1a;
+}

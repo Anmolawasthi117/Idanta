@@ -1,0 +1,29 @@
+{
+  "craft_id": "block_print_jaipur",
+  "display_name": "Bagru & Sanganer Block Print",
+  "region": "Jaipur, Rajasthan",
+  "description": "Traditional hand-block printing using hand-carved wooden blocks and natural dyes from Rajasthan.",
+  "motifs": [
+    "Buta (paisley)",
+    "Jaal (net pattern)",
+    "Boota (small floral sprigs)",
+    "Leheriya (diagonal stripes)",
+    "Aamdani (mango motif)",
+    "Peacock feather",
+    "Lotus"
+  ],
+  "palette_suggestions": {
+    "bagru": ["#8B2635", "#4A7C59", "#C4963B", "#2C3E6B", "#F5E6C8"],
+    "sanganer": ["#E8A0BF", "#A0C4E8", "#A8D5A2", "#F7C59F", "#FFFFFF"]
+  },
+  "typical_materials": ["Pure cotton", "Chanderi silk", "Mul mul", "Linen", "Georgette"],
+  "rag_chunks": [
+    "Block printing in Jaipur dates back over 500 years, originating in the village of Sanganer and later Bagru. The craft was patronized by the Rajput royalty, who commissioned elaborate printed fabrics for court attire and royal gifts. Artisans, known as 'Chhipas', were granted special social status for their mastery.",
+    "The wooden blocks used in Jaipur block printing are hand-carved by specialist craftsmen called 'Kharadi'. A single block can take 2-3 days to carve and may last decades if properly maintained. Complex designs use multiple blocks — one for each color — requiring precise alignment by the printer.",
+    "Bagru printing is distinguished by its use of a mud-resist technique called 'dabu'. A mixture of clay, lime, and gum is applied over dyed areas before the next color bath, creating sharp white outlines. This process requires multiple rounds of drying in the sun and can take 7-10 days for a single piece.",
+    "Natural dyes form the soul of traditional Jaipur block printing. Pomegranate rinds yield yellows, indigo plants produce deep blues, madder roots give rich reds, and iron-rich mud creates charcoal blacks. The use of natural dyes not only ensures eco-friendliness but creates a characteristic warmth and depth impossible to replicate with synthetic alternatives.",
+    "The Sanganer style is characterized by delicate floral patterns on white backgrounds, traditionally printed with fermented tamarind seed solution as a fixative. The village of Sanganer, now a suburb of Jaipur, once had over 100 printing households. Today, a GI (Geographical Indication) tag protects the Sanganeri print's authenticity.",
+    "A single block-printed sari can require 40-60 individual block applications per row, with each row repeated 300-400 times across the full length. Master printers develop an almost meditative rhythm, pressing blocks with precisely consistent pressure to ensure uniform ink transfer — a skill that takes 3-5 years to master.",
+    "Block printing motifs carry deep symbolic meaning in Rajasthani culture. The 'Buta' or paisley represents the mango, a symbol of fertility and abundance. The lotus symbolizes purity and divine consciousness. The peacock feather represents the blessings of Lord Krishna. These motifs connect garments to centuries of cultural and spiritual narrative."
+  ]
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} — Product Label</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        @page { page: label; }
+        body { page: label; display: flex; flex-direction: column; justify-content: center; height: 5cm; }
+        :root {
+            --primary: {{ palette.primary }};
+            --secondary: {{ palette.secondary }};
+            --accent: {{ palette.accent }};
+        }
+        .label-layout {
+            display: flex;
+            align-items: center;
+            gap: 0.3cm;
+        }
+        .label-logo svg {
+            width: 1.2cm;
+            height: 1.2cm;
+        }
+        .label-content { flex: 1; }
+        .label-brand-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 9pt;
+            font-weight: 700;
+            color: var(--primary, #1a1a1a);
+        }
+        .label-product-name {
+            font-size: 8pt;
+            color: #333;
+        }
+        .label-meta {
+            font-size: 6.5pt;
+            color: #666;
+            margin-top: 0.05cm;
+        }
+        .label-price {
+            font-size: 10pt;
+            font-weight: 700;
+            color: var(--primary, #1a1a1a);
+            text-align: right;
+        }
+        .label-mrp-label {
+            font-size: 5.5pt;
+            color: #888;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="label-layout">
+        <!-- Logo -->
+        <div class="label-logo">{{ logo_svg | safe }}</div>
+
+        <!-- Content -->
+        <div class="label-content">
+            <div class="label-brand-name">{{ brand_name }}</div>
+            <div class="label-product-name">{{ product_name }}</div>
+            <div class="label-meta">
+                {% if material %}{{ material }}{% endif %}
+                {% if region %} · {{ region }}{% endif %}
+            </div>
+        </div>
+
+        <!-- Price -->
+        <div>
+            <div class="label-mrp-label">MRP</div>
+            <div class="label-price">₹{{ "%.0f" | format(price_mrp) }}</div>
+        </div>
+    </div>
+
+    <hr class="divider" style="margin: 0.1cm 0;">
+
+    <p class="footer-text">Handcrafted in India · Made with love 🇮🇳</p>
+</body>
+</html>

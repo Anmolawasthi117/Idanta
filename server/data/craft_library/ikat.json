@@ -1,0 +1,29 @@
+{
+  "craft_id": "ikat",
+  "display_name": "Pochampally Ikat",
+  "region": "Telangana & Andhra Pradesh",
+  "description": "A complex tie-and-dye weaving technique where yarns are resist-dyed before weaving, creating geometric patterns that appear to blur at the edges.",
+  "motifs": [
+    "Diamond lattice",
+    "Temple border (Korvai)",
+    "Fish scale",
+    "Elephant procession",
+    "Chevron bands",
+    "Floral medallion",
+    "Traditional Nizam border"
+  ],
+  "palette_suggestions": {
+    "single_ikat": ["#8B1A1A", "#1B4F72", "#2E8B57", "#DAA520", "#FAEBD7"],
+    "double_ikat": ["#4A235A", "#154360", "#922B21", "#B7950B", "#F9F0E7"]
+  },
+  "typical_materials": ["Pure silk", "Cotton-silk blend", "Mercerized cotton", "Handloom cotton"],
+  "rag_chunks": [
+    "Pochampally, a small village in Telangana's Nalgonda district, is the epicenter of India's double ikat weaving. The word 'ikat' derives from the Malay word 'mengikat' meaning 'to tie' or 'to bind'. This craft, recognized with a Geographical Indication tag, is considered one of the most technically demanding textile arts in the world.",
+    "The double ikat technique practiced in Pochampally is one of only three such traditions globally — the others being in Japan (Kasuri) and Indonesia (Geringsing). In double ikat, both the warp and weft threads are resist-dyed before weaving, requiring both sets to align precisely at the loom to create the final pattern — a mathematical feat that demands years of mastery.",
+    "Creating a single Pochampally saree is a weeks-long process. First, weavers calculate the precise yarn quantities and pattern repeats. Then, yarns are arranged, bundled, and tied at exact intervals with waterproof thread. After dyeing and drying, the ties are removed and threads are wound on to the loom. The final weaving stage requires constant vigilance to maintain pattern alignment.",
+    "The Nizam of Hyderabad was a legendary patron of Pochampally ikat. The royal court demanded the finest double ikat fabrics for court ceremonies and diplomatic gifts. This royal patronage drove artisans to develop extraordinary innovations in color combinations and pattern complexity that remain the benchmark for the craft today.",
+    "Natural dyes were historically used in Pochampally ikat — turmeric for yellow, indigo for blue, madder for red. Today, while most weavers use azo-free synthetic dyes for color stability, a growing movement of GI-compliant artisans is returning to natural dyeing, commanded by premium prices in sustainable fashion markets both domestically and internationally.",
+    "The geometric 'diamond lattice' or 'kunjara kunti' pattern is the most iconic Pochampally motif, representing the eternal cycle of life. The 'temple border' or 'rudraksha' motif pays homage to the region's religious heritage. Artisans rarely consult written patterns — designs are passed down through oral tradition and visual memory, representing a living library of cultural knowledge.",
+    "Pochampally weavers typically work on pit looms, seated in pits dug below the loom frame. A weaver can produce only 6-8 inches of double ikat fabric per day, meaning a single 9-yard saree may take 2-3 weeks of full-time work. This labor intensity, combined with the mathematical precision required, explains why authentic Pochampally ikat commands premium pricing."
+  ]
+}

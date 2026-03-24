@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} — Hang Tag</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        @page { page: hang-tag; }
+        body { page: hang-tag; }
+        :root {
+            --primary: {{ palette.primary }};
+            --secondary: {{ palette.secondary }};
+            --accent: {{ palette.accent }};
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Brand Header -->
+    <div class="brand-header">
+        <!-- SVG Logo injected directly (no base64 needed) -->
+        <div class="brand-logo-svg">
+            {{ logo_svg | safe }}
+        </div>
+        <div class="brand-name">{{ brand_name }}</div>
+        <div class="brand-tagline">{{ tagline }}</div>
+    </div>
+
+    <!-- Product Name -->
+    <div class="product-name">{{ product_name }}</div>
+
+    <!-- Product Metadata -->
+    {% if material %}
+    <p class="product-meta">Material: <span>{{ material }}</span></p>
+    {% endif %}
+
+    {% if motif_used %}
+    <p class="product-meta">Motif: <span>{{ motif_used }}</span></p>
+    {% endif %}
+
+    {% if region %}
+    <p class="product-meta">Origin: <span>{{ region }}</span></p>
+    {% endif %}
+
+    <hr class="divider">
+
+    <!-- Price -->
+    <div class="price-block" style="background: {{ palette.primary }};">
+        <div class="price-label">MRP (Incl. of all taxes)</div>
+        <div class="price-value">₹{{ "%.0f" | format(price_mrp) }}</div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Care Instructions -->
+    {% if care_instructions %}
+    <div class="care-block">
+        <div class="care-title">Care</div>
+        <div>{{ care_instructions }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <p class="footer-text" style="margin-top: 0.3cm;">Handcrafted with love in India 🇮🇳</p>
+
+</body>
+</html>
