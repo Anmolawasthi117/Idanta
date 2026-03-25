@@ -1,3 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@source "../index.html";
+@source "./**/*.{ts,tsx}";
+
+:root {
+  color: #1c1917;
+  background:
+    radial-gradient(circle at top left, rgba(249, 115, 22, 0.12), transparent 30%),
+    linear-gradient(180deg, #fff9f2 0%, #fffdf9 100%);
+  font-family: "Segoe UI", "Noto Sans Devanagari", sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-size: 16px;
+  color: #1c1917;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.progress-bar {
+  appearance: none;
+}
+
+.progress-bar::-webkit-progress-bar {
+  background: #fed7aa;
+  border-radius: 999px;
+}
+
+.progress-bar::-webkit-progress-value {
+  background: #f97316;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.progress-bar::-moz-progress-bar {
+  background: #f97316;
+  border-radius: 999px;
+}
