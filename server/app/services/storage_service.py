@@ -5,6 +5,7 @@ Handles file uploads from bytes and public URL generation.
 
 import logging
 import mimetypes
+from time import time_ns
 from typing import Optional
 
 from app.core.config import settings
@@ -13,6 +14,11 @@ from app.core.database import supabase
 logger = logging.getLogger(__name__)
 
 BUCKET = settings.SUPABASE_STORAGE_BUCKET
+
+
+def _with_cache_bust(url: str) -> str:
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}v={time_ns()}"
 
 
 async def upload_bytes(
@@ -42,7 +48,7 @@ async def upload_bytes(
         )
         public_url = supabase.storage.from_(BUCKET).get_public_url(path)
         logger.info(f"Uploaded to storage: {path}")
-        return public_url
+        return _with_cache_bust(public_url)
 
     except Exception as e:
         logger.error(f"Storage upload failed for '{path}': {e}")

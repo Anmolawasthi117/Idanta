@@ -3,88 +3,14 @@ Product asset generation node powered entirely by Gemini image generation.
 """
 
 import logging
-from datetime import datetime, timezone
 
 from app.agents.state import ProductState
 from app.core.database import supabase
+from app.services.asset_prompt_service import build_product_asset_prompt, build_product_visual_dna
 from app.services.gemini_image_service import generate_image
 from app.services.storage_service import upload_bytes
 
 logger = logging.getLogger(__name__)
-
-
-def _format_category_data(category_data: dict) -> str:
-    return "; ".join(f"{key}: {value}" for key, value in category_data.items() if value not in (None, "", [], {})) or "No additional structured data"
-
-
-def _brand_summary(state: ProductState) -> str:
-    brand_context = state.get("brand_context", {})
-    return (
-        f"Brand {state.get('brand_name', 'Brand')} from {state.get('region', brand_context.get('region', 'India'))}; "
-        f"tagline: {state.get('tagline', '')}; "
-        f"craft: {brand_context.get('craft_name', state.get('craft_id', '').replace('_', ' '))}; "
-        f"brand feel: {brand_context.get('brand_feel', 'earthy')}; "
-        f"buyer: {brand_context.get('target_customer', 'local_bazaar')}."
-    )
-
-
-def _build_asset_prompt(state: ProductState, asset_type: str) -> str:
-    brand_context = state.get("brand_context", {})
-    category_data = state.get("category_data", {})
-    palette = state.get("palette", {"primary": "#8B2635", "secondary": "#4A7C59", "accent": "#C4963B"})
-    product_name = state.get("product_name", "Product")
-    category = state.get("product_category", "other")
-    listing_copy = state.get("listing_copy", "")
-    care_instructions = state.get("care_instructions", "")
-    product_facts = (
-        f"Product name: {product_name}. "
-        f"Category: {category}. Occasion: {state.get('occasion', 'general')}. "
-        f"Price: Rs. {int(float(state.get('price_mrp', 0) or 0))}. "
-        f"Material: {state.get('material') or 'not specified'}. "
-        f"Motif: {state.get('motif_used') or 'traditional craft-inspired'}. "
-        f"Time to make: {state.get('time_to_make_hrs', 0)} hours. "
-        f"Category details: {_format_category_data(category_data)}. "
-        f"Listing copy: {listing_copy}. Care: {care_instructions}."
-    )
-
-    shared = (
-        "Create a realistic, visually premium commercial design asset that looks like a professional Canva designer made it. "
-        "The design must feel unique, polished, elegant, balanced, and ecommerce-ready. "
-        "No watermark, no gibberish text, no spelling mistakes, no extra brand names, no fake UI chrome. "
-        f"Brand context: {_brand_summary(state)} "
-        f"Palette direction: primary {palette.get('primary')}, secondary {palette.get('secondary')}, accent {palette.get('accent')}. "
-        f"Product facts: {product_facts} "
-    )
-
-    prompts = {
-        "hang_tag": (
-            shared
-            + "Generate a premium luxury hang tag front design for this specific product. "
-            + "Use a vertical composition, rich craft-inspired ornamentation, realistic material cues, elegant typography treatment, pricing hierarchy, and premium boutique-brand styling."
-        ),
-        "label": (
-            shared
-            + "Generate a beautiful product label design for packaging. "
-            + "Use a clean but premium retail label aesthetic with strong hierarchy, craft-inspired motifs, and realistic packaging design composition."
-        ),
-        "story_card": (
-            shared
-            + "Generate a premium brand story card or product story card design. "
-            + "It should feel editorial, heritage-rich, and emotionally resonant, like a museum boutique card or luxury handcrafted insert."
-        ),
-        "certificate": (
-            shared
-            + f"Include artisan name {brand_context.get('artisan_name', 'Artisan')} and generated date {datetime.now(timezone.utc).date().isoformat()}. "
-            + "Generate a premium certificate of authenticity design for an original handmade artwork. "
-            + "It should feel official, elegant, collectible, and gallery-worthy."
-        ),
-        "branded_photo": (
-            shared
-            + "Use the provided product photo as the base image. "
-            + "Transform it into a premium ecommerce hero shot with realistic lighting, refined styling, subtle branding, artisan-luxury mood, and clean marketplace-ready composition while preserving the core product identity."
-        ),
-    }
-    return prompts[asset_type]
 
 
 async def _upload_image(image_bytes: bytes, product_id: str, filename: str, content_type: str) -> str:
@@ -103,8 +29,17 @@ async def print_assets_node(state: ProductState) -> ProductState:
 
     supabase.table("jobs").update(
         {
-            "current_step": "Designing your product assets...",
+            "current_step": "Building your product visual direction...",
             "percent": 60,
+        }
+    ).eq("id", job_id).execute()
+
+    visual_dna = await build_product_visual_dna(state)
+
+    supabase.table("jobs").update(
+        {
+            "current_step": "Designing your product assets...",
+            "percent": 70,
         }
     ).eq("id", job_id).execute()
 
@@ -115,7 +50,7 @@ async def print_assets_node(state: ProductState) -> ProductState:
         "story_card": "story_card.png",
     }.items():
         image_bytes, mime_type = await generate_image(
-            _build_asset_prompt(state, asset_type),
+            build_product_asset_prompt(state, visual_dna, asset_type),
             width_hint=1024,
             height_hint=1536,
         )
@@ -123,7 +58,7 @@ async def print_assets_node(state: ProductState) -> ProductState:
 
     if category == "painting" and (state.get("category_data", {}) or {}).get("is_original", True):
         certificate_bytes, certificate_mime = await generate_image(
-            _build_asset_prompt(state, "certificate"),
+            build_product_asset_prompt(state, visual_dna, "certificate"),
             width_hint=1400,
             height_hint=1800,
         )
@@ -142,7 +77,7 @@ async def print_assets_node(state: ProductState) -> ProductState:
     supabase.table("jobs").update(
         {
             "current_step": "Generating your branded product visual...",
-            "percent": 70,
+            "percent": 85,
         }
     ).eq("id", job_id).execute()
 
@@ -150,7 +85,7 @@ async def print_assets_node(state: ProductState) -> ProductState:
     photos = state.get("photos", [])
     if photos:
         branded_photo_bytes, branded_photo_mime = await generate_image(
-            _build_asset_prompt(state, "branded_photo"),
+            build_product_asset_prompt(state, visual_dna, "branded_photo"),
             width_hint=1400,
             height_hint=1400,
             reference_urls=[photos[0]],

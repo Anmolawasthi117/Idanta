@@ -8,6 +8,7 @@ import logging
 
 from app.agents.state import BrandState
 from app.core.database import supabase
+from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
 from app.services.gemini_image_service import generate_image
 from app.services.storage_service import upload_bytes
 
@@ -28,42 +29,18 @@ FEEL_BANNER_STYLE = {
 }
 
 
-async def _generate_logo(state: BrandState) -> tuple[bytes, str]:
-    motif = state.get("motifs", ["craft motif"])[0] if state.get("motifs") else "craft motif"
-    palette = state.get("palette", {})
-    context = state.get("context_bundle", {})
-    feel = context.get("brand_feel", "earthy")
-
+async def _generate_logo(state: BrandState, visual_dna: dict) -> tuple[bytes, str]:
     prompt = (
-        "Create a premium artisan brand logo image for an Indian craft business. "
-        "Make it look like a polished designer-made brand mark presented on a clean studio background. "
-        "No mockup, no package, no watermark, no paragraph text, no gibberish text. "
-        "Use a strong emblem, monogram, or symbolic mark that feels memorable and premium. "
-        f"Brand name inspiration: {state.get('brand_name', 'Artisan')}. "
-        f"Craft tradition: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}. "
-        f"Hero motif: {motif}. "
-        f"Brand feel: {feel}. Style: {FEEL_LOGO_STYLE.get(feel, FEEL_LOGO_STYLE['earthy'])}. "
-        f"Palette should emphasize {palette.get('primary', '#8B2635')}, {palette.get('secondary', '#4A7C59')}, {palette.get('accent', '#C4963B')}. "
-        f"Target buyer: {context.get('target_customer', 'local_bazaar')}. "
-        "The result should feel elegant, realistic, and high-end."
+        build_brand_asset_prompt(state, visual_dna, "logo")
+        + f"\nStyle modifier: {FEEL_LOGO_STYLE.get(state.get('context_bundle', {}).get('brand_feel', 'earthy'), FEEL_LOGO_STYLE['earthy'])}."
     )
     return await generate_image(prompt, width_hint=1024, height_hint=1024)
 
 
-async def _generate_banner(state: BrandState) -> tuple[bytes, str]:
-    palette = state.get("palette", {})
-    context = state.get("context_bundle", {})
-    feel = context.get("brand_feel", "earthy")
-    craft = context.get("craft_name", state.get("craft_id", "").replace("_", " ").title())
-
+async def _generate_banner(state: BrandState, visual_dna: dict) -> tuple[bytes, str]:
     prompt = (
-        "Create a luxury ecommerce hero banner for an Indian artisan brand. "
-        "It should feel like a premium designer-made visual with layered textures, craft-inspired ornamentation, strong composition, and refined lighting. "
-        "No watermark, no random text, no UI mockup, no cheap collage look. "
-        f"Craft: {craft}. "
-        f"Brand feel: {feel}. Style: {FEEL_BANNER_STYLE.get(feel, FEEL_BANNER_STYLE['earthy'])}. "
-        f"Palette direction: {palette.get('primary', '#8B2635')}, {palette.get('secondary', '#4A7C59')}, {palette.get('accent', '#C4963B')}. "
-        "The banner should feel realistic, polished, and premium enough for a storefront."
+        build_brand_asset_prompt(state, visual_dna, "banner")
+        + f"\nStyle modifier: {FEEL_BANNER_STYLE.get(state.get('context_bundle', {}).get('brand_feel', 'earthy'), FEEL_BANNER_STYLE['earthy'])}."
     )
     return await generate_image(prompt, width_hint=1536, height_hint=768)
 
@@ -75,14 +52,23 @@ async def visual_identity_node(state: BrandState) -> BrandState:
 
     supabase.table("jobs").update(
         {
-            "current_step": "Designing your logo and banner...",
+            "current_step": "Building your brand visual direction...",
             "percent": 50,
         }
     ).eq("id", job_id).execute()
 
+    visual_dna = await build_brand_visual_dna(state)
+
+    supabase.table("jobs").update(
+        {
+            "current_step": "Designing your logo and banner...",
+            "percent": 60,
+        }
+    ).eq("id", job_id).execute()
+
     (logo_bytes, logo_mime), (banner_bytes, banner_mime) = await asyncio.gather(
-        _generate_logo(state),
-        _generate_banner(state),
+        _generate_logo(state, visual_dna),
+        _generate_banner(state, visual_dna),
     )
 
     logo_url = await upload_bytes(
