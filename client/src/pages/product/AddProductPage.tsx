@@ -34,13 +34,10 @@ const makeMessage = (role: Message['role'], content: string): Message => ({
   timestamp: new Date(),
 })
 
-const buildProductPrompt = (language: 'hi' | 'en') =>
-  language === 'hi'
-    ? `
-You are Idanta's warm product assistant for Indian artisans.
-Speak only in simple Hindi or easy Hinglish. Do not reply in English-only.
-Keep every reply under 2 short sentences and ask only one question at a time.
+import type { AppLanguage } from '../../store/uiStore'
 
+const buildProductPrompt = (language: AppLanguage) => {
+  const baseRules = `
 Collect these fields naturally:
 1. name
 2. price_mrp
@@ -55,29 +52,28 @@ Important normalization rules:
 - Ask simple user-facing questions, but when returning JSON always use only the exact allowed values above.
 - If the user's answer is unclear or does not map cleanly, ask a clarification question instead of guessing.
 
-Respond as JSON with keys: message, extracted, is_complete.
-`.trim()
-    : `
+Respond as JSON with keys: message, extracted, is_complete.`
+
+  if (language === 'hi') {
+    return `
+You are Idanta's warm product assistant for Indian artisans.
+Speak only in pure Hindi using the Devanagari script. Do not use English words.
+Keep every reply under 2 short sentences and ask only one question at a time.
+${baseRules}`.trim()
+  } else if (language === 'hg') {
+    return `
+You are Idanta's warm product assistant for Indian artisans.
+Speak only in easy Hinglish (Hindi written in the English alphabet). Do not reply in pure English or pure Devanagari.
+Keep every reply under 2 short sentences and ask only one question at a time.
+${baseRules}`.trim()
+  } else {
+    return `
 You are Idanta's warm product assistant for Indian artisans.
 Speak only in simple English. Do not reply in Hindi or Hinglish.
 Keep every reply under 2 short sentences and ask only one question at a time.
-
-Collect these fields naturally:
-1. name
-2. price_mrp
-3. category
-4. occasion
-5. description_voice
-6. time_to_make_hrs
-
-Important normalization rules:
-- category must be one of: apparel, jewelry, pottery, painting, home_decor, other
-- occasion must be one of: wedding, festival, daily, gifting, home_decor, export, general
-- Ask simple user-facing questions, but when returning JSON always use only the exact allowed values above.
-- If the user's answer is unclear or does not map cleanly, ask a clarification question instead of guessing.
-
-Respond as JSON with keys: message, extracted, is_complete.
-`.trim()
+${baseRules}`.trim()
+  }
+}
 
 export default function AddProductPage() {
   const navigate = useNavigate()

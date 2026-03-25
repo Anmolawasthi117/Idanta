@@ -30,13 +30,10 @@ const createMessage = (role: Message['role'], content: string): Message => ({
   timestamp: new Date(),
 })
 
-const buildBrandPrompt = (language: 'hi' | 'en') =>
-  language === 'hi'
-    ? `
-You are Idanta's friendly brand assistant helping Indian artisans create their brand.
-Speak only in simple Hindi or easy Hinglish. Do not reply in English-only.
-Keep every message under 2 sentences. Ask one question at a time. Never use technical jargon.
+import type { AppLanguage } from '../../store/uiStore'
 
+const buildBrandPrompt = (language: AppLanguage) => {
+  const baseRules = `
 You need to collect:
 1. craft_id
 2. artisan_name
@@ -53,39 +50,32 @@ Important normalization rules:
 - target_customer must be one of: local_bazaar, tourist, online_india, export
 - brand_feel must be one of: earthy, royal, vibrant, minimal
 - script_preference must be one of: hindi, english, both
-- preferred_language must be "hi"
+- preferred_language must be "${language === 'en' ? 'en' : 'hi'}"
 
 Ask natural questions, but when returning JSON always use only the exact allowed values above.
 If the user's answer is unclear, ask a clarification question instead of guessing.
-Respond as JSON with keys: message, extracted, is_complete.
-`.trim()
-    : `
+Respond as JSON with keys: message, extracted, is_complete.`
+
+  if (language === 'hi') {
+    return `
+You are Idanta's friendly brand assistant helping Indian artisans create their brand.
+Speak only in pure Hindi using the Devanagari script. Do not use English words.
+Keep every message under 2 sentences. Ask one question at a time. Never use technical jargon.
+${baseRules}`.trim()
+  } else if (language === 'hg') {
+    return `
+You are Idanta's friendly brand assistant helping Indian artisans create their brand.
+Speak only in easy Hinglish (Hindi written in the English alphabet). Do not reply in pure English or pure Devanagari.
+Keep every message under 2 sentences. Ask one question at a time. Never use technical jargon.
+${baseRules}`.trim()
+  } else {
+    return `
 You are Idanta's friendly brand assistant helping Indian artisans create their brand.
 Speak only in simple English. Do not reply in Hindi or Hinglish.
 Keep every message under 2 sentences. Ask one question at a time. Never use technical jargon.
-
-You need to collect:
-1. craft_id
-2. artisan_name
-3. region
-4. years_of_experience
-5. generations_in_craft
-6. primary_occasion
-7. target_customer
-8. brand_feel
-9. artisan_story
-
-Important normalization rules:
-- primary_occasion must be one of: wedding, festival, daily, gifting, home_decor, export, general
-- target_customer must be one of: local_bazaar, tourist, online_india, export
-- brand_feel must be one of: earthy, royal, vibrant, minimal
-- script_preference must be one of: hindi, english, both
-- preferred_language must be "en"
-
-Ask natural questions, but when returning JSON always use only the exact allowed values above.
-If the user's answer is unclear, ask a clarification question instead of guessing.
-Respond as JSON with keys: message, extracted, is_complete.
-`.trim()
+${baseRules}`.trim()
+  }
+}
 
 export default function OnboardingChatPage() {
   const navigate = useNavigate()
@@ -100,7 +90,7 @@ export default function OnboardingChatPage() {
     ),
   ])
   const [extractedData, setExtractedData] = useState<ExtractedFormData>({
-    preferred_language: language,
+    preferred_language: language === 'en' ? 'en' : 'hi',
     script_preference: language === 'hi' ? 'hindi' : 'english',
   })
   const [isComplete, setIsComplete] = useState(false)
@@ -157,8 +147,7 @@ export default function OnboardingChatPage() {
       if (normalizedExtracted) {
         mergedData = {
           ...extractedData,
-          ...normalizedExtracted,
-          preferred_language: language,
+          preferred_language: language === 'en' ? 'en' : 'hi',
           script_preference:
             normalizedExtracted.script_preference ??
             extractedData.script_preference ??
@@ -197,7 +186,7 @@ export default function OnboardingChatPage() {
     createBrandMutation.mutate(
       {
         ...(extractedData as BrandCreatePayload),
-        preferred_language: language,
+        preferred_language: language === 'en' ? 'en' : 'hi',
         script_preference: extractedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
       },
       {

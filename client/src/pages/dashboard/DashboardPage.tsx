@@ -7,6 +7,7 @@ import { useBrand } from '../../hooks/useBrand'
 import { useJobs } from '../../hooks/useJobs'
 import { useProducts } from '../../hooks/useProduct'
 import { useAuthStore } from '../../store/authStore'
+import { copyFor, useLanguage } from '../../lib/i18n'
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user)
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const activeBrandJob = jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status !== 'done')
   const brandQuery = useBrand(brandId)
   const productsQuery = useProducts(brandId)
+  const language = useLanguage()
 
   if (!user?.has_brand) {
     return <Navigate to="/onboarding" replace />
@@ -30,7 +32,7 @@ export default function DashboardPage() {
             <img src={brandQuery.data.banner_url} alt={brandQuery.data.name} className="h-56 w-full object-cover" />
           ) : (
             <div className="flex h-56 items-center justify-center bg-gradient-to-br from-orange-100 via-amber-50 to-stone-100 text-stone-500">
-              Brand banner tayyar ho raha hai
+              {copyFor(language, 'Brand banner tayyar ho raha hai', 'Brand banner is getting ready', 'ब्रांड बैनर तैयार हो रहा है')}
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/55 via-transparent to-transparent" />
@@ -44,29 +46,29 @@ export default function DashboardPage() {
                 )}
               </div>
               <div className="pb-1 text-white">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-200">Brand summary</p>
-                <h1 className="text-3xl font-semibold">{brandQuery.data?.name ?? 'Aapka brand'}</h1>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-200">{copyFor(language, 'Brand summary', 'Brand summary', 'ब्रांड सारांश')}</p>
+                <h1 className="text-3xl font-semibold">{brandQuery.data?.name ?? copyFor(language, 'Aapka brand', 'Your brand', 'आपका ब्रांड')}</h1>
                 <p className="max-w-xl text-sm text-stone-100">
-                  {brandQuery.data?.tagline ?? 'Brand details load ho rahi hain.'}
+                  {brandQuery.data?.tagline ?? copyFor(language, 'Brand details load ho rahi hain.', 'Brand details are loading.', 'ब्रांड विवरण लोड हो रहे हैं।')}
                 </p>
               </div>
             </div>
-            {activeBrandJob ? <Badge tone="warning">Generating...</Badge> : <Badge tone="success">{brandQuery.data?.status ?? 'ready'}</Badge>}
+            {activeBrandJob ? <Badge tone="warning">{copyFor(language, 'Ban raha hai...', 'Generating...', 'बन रहा है...')}</Badge> : <Badge tone="success">{brandQuery.data?.status ?? 'ready'}</Badge>}
           </div>
         </div>
 
         <div className="space-y-4 p-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p className="text-sm text-stone-500">Artisan</p>
+              <p className="text-sm text-stone-500">{copyFor(language, 'Kareegar', 'Artisan', 'कारीगर')}</p>
               <p className="text-base font-medium text-stone-900">{brandQuery.data?.artisan_name ?? user.name}</p>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p className="text-sm text-stone-500">Region</p>
-              <p className="text-base font-medium text-stone-900">{brandQuery.data?.region ?? 'Abhi update hoga'}</p>
+              <p className="text-sm text-stone-500">{copyFor(language, 'Jagah', 'Region', 'क्षेत्र')}</p>
+              <p className="text-base font-medium text-stone-900">{brandQuery.data?.region ?? copyFor(language, 'Abhi update hoga', 'Will be updated', 'अभी अपडेट होगा')}</p>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <p className="text-sm text-stone-500">Brand feel</p>
+              <p className="text-sm text-stone-500">{copyFor(language, 'Brand feel', 'Brand feel', 'ब्रांड फ़ील')}</p>
               <p className="text-base font-medium capitalize text-stone-900">
                 {brandQuery.data?.brand_feel ?? 'earthy'}
               </p>
@@ -75,11 +77,11 @@ export default function DashboardPage() {
 
           {activeBrandJob ? (
             <Link to={`/jobs/${activeBrandJob.id}`}>
-              <Button>Active job dekho</Button>
+              <Button>{copyFor(language, 'Active job dekho', 'View active job', 'सक्रिय काम देखें')}</Button>
             </Link>
           ) : (
             <Link to="/brand">
-              <Button>Brand kholo</Button>
+              <Button>{copyFor(language, 'Brand kholo', 'Open brand', 'ब्रांड खोलें')}</Button>
             </Link>
           )}
         </div>
@@ -88,18 +90,18 @@ export default function DashboardPage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Aapke products</h2>
-            <p className="text-stone-600">Jitne ready hain sab yahan dikhenge.</p>
+            <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Aapke products', 'Your products', 'आपके उत्पाद')}</h2>
+            <p className="text-stone-600">{copyFor(language, 'Jitne ready hain sab yahan dikhenge.', 'All ready ones will appear here.', 'जितने तैयार हैं सब यहाँ दिखेंगे।')}</p>
           </div>
           <Link to="/products/add">
-            <Button>Add product</Button>
+            <Button>{copyFor(language, 'Add product', 'Add product', 'उत्पाद जोड़ें')}</Button>
           </Link>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2">
           {productsQuery.data?.map((product) => <ProductCard key={product.id} product={product} />)}
           <Link to="/products/add" className="min-w-[250px]">
             <Card className="flex h-full min-h-[240px] items-center justify-center border-dashed border-orange-300 bg-orange-50 text-center text-orange-700">
-              + Naya product jodiye
+              {copyFor(language, '+ Naya product jodiye', '+ Add new product', '+ नया उत्पाद जोड़ें')}
             </Card>
           </Link>
         </div>
@@ -107,17 +109,17 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
-          <p className="text-sm text-stone-500">Total products</p>
+          <p className="text-sm text-stone-500">{copyFor(language, 'Total products', 'Total products', 'कुल उत्पाद')}</p>
           <p className="text-3xl font-semibold text-stone-900">{productsQuery.data?.length ?? 0}</p>
         </Card>
         <Card>
-          <p className="text-sm text-stone-500">Ready products</p>
+          <p className="text-sm text-stone-500">{copyFor(language, 'Ready products', 'Ready products', 'तैयार उत्पाद')}</p>
           <p className="text-3xl font-semibold text-stone-900">
             {productsQuery.data?.filter((product) => product.status === 'ready').length ?? 0}
           </p>
         </Card>
         <Card>
-          <p className="text-sm text-stone-500">Views this week</p>
+          <p className="text-sm text-stone-500">{copyFor(language, 'Is hafte views', 'Views this week', 'इस सप्ताह के व्यूज़')}</p>
           <p className="text-3xl font-semibold text-stone-900">--</p>
         </Card>
       </div>

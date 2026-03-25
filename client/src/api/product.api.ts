@@ -44,7 +44,11 @@ const parseNumber = (value: string) => {
   return match ? Number(match[0]) : undefined
 }
 
-const copy = (language: AppLanguage, hi: string, en: string) => (language === 'hi' ? hi : en)
+const copy = (language: AppLanguage, hgString: string, enString: string, hiString?: string) => {
+  if (language === 'en') return enString
+  if (language === 'hi') return hiString || hgString
+  return hgString
+}
 
 export const productAssistChat = async (
   message: string,

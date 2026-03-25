@@ -10,6 +10,7 @@ import { useBrandAsset } from '../../hooks/useAssets'
 import { useBrand, useRegenerateBrand } from '../../hooks/useBrand'
 import { useJobs } from '../../hooks/useJobs'
 import { downloadBlob, getErrorMessage, sanitizeHtml } from '../../lib/utils'
+import { copyFor, useLanguage } from '../../lib/i18n'
 
 export default function BrandPage() {
   const navigate = useNavigate()
@@ -25,6 +26,7 @@ export default function BrandPage() {
   const assetMutation = useBrandAsset()
   const regenerateMutation = useRegenerateBrand()
   const { pushToast } = useToast()
+  const language = useLanguage()
   const [storyTab, setStoryTab] = useState<'en' | 'hi'>('en')
 
   const brand = brandQuery.data
@@ -42,14 +44,14 @@ export default function BrandPage() {
 
   const assets = [
     {
-      title: 'Brand kit',
+      title: copyFor(language, 'Brand kit', 'Brand kit', 'ब्रांड किट'),
       type: 'ZIP',
       preview: null,
       isAvailable: Boolean(brand?.kit_zip_url),
       downloadType: 'kit' as const,
     },
     {
-      title: 'Logo image',
+      title: copyFor(language, 'Logo image', 'Logo image', 'लोगो चित्र'),
       type: 'PNG',
       preview: brand?.logo_url ? (
         <div className="flex h-40 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 p-4">
@@ -60,7 +62,7 @@ export default function BrandPage() {
       downloadType: 'logo' as const,
     },
     {
-      title: 'Banner image',
+      title: copyFor(language, 'Banner image', 'Banner image', 'बैनर चित्र'),
       type: 'PNG',
       preview: brand?.banner_url ? (
         <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
@@ -85,15 +87,15 @@ export default function BrandPage() {
   }
 
   if (!latestBrandId) {
-    return <Card>Aapka brand abhi bana nahi hai. Pehle onboarding poora kijiye.</Card>
+    return <Card>{copyFor(language, 'Aapka brand abhi bana nahi hai. Pehle onboarding poora kijiye.', 'Your brand is not created yet. Please complete onboarding first.', 'आपका ब्रांड अभी बना नहीं है। पहले ऑनबोर्डिंग पूरा करें।')}</Card>
   }
 
   if (brandQuery.isLoading) {
-    return <Card>Brand load ho raha hai...</Card>
+    return <Card>{copyFor(language, 'Brand load ho raha hai...', 'Loading brand...', 'ब्रांड लोड हो रहा है...')}</Card>
   }
 
   if (!brand) {
-    return <Card>Brand data nahi mila.</Card>
+    return <Card>{copyFor(language, 'Brand data nahi mila.', 'Brand data not found.', 'ब्रांड डेटा नहीं मिला।')}</Card>
   }
 
   return (
@@ -102,8 +104,8 @@ export default function BrandPage() {
 
       <Card className="space-y-4">
         <div>
-          <p className="text-sm font-semibold text-orange-600">Color palette</p>
-          <h2 className="text-2xl font-semibold text-stone-900">Aapke brand ke rang</h2>
+          <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Rang', 'Color palette', 'रंगों का चयन')}</p>
+          <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Aapke brand ke rang', 'Your brand colors', 'आपके ब्रांड के रंग')}</h2>
         </div>
         <PaletteDisplay palette={brand.palette} />
       </Card>
@@ -127,10 +129,10 @@ export default function BrandPage() {
 
       <Card className="space-y-4">
         <div>
-          <p className="text-sm font-semibold text-orange-600">Apni files download karein</p>
-          <h2 className="text-2xl font-semibold text-stone-900">Brand assets</h2>
+          <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Apni files download karein', 'Download your files', 'अपनी फ़ाइलें डाउनलोड करें')}</p>
+          <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Brand assets', 'Brand assets', 'ब्रांड एसेट्स')}</h2>
           <p className="text-sm text-stone-500">
-            Logo aur banner ab PNG image ke roop me download honge taki print aur share karna aasaan rahe.
+            {copyFor(language, 'Logo aur banner ab PNG image ke roop me download honge taki print aur share karna aasaan rahe.', 'Logo and banner will now download as PNG images so they are easy to print and share.', 'लोगो और बैनर अब PNG इमेज़ के रूप में डाउनलोड होंगे ताकि प्रिंट और साझा करना आसान रहे।')}
           </p>
         </div>
         <BrandAssetGrid>
@@ -142,7 +144,7 @@ export default function BrandPage() {
               </div>
               {asset.preview ?? (
                 <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 text-center text-sm text-stone-500">
-                  Asset abhi available nahi hai.
+                  {copyFor(language, 'Asset abhi available nahi hai.', 'Asset is not available yet.', 'एसेट अभी उपलब्ध नहीं है।')}
                 </div>
               )}
               <div className="flex gap-3">
@@ -152,7 +154,7 @@ export default function BrandPage() {
                   loading={assetMutation.isPending}
                   disabled={!asset.isAvailable || regenerateMutation.isPending}
                 >
-                  Download
+                  {copyFor(language, 'Download', 'Download', 'डाउनलोड')}
                 </Button>
                 <Button
                   className="flex-1"
@@ -161,7 +163,7 @@ export default function BrandPage() {
                   loading={regenerateMutation.isPending}
                   disabled={assetMutation.isPending}
                 >
-                  {asset.isAvailable ? 'Regenerate' : 'Generate'}
+                  {asset.isAvailable ? copyFor(language, 'Regenerate', 'Regenerate', 'फिर से बनाएं') : copyFor(language, 'Generate', 'Generate', 'नया बनाएं')}
                 </Button>
               </div>
             </Card>

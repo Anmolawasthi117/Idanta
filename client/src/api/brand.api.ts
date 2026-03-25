@@ -38,7 +38,11 @@ const findCraft = (message: string, crafts: CraftItem[]) =>
     return haystack.includes(message.toLowerCase())
   })
 
-const copy = (language: AppLanguage, hi: string, en: string) => (language === 'hi' ? hi : en)
+const copy = (language: AppLanguage, hgString: string, enString: string, hiString?: string) => {
+  if (language === 'en') return enString
+  if (language === 'hi') return hiString || hgString
+  return hgString
+}
 
 export const brandAssistChat = async (
   message: string,
@@ -171,8 +175,8 @@ export const brandAssistChat = async (
     const matched = options.find((option) => lower.includes(option))
     if (matched) {
       next.brand_feel = matched
-      next.script_preference = next.script_preference ?? (language === 'hi' ? 'hindi' : 'english')
-      next.preferred_language = next.preferred_language ?? language
+      next.script_preference = next.script_preference ?? (language === 'en' ? 'english' : 'hindi')
+      next.preferred_language = next.preferred_language ?? (language === 'en' ? 'en' : 'hi')
       return {
         message: copy(
           language,

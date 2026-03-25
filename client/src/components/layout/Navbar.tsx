@@ -57,7 +57,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={toggleLanguage}>
-            {language === 'hi' ? 'English' : 'हिंदी'}
+            {language === 'hi' ? 'हिंदी' : language === 'hg' ? 'Hinglish' : 'English'}
           </Button>
           <div className="hidden text-right sm:block">
             <p className="text-sm font-medium text-stone-800">{user?.name ?? 'Artisan'}</p>
