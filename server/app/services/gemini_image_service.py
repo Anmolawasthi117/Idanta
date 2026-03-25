@@ -1,12 +1,12 @@
 """
-Gemini image generation service using the Gemini REST API.
+Image generation service using the Pollinations.ai API.
 """
 
 from __future__ import annotations
 
-import base64
 import io
 import logging
+import urllib.parse
 from typing import Iterable, Optional
 
 import httpx
@@ -16,7 +16,8 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# Max prompt length for the URL path (Pollinations uses GET with prompt in URL)
+MAX_PROMPT_LENGTH = 1500
 
 
 def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -41,7 +42,7 @@ def _fallback_image(prompt: str, width: int = 1024, height: int = 1024) -> bytes
 
     wrapped_prompt = []
     line = ""
-    for word in prompt.split():
+    for word in prompt.split()[:60]:
         candidate = f"{line} {word}".strip()
         if len(candidate) > 42:
             if line:
@@ -62,8 +63,22 @@ def _fallback_image(prompt: str, width: int = 1024, height: int = 1024) -> bytes
     return buffer.getvalue()
 
 
+def _truncate_prompt(prompt: str, max_length: int = MAX_PROMPT_LENGTH) -> str:
+    """Truncate prompt to fit in URL path while keeping it coherent."""
+    if len(prompt) <= max_length:
+        return prompt
+    # Cut at the last full sentence or newline before the limit
+    truncated = prompt[:max_length]
+    for sep in ["\n", ". ", ", "]:
+        idx = truncated.rfind(sep)
+        if idx > max_length // 2:
+            truncated = truncated[:idx]
+            break
+    return truncated.strip()
+
+
 async def _download_reference(url: str) -> tuple[bytes, str]:
-    async with httpx.AsyncClient(timeout=40.0) as client:
+    async with httpx.AsyncClient(timeout=40.0, follow_redirects=True) as client:
         response = await client.get(url)
         response.raise_for_status()
         mime_type = response.headers.get("content-type", "image/jpeg").split(";")[0]
@@ -77,42 +92,62 @@ async def generate_image(
     height_hint: int = 1024,
     reference_urls: Optional[Iterable[str]] = None,
 ) -> tuple[bytes, str]:
-    parts: list[dict] = [{"text": prompt}]
+    """Generate an image using the Pollinations.ai API.
+    
+    Uses the GET /image/{prompt} endpoint at gen.pollinations.ai.
+    The API key is passed as a query parameter to survive redirects.
+    """
+    # Truncate prompt to avoid URL length issues
+    safe_prompt = _truncate_prompt(prompt)
+    encoded_prompt = urllib.parse.quote(safe_prompt, safe="")
 
-    for reference_url in reference_urls or []:
-        reference_bytes, mime_type = await _download_reference(reference_url)
-        parts.append(
-            {
-                "inlineData": {
-                    "mimeType": mime_type,
-                    "data": base64.b64encode(reference_bytes).decode("utf-8"),
-                }
-            }
-        )
+    # Use gen.pollinations.ai directly (avoids redirect from image.pollinations.ai)
+    base_url = "https://gen.pollinations.ai/image"
+    url = f"{base_url}/{encoded_prompt}"
 
-    payload = {
-        "contents": [{"parts": parts}],
-        "generationConfig": {"temperature": 0.9, "responseModalities": ["TEXT", "IMAGE"]},
+    params: dict[str, str | int] = {
+        "width": width_hint,
+        "height": height_hint,
+        "nologo": "true",
+        "model": "flux",
     }
 
+    # Pass API key as query param (survives redirects, unlike Authorization header)
+    if hasattr(settings, "POLLINATIONS_API_KEY") and settings.POLLINATIONS_API_KEY:
+        params["key"] = settings.POLLINATIONS_API_KEY
+
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                GEMINI_API_URL.format(model=settings.GEMINI_IMAGE_MODEL),
-                params={"key": settings.GEMINI_API_KEY},
-                json=payload,
-            )
+        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+            logger.info("Pollinations request: model=flux, prompt_len=%d, url_len=%d", len(safe_prompt), len(url))
+            response = await client.get(url, params=params)
             response.raise_for_status()
-            data = response.json()
+
+            # Pollinations returns the image directly as binary
+            content_type = response.headers.get("content-type", "image/jpeg").split(";")[0]
+            if content_type not in ("image/jpeg", "image/png", "image/webp"):
+                content_type = "image/jpeg"
+
+            image_bytes = response.content
+
+            # Verify we got a real image (not an HTML error page)
+            if len(image_bytes) < 1000 or image_bytes[:5] in (b"<html", b"<!DOC", b"<!doc"):
+                logger.warning(
+                    "Pollinations returned non-image content (%d bytes, type=%s). Using fallback.",
+                    len(image_bytes), content_type,
+                )
+                return _fallback_image(safe_prompt, width_hint, height_hint), "image/png"
+
+            logger.info("Pollinations image generated successfully: %d bytes, type=%s", len(image_bytes), content_type)
+            return image_bytes, content_type
+
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "Pollinations API HTTP error %d: %s",
+            e.response.status_code,
+            e.response.text[:200] if e.response.text else "no body",
+        )
+        return _fallback_image(safe_prompt, width_hint, height_hint), "image/png"
     except Exception as exc:
-        logger.warning("Gemini image generation request failed: %s", exc)
-        return _fallback_image(prompt, width_hint, height_hint), "image/png"
+        logger.error("Pollinations image generation failed: %s", exc)
+        return _fallback_image(safe_prompt, width_hint, height_hint), "image/png"
 
-    for candidate in data.get("candidates", []):
-        for part in candidate.get("content", {}).get("parts", []):
-            inline = part.get("inlineData")
-            if inline and inline.get("data"):
-                return base64.b64decode(inline["data"]), inline.get("mimeType", "image/png")
-
-    logger.warning("Gemini response did not include an image. Falling back to a local placeholder.")
-    return _fallback_image(prompt, width_hint, height_hint), "image/png"

@@ -13,6 +13,8 @@ export const useProduct = (productId: string | null) =>
     queryKey: ['product', productId],
     queryFn: () => getProduct(productId as string),
     enabled: Boolean(productId),
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
 export const useCreateProduct = () =>

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     GEMINI_IMAGE_MODEL: str = "gemini-2.0-flash-preview-image-generation"
 
     # ── Pollinations.ai ────────────────────────────────────────────────────────
+    POLLINATIONS_API_KEY: str
 
     # ── RAG / Embeddings ───────────────────────────────────────────────────────
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"

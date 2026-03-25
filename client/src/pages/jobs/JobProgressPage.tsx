@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import ProgressBar from '../../components/ui/ProgressBar'
@@ -49,15 +50,24 @@ export default function JobProgressPage() {
   const navigate = useNavigate()
   const language = useLanguage()
   const jobQuery = useJobPolling(jobId ?? null)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (jobQuery.data?.status === 'done' && jobQuery.data.ref_id) {
+      // Invalidate cached product/brand data so fresh URLs are fetched
+      if (jobQuery.data.job_type === 'product_assets') {
+        queryClient.invalidateQueries({ queryKey: ['product', jobQuery.data.ref_id] })
+        queryClient.invalidateQueries({ queryKey: ['products'] })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['brand'] })
+      }
+
       const timeout = window.setTimeout(() => {
         navigate(jobQuery.data?.job_type === 'brand_onboarding' ? '/brand' : `/products/${jobQuery.data?.ref_id}`)
       }, 1500)
       return () => window.clearTimeout(timeout)
     }
-  }, [jobQuery.data, navigate])
+  }, [jobQuery.data, navigate, queryClient])
 
   const steps = jobQuery.data?.job_type === 'product_assets' ? PRODUCT_STEPS[language] : BRAND_STEPS[language]
 
