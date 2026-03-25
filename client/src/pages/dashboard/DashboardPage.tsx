@@ -35,10 +35,10 @@ export default function DashboardPage() {
               {copyFor(language, 'Brand banner tayyar ho raha hai', 'Brand banner is getting ready', 'ब्रांड बैनर तैयार हो रहा है')}
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/55 via-transparent to-transparent" />
-          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-4">
-            <div className="flex items-end gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/80 bg-white p-3 shadow-lg">
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/70 via-stone-950/20 to-transparent" />
+          <div className="absolute bottom-4 left-4 right-4 flex flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-end gap-3 sm:gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white p-2 shadow-lg sm:h-20 sm:w-20 sm:rounded-3xl sm:p-3">
                 {brandQuery.data?.logo_url ? (
                   <img src={brandQuery.data.logo_url} alt={`${brandQuery.data.name} logo`} className="h-full w-full object-contain" />
                 ) : (
@@ -46,14 +46,16 @@ export default function DashboardPage() {
                 )}
               </div>
               <div className="pb-1 text-white">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-200">{copyFor(language, 'Brand summary', 'Brand summary', 'ब्रांड सारांश')}</p>
-                <h1 className="text-3xl font-semibold">{brandQuery.data?.name ?? copyFor(language, 'Aapka brand', 'Your brand', 'आपका ब्रांड')}</h1>
-                <p className="max-w-xl text-sm text-stone-100">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-200 sm:text-sm">{copyFor(language, 'Brand summary', 'Brand summary', 'ब्रांड सारांश')}</p>
+                <h1 className="text-2xl font-semibold sm:text-3xl">{brandQuery.data?.name ?? copyFor(language, 'Aapka brand', 'Your brand', 'आपका ब्रांड')}</h1>
+                <p className="line-clamp-2 max-w-xl text-xs text-stone-100 sm:text-sm">
                   {brandQuery.data?.tagline ?? copyFor(language, 'Brand details load ho rahi hain.', 'Brand details are loading.', 'ब्रांड विवरण लोड हो रहे हैं।')}
                 </p>
               </div>
             </div>
-            {activeBrandJob ? <Badge tone="warning">{copyFor(language, 'Ban raha hai...', 'Generating...', 'बन रहा है...')}</Badge> : <Badge tone="success">{brandQuery.data?.status ?? 'ready'}</Badge>}
+            <div className="self-end sm:self-auto">
+              {activeBrandJob ? <Badge tone="warning">{copyFor(language, 'Ban raha hai...', 'Generating...', 'बन रहा है...')}</Badge> : <Badge tone="success">{brandQuery.data?.status ?? 'ready'}</Badge>}
+            </div>
           </div>
         </div>
 
@@ -88,10 +90,10 @@ export default function DashboardPage() {
       </Card>
 
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Aapke products', 'Your products', 'आपके उत्पाद')}</h2>
-            <p className="text-stone-600">{copyFor(language, 'Jitne ready hain sab yahan dikhenge.', 'All ready ones will appear here.', 'जितने तैयार हैं सब यहाँ दिखेंगे।')}</p>
+            <h2 className="text-xl font-semibold text-stone-900 sm:text-2xl">{copyFor(language, 'Aapke products', 'Your products', 'आपके उत्पाद')}</h2>
+            <p className="text-sm text-stone-600 sm:text-base">{copyFor(language, 'Jitne ready hain sab yahan dikhenge.', 'All ready ones will appear here.', 'जितने तैयार हैं सब यहाँ दिखेंगे।')}</p>
           </div>
           <Link to="/products/add">
             <Button>{copyFor(language, 'Add product', 'Add product', 'उत्पाद जोड़ें')}</Button>

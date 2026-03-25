@@ -279,8 +279,8 @@ export default function OnboardingChatPage() {
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">
           <div className="space-y-2">
-          <div className="flex items-center justify-between pb-2">
-            <h1 className="text-3xl font-semibold text-stone-900">
+          <div className="flex flex-col items-start gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">
               {copyFor(language, 'Baat karke brand banao', 'Create your brand by chatting')}
             </h1>
             <Button variant={isVoiceMode ? 'primary' : 'secondary'} size="sm" onClick={() => {
@@ -300,11 +300,11 @@ export default function OnboardingChatPage() {
               {isVoiceMode ? copyFor(language, 'Voice Mode On', 'Voice Mode On') : copyFor(language, 'Voice Mode Off', 'Voice Mode Off')}
             </Button>
           </div>
-          <p className="text-base text-stone-600">
+          <p className="text-sm text-stone-600 sm:text-base">
             {copyFor(
               language,
               'Simple sawaal, simple jawaab. Aapka kaam hi sabse important hai.',
-              'Simple questions, simple answers. Your craft is the most important thing here.',
+              'Simple questions, simple answers. Your craft is the most important.',
             )}
           </p>
         </div>
@@ -349,11 +349,11 @@ export default function OnboardingChatPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4">
-                <Button size="lg" className="h-16 rounded-full px-8 text-lg shadow-md" onClick={startRecording} loading={isLoading}>
-                  <Mic className="h-6 w-6 mr-2" />
+                <Button size="lg" className="h-14 w-full rounded-full px-6 text-base shadow-md sm:h-16 sm:w-auto sm:px-8 sm:text-lg" onClick={startRecording} loading={isLoading}>
+                  <Mic className="h-5 w-5 mr-2 sm:h-6 sm:w-6" />
                   {copyFor(language, 'Tap karke Boliye', 'Tap to Speak')}
                 </Button>
-                <p className="text-sm text-stone-500">
+                <p className="text-center text-xs text-stone-500 sm:text-sm">
                   {copyFor(language, 'Boliye aur hum aapka brand banayenge.', 'Speak and we will build your brand.')}
                 </p>
               </div>

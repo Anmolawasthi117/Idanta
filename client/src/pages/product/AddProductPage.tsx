@@ -308,8 +308,8 @@ export default function AddProductPage() {
 
       {mode === 'chat' ? (
         <div className="space-y-4">
-          <Card className="flex items-center justify-between bg-orange-50 text-stone-700">
-            <span>
+          <Card className="flex flex-col items-start gap-4 bg-orange-50 text-stone-700 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm sm:text-base">
               {isBackendChatLive
                 ? copyFor(language, 'Phase 1 product chat ab backend se connected hai.', 'Phase 1 product chat is now connected to the backend.')
                 : copyFor(language, 'Backend chat abhi respond nahi kar raha, isliye temporary fallback chat chal rahi hai.', 'The backend chat is not responding right now, so a temporary fallback chat is being used.')}
@@ -364,9 +364,9 @@ export default function AddProductPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-4">
-                  <Button size="lg" className="h-16 rounded-full px-8 text-lg shadow-md" onClick={startRecording} loading={isLoading}>
-                    <Mic className="h-6 w-6 mr-2" />
+                <div className="flex flex-col items-center gap-4 w-full sm:w-auto">
+                  <Button size="lg" className="h-14 w-full rounded-full px-6 text-base shadow-md sm:h-16 sm:w-auto sm:px-8 sm:text-lg" onClick={startRecording} loading={isLoading}>
+                    <Mic className="h-5 w-5 mr-2 sm:h-6 sm:w-6" />
                     {copyFor(language, 'Tap karke Boliye', 'Tap to Speak')}
                   </Button>
                 </div>
@@ -400,10 +400,10 @@ export default function AddProductPage() {
       {(phaseOneComplete || mode === 'form') && (
         <Card className="space-y-5">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">
+            <h2 className="text-xl font-semibold text-stone-900 sm:text-2xl">
               {copyFor(language, 'Phase 2 - Category details aur photos', 'Phase 2 - Category details and photos')}
             </h2>
-            <p className="text-stone-600">
+            <p className="text-sm text-stone-600 sm:text-base">
               {copyFor(language, 'Ye hissa structured hai taki backend sahi asset bana sake.', 'This part is structured so the backend can generate the right assets.')}
             </p>
           </div>
