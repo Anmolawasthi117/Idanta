@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { brandAssist } from '../../api/chat.api'
+import { brandAssistStream } from '../../api/chat.api'
 import { brandAssistChat } from '../../api/brand.api'
 import ChatInput from '../../components/chat/ChatInput'
 import ChatMessage from '../../components/chat/ChatMessage'
@@ -9,9 +9,11 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useToast } from '../../components/ui/useToast'
 import { useCrafts, useCreateBrand } from '../../hooks/useBrand'
+import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { normalizeBrandExtracted } from '../../lib/chatNormalization'
 import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
+import { Mic, Square, Volume2, MicOff } from 'lucide-react'
 import type { BrandCreatePayload } from '../../types/brand.types'
 
 interface Message {
@@ -96,6 +98,31 @@ export default function OnboardingChatPage() {
   const [isComplete, setIsComplete] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isBackendChatLive, setIsBackendChatLive] = useState(true)
+  const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const {
+    isRecording,
+    isPlaying,
+    isProcessingTranscription,
+    startRecording,
+    stopRecording,
+    playSynthesizedSpeech,
+    stopAudio,
+  } = useVoiceChat({
+    language: language,
+    onResult: (text) => {
+      if (text) handleSend(text)
+    },
+    onError: (err) => pushToast(err),
+  })
+
+  // Auto-scroll to bottom of chat
+  useMemo(() => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  }, [messages])
 
   const missingFields = useMemo(() => {
     const required: Array<keyof BrandCreatePayload> = [
@@ -120,59 +147,91 @@ export default function OnboardingChatPage() {
     setIsLoading(true)
 
     try {
-      let response
+      let mergedData = extractedData
+      let fullMessage = ''
+      const assistantMessageId = `assistant-${Date.now()}`
+      setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: '', timestamp: new Date() }])
+
+      let isFallback = false
 
       try {
-        response = await brandAssist({
-          system_prompt: buildBrandPrompt(language),
-          messages: nextMessages.map((item) => ({
-            role: item.role,
-            content: item.content,
-          })),
-          context: {
-            selected_language: language,
-            crafts: craftsQuery.data ?? [],
-            extracted_data: extractedData,
+        await brandAssistStream(
+          {
+            system_prompt: buildBrandPrompt(language),
+            messages: nextMessages.map((item) => ({
+              role: item.role,
+              content: item.content,
+            })),
+            context: {
+              selected_language: language,
+              crafts: craftsQuery.data ?? [],
+              extracted_data: extractedData,
+            },
           },
-        })
+          (event) => {
+            if (event.type === 'chunk') {
+              fullMessage += event.content
+              setMessages((current) => 
+                current.map(m => m.id === assistantMessageId ? { ...m, content: fullMessage } : m)
+              )
+            } else if (event.type === 'final') {
+              const normalizedExtracted = normalizeBrandExtracted(event.extracted ?? {})
+              if (normalizedExtracted) {
+                mergedData = {
+                  ...mergedData,
+                  ...normalizedExtracted,
+                  preferred_language: language === 'en' ? 'en' : 'hi',
+                  script_preference: normalizedExtracted.script_preference ?? mergedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+                }
+                setExtractedData(mergedData)
+              }
+              const requiredFields: Array<keyof BrandCreatePayload> = [
+                'craft_id', 'artisan_name', 'region', 'years_of_experience',
+                'generations_in_craft', 'primary_occasion', 'target_customer',
+                'brand_feel', 'script_preference', 'preferred_language'
+              ]
+              setIsComplete(Boolean(event.is_complete) && requiredFields.every((field) => Boolean(mergedData[field])))
+              
+              if (isVoiceMode && fullMessage) {
+                playSynthesizedSpeech(fullMessage)
+              }
+              setIsLoading(false)
+            } else if (event.type === 'error') {
+              pushToast(event.content)
+              setIsLoading(false)
+            }
+          }
+        )
         setIsBackendChatLive(true)
       } catch (chatError) {
         setIsBackendChatLive(false)
-        response = await brandAssistChat(message, extractedData, craftsQuery.data ?? [], language)
-        pushToast(getErrorMessage(chatError))
+        isFallback = true
       }
 
-      const normalizedExtracted = normalizeBrandExtracted(response.extracted)
-      let mergedData = extractedData
-      if (normalizedExtracted) {
-        mergedData = {
-          ...extractedData,
-          preferred_language: language === 'en' ? 'en' : 'hi',
-          script_preference:
-            normalizedExtracted.script_preference ??
-            extractedData.script_preference ??
-            (language === 'hi' ? 'hindi' : 'english'),
+      if (isFallback) {
+        // Fallback logic for non-streaming response
+        const response = await brandAssistChat(message, extractedData, craftsQuery.data ?? [], language)
+        const normalizedExtracted = normalizeBrandExtracted(response.extracted ?? {})
+        if (normalizedExtracted) {
+          mergedData = {
+            ...mergedData,
+            ...normalizedExtracted,
+            preferred_language: language === 'en' ? 'en' : 'hi',
+            script_preference: normalizedExtracted.script_preference ?? mergedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+          }
+          setExtractedData(mergedData)
         }
-        setExtractedData(mergedData)
+        setMessages((current) => 
+          current.map(m => m.id === assistantMessageId ? { ...m, content: response.message } : m)
+        )
+        if (isVoiceMode && response.message) {
+          playSynthesizedSpeech(response.message)
+        }
+        setIsLoading(false)
       }
 
-      setMessages((current) => [...current, createMessage('assistant', response.message)])
-      const requiredFields: Array<keyof BrandCreatePayload> = [
-        'craft_id',
-        'artisan_name',
-        'region',
-        'years_of_experience',
-        'generations_in_craft',
-        'primary_occasion',
-        'target_customer',
-        'brand_feel',
-        'script_preference',
-        'preferred_language',
-      ]
-      setIsComplete(Boolean(response.is_complete) && requiredFields.every((field) => Boolean(mergedData[field])))
     } catch (error) {
       pushToast(getErrorMessage(error))
-    } finally {
       setIsLoading(false)
     }
   }
@@ -220,28 +279,94 @@ export default function OnboardingChatPage() {
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <div className="space-y-4">
           <div className="space-y-2">
+          <div className="flex items-center justify-between pb-2">
             <h1 className="text-3xl font-semibold text-stone-900">
               {copyFor(language, 'Baat karke brand banao', 'Create your brand by chatting')}
             </h1>
-            <p className="text-base text-stone-600">
-              {copyFor(
-                language,
-                'Simple sawaal, simple jawaab. Aapka kaam hi sabse important hai.',
-                'Simple questions, simple answers. Your craft is the most important thing here.',
-              )}
-            </p>
+            <Button variant={isVoiceMode ? 'primary' : 'secondary'} size="sm" onClick={() => {
+              const newMode = !isVoiceMode
+              setIsVoiceMode(newMode)
+              if (newMode) {
+                const lastAssistantMessage = messages.slice().reverse().find(m => m.role === 'assistant')
+                if (lastAssistantMessage && lastAssistantMessage.content) {
+                  playSynthesizedSpeech(lastAssistantMessage.content)
+                }
+              } else { 
+                stopAudio()
+                stopRecording() 
+              }
+            }}>
+              {isVoiceMode ? <Mic className="h-4 w-4 mr-2" /> : <MicOff className="h-4 w-4 mr-2" />}
+              {isVoiceMode ? copyFor(language, 'Voice Mode On', 'Voice Mode On') : copyFor(language, 'Voice Mode Off', 'Voice Mode Off')}
+            </Button>
           </div>
-          <ChatWindow>
-            {messages.map((message) => (
-              <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} />
-            ))}
-          </ChatWindow>
+          <p className="text-base text-stone-600">
+            {copyFor(
+              language,
+              'Simple sawaal, simple jawaab. Aapka kaam hi sabse important hai.',
+              'Simple questions, simple answers. Your craft is the most important thing here.',
+            )}
+          </p>
+        </div>
+        <ChatWindow>
+          {messages.map((message) => (
+            <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} />
+          ))}
+          <div ref={messagesEndRef} />
+        </ChatWindow>
+        
+        {isVoiceMode ? (
+          <Card className="flex flex-col items-center justify-center p-6 bg-orange-50 border-orange-200">
+            {isPlaying ? (
+              <div className="flex flex-col items-center gap-4">
+                <Volume2 className="h-12 w-12 text-orange-500 animate-pulse" />
+                <p className="text-stone-700 font-medium">
+                  {copyFor(language, 'Assistant bol raha hai...', 'Assistant is speaking...')}
+                </p>
+                <Button variant="secondary" onClick={stopAudio}>
+                  <Square className="h-4 w-4 mr-2" /> {copyFor(language, 'Roko', 'Stop')}
+                </Button>
+              </div>
+            ) : isProcessingTranscription ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-orange-500"></div>
+                <p className="text-stone-700 font-medium animate-pulse">
+                  {copyFor(language, 'Samajh rahe hain...', 'Processing audio...')}
+                </p>
+              </div>
+            ) : isRecording ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <Mic className="h-12 w-12 text-red-500" />
+                  <span className="absolute top-0 right-0 h-3 w-3 animate-ping rounded-full bg-red-400"></span>
+                </div>
+                <p className="text-stone-700 font-medium animate-pulse">
+                  {copyFor(language, 'Aapki awaaz sun rahe hain...', 'Listening to you...')}
+                </p>
+                <Button variant="secondary" onClick={stopRecording}>
+                  <Square className="h-4 w-4 mr-2" /> {copyFor(language, 'Done', 'Done')}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <Button size="lg" className="h-16 rounded-full px-8 text-lg shadow-md" onClick={startRecording} loading={isLoading}>
+                  <Mic className="h-6 w-6 mr-2" />
+                  {copyFor(language, 'Tap karke Boliye', 'Tap to Speak')}
+                </Button>
+                <p className="text-sm text-stone-500">
+                  {copyFor(language, 'Boliye aur hum aapka brand banayenge.', 'Speak and we will build your brand.')}
+                </p>
+              </div>
+            )}
+          </Card>
+        ) : (
           <ChatInput
             onSend={handleSend}
             loading={isLoading || craftsQuery.isLoading}
             placeholder={copyFor(language, 'Yahan jawaab likhiye...', 'Write your answer here...')}
           />
-        </div>
+        )}
+      </div>
 
         <Card className="space-y-4">
           <div>

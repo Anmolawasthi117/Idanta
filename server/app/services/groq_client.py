@@ -104,3 +104,68 @@ async def groq_text_completion(
             await asyncio.sleep(wait)
 
     raise RuntimeError("Groq text completion failed after maximum retries.")
+
+from typing import AsyncGenerator
+
+async def groq_stream_completion(
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int = 1024,
+    temperature: float = 0.7,
+    max_retries: int = 4,
+) -> AsyncGenerator[str, None]:
+    """
+    Call Groq for a streaming plain text response.
+    Yields string chunks as they arrive.
+    """
+    client = get_groq_client()
+    delay = 2.0
+
+    for attempt in range(max_retries):
+        try:
+            stream = await client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+            )
+            async for chunk in stream:
+                content = chunk.choices[0].delta.content
+                if content is not None:
+                    yield content
+            return
+
+        except RateLimitError:
+            if attempt == max_retries - 1:
+                raise RuntimeError("Groq rate limit exceeded after all retries.")
+            wait = delay * (2 ** attempt)
+            logger.warning(f"Groq rate limit hit. Retrying in {wait}s (attempt {attempt + 1})...")
+            await asyncio.sleep(wait)
+
+    raise RuntimeError("Groq stream completion failed after maximum retries.")
+
+async def groq_transcribe_audio(filename: str, file_bytes: bytes, language: str = None) -> str:
+    """
+    Call Groq Whisper model to transcribe an audio file.
+    """
+    client = get_groq_client()
+    try:
+        kwargs = {
+            "file": (filename, file_bytes),
+            "model": "whisper-large-v3",
+            "response_format": "json",
+            "temperature": 0.0,
+            "prompt": "Idanta platform onboarding conversation. Namaste, artisan, brand, craft, product name, price, description, occasion, feel."
+        }
+        if language:
+            kwargs["language"] = language
+        
+        response = await client.audio.transcriptions.create(**kwargs)
+        return response.text
+    except Exception as e:
+        logger.error(f"Groq transcription failed: {e}")
+        raise RuntimeError(f"Failed to transcribe audio: {e}") from e

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { productAssist } from '../../api/chat.api'
+import { productAssistStream } from '../../api/chat.api'
 import { productAssistChat } from '../../api/product.api'
 import ChatInput from '../../components/chat/ChatInput'
 import ChatMessage from '../../components/chat/ChatMessage'
@@ -14,10 +14,12 @@ import Textarea from '../../components/ui/Textarea'
 import { useToast } from '../../components/ui/useToast'
 import { useJobs } from '../../hooks/useJobs'
 import { useCreateProduct, useGenerateProductAssets } from '../../hooks/useProduct'
+import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { normalizeProductExtracted } from '../../lib/chatNormalization'
 import { ACCEPTED_IMAGE_TYPES, MAX_PRODUCT_PHOTO_SIZE_BYTES, MAX_PRODUCT_PHOTOS } from '../../lib/constants'
 import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
+import { Mic, MicOff, Square, Volume2 } from 'lucide-react'
 import type { CategoryData, ProductAssistExtracted, ProductCategory, ProductOccasion } from '../../types/product.types'
 
 interface Message {
@@ -99,6 +101,31 @@ export default function AddProductPage() {
   const [motifUsed, setMotifUsed] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [isBackendChatLive, setIsBackendChatLive] = useState(true)
+  const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const {
+    isRecording,
+    isPlaying,
+    isProcessingTranscription,
+    startRecording,
+    stopRecording,
+    playSynthesizedSpeech,
+    stopAudio,
+  } = useVoiceChat({
+    language,
+    onResult: (text) => {
+      if (text) handleChatSend(text)
+    },
+    onError: (err) => pushToast(err),
+  })
+
+  useEffect(() => {
+    if (mode === 'chat') {
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    }
+  }, [messages, mode])
 
   const category = (phaseOne.category ?? 'apparel') as ProductCategory
 
@@ -120,49 +147,98 @@ export default function AddProductPage() {
     const userMessage = makeMessage('user', message)
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
+    setIsLoading(true)
 
     try {
-      let response
+      let mergedData = phaseOne
+      let fullMessage = ''
+      const assistantMessageId = `assistant-${Date.now()}`
+      setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: '', timestamp: new Date() }])
+
+      let isFallback = false
+
       try {
-        response = await productAssist({
-          system_prompt: buildProductPrompt(language),
-          messages: nextMessages.map((item) => ({
-            role: item.role,
-            content: item.content,
-          })),
-          context: {
-            selected_language: language,
-            extracted_data: phaseOne,
+        await productAssistStream(
+          {
+            system_prompt: buildProductPrompt(language),
+            messages: nextMessages.map((item) => ({
+              role: item.role,
+              content: item.content,
+            })),
+            context: {
+              selected_language: language,
+              extracted_data: phaseOne,
+            },
           },
-        })
+          (event) => {
+            if (event.type === 'chunk') {
+              fullMessage += event.content
+              setMessages((current) => 
+                current.map(m => m.id === assistantMessageId ? { ...m, content: fullMessage } : m)
+              )
+            } else if (event.type === 'final') {
+              const normalizedExtracted = normalizeProductExtracted(event.extracted ?? {})
+              if (normalizedExtracted) {
+                mergedData = { ...mergedData, ...normalizedExtracted }
+                setPhaseOne(mergedData)
+              }
+              setPhaseOneComplete(
+                Boolean(event.is_complete) &&
+                  Boolean(
+                    mergedData.name &&
+                      mergedData.price_mrp &&
+                      mergedData.category &&
+                      mergedData.occasion &&
+                      mergedData.description_voice &&
+                      mergedData.time_to_make_hrs,
+                  ),
+              )
+              if (isVoiceMode && fullMessage) {
+                playSynthesizedSpeech(fullMessage)
+              }
+              setIsLoading(false)
+            } else if (event.type === 'error') {
+              pushToast(event.content)
+              setIsLoading(false)
+            }
+          }
+        )
         setIsBackendChatLive(true)
       } catch (chatError) {
         setIsBackendChatLive(false)
-        response = await productAssistChat(message, phaseOne, language)
-        pushToast(getErrorMessage(chatError))
+        isFallback = true
       }
 
-      const normalizedExtracted = normalizeProductExtracted(response.extracted)
-      let mergedData = phaseOne
-      if (normalizedExtracted) {
-        mergedData = { ...phaseOne, ...normalizedExtracted }
-        setPhaseOne(mergedData)
+      if (isFallback) {
+        const response = await productAssistChat(message, phaseOne, language)
+        const normalizedExtracted = normalizeProductExtracted(response.extracted ?? {})
+        if (normalizedExtracted) {
+          mergedData = { ...mergedData, ...normalizedExtracted }
+          setPhaseOne(mergedData)
+        }
+        setMessages((current) => 
+          current.map(m => m.id === assistantMessageId ? { ...m, content: response.message } : m)
+        )
+        setPhaseOneComplete(
+          Boolean(response.is_complete) &&
+            Boolean(
+              mergedData.name &&
+                mergedData.price_mrp &&
+                mergedData.category &&
+                mergedData.occasion &&
+                mergedData.description_voice &&
+                mergedData.time_to_make_hrs,
+            ),
+        )
+        if (isVoiceMode && response.message) {
+          playSynthesizedSpeech(response.message)
+        }
+        setIsLoading(false)
       }
 
-      setMessages((current) => [...current, makeMessage('assistant', response.message)])
-      setPhaseOneComplete(
-        Boolean(response.is_complete) &&
-          Boolean(
-            mergedData.name &&
-              mergedData.price_mrp &&
-              mergedData.category &&
-              mergedData.occasion &&
-              mergedData.description_voice &&
-              mergedData.time_to_make_hrs,
-          ),
-      )
     } catch (error) {
       pushToast(getErrorMessage(error))
+      setIsLoading(false)
     }
   }
 
@@ -232,17 +308,73 @@ export default function AddProductPage() {
 
       {mode === 'chat' ? (
         <div className="space-y-4">
-          <Card className="bg-orange-50 text-stone-700">
-            {isBackendChatLive
-              ? copyFor(language, 'Phase 1 product chat ab backend se connected hai.', 'Phase 1 product chat is now connected to the backend.')
-              : copyFor(language, 'Backend chat abhi respond nahi kar raha, isliye temporary fallback chat chal rahi hai.', 'The backend chat is not responding right now, so a temporary fallback chat is being used.')}
+          <Card className="flex items-center justify-between bg-orange-50 text-stone-700">
+            <span>
+              {isBackendChatLive
+                ? copyFor(language, 'Phase 1 product chat ab backend se connected hai.', 'Phase 1 product chat is now connected to the backend.')
+                : copyFor(language, 'Backend chat abhi respond nahi kar raha, isliye temporary fallback chat chal rahi hai.', 'The backend chat is not responding right now, so a temporary fallback chat is being used.')}
+            </span>
+            <Button variant={isVoiceMode ? 'primary' : 'secondary'} size="sm" onClick={() => {
+              const newMode = !isVoiceMode
+              setIsVoiceMode(newMode)
+              if (newMode) {
+                const lastAssistantMessage = messages.slice().reverse().find(m => m.role === 'assistant')
+                if (lastAssistantMessage && lastAssistantMessage.content) {
+                  playSynthesizedSpeech(lastAssistantMessage.content)
+                }
+              } else { 
+                stopAudio()
+                stopRecording() 
+              }
+            }}>
+              {isVoiceMode ? <Mic className="h-4 w-4 mr-2" /> : <MicOff className="h-4 w-4 mr-2" />}
+              {isVoiceMode ? copyFor(language, 'Voice Mode On', 'Voice Mode On') : copyFor(language, 'Voice Mode Off', 'Voice Mode Off')}
+            </Button>
           </Card>
           <ChatWindow>
             {messages.map((message) => (
               <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} />
             ))}
+            <div ref={messagesEndRef} />
           </ChatWindow>
-          <ChatInput onSend={handleChatSend} placeholder={copyFor(language, 'Apne product ke baare me likhiye...', 'Write about your product...')} />
+          
+          {isVoiceMode ? (
+            <Card className="flex flex-col items-center justify-center p-6 border-orange-200">
+              {isPlaying ? (
+                <div className="flex flex-col items-center gap-4">
+                  <Volume2 className="h-12 w-12 text-orange-500 animate-pulse" />
+                  <p className="text-stone-700 font-medium">
+                    {copyFor(language, 'Assistant bol raha hai...', 'Assistant is speaking...')}
+                  </p>
+                  <Button variant="secondary" onClick={stopAudio}>
+                    <Square className="h-4 w-4 mr-2" /> {copyFor(language, 'Roko', 'Stop')}
+                  </Button>
+                </div>
+              ) : isRecording ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <Mic className="h-12 w-12 text-red-500" />
+                    <span className="absolute top-0 right-0 h-3 w-3 animate-ping rounded-full bg-red-400"></span>
+                  </div>
+                  <p className="text-stone-700 font-medium animate-pulse">
+                    {copyFor(language, 'Aapki awaaz sun rahe hain...', 'Listening to you...')}
+                  </p>
+                  <Button variant="secondary" onClick={stopRecording}>
+                    <Square className="h-4 w-4 mr-2" /> {copyFor(language, 'Done', 'Done')}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <Button size="lg" className="h-16 rounded-full px-8 text-lg shadow-md" onClick={startRecording} loading={isLoading}>
+                    <Mic className="h-6 w-6 mr-2" />
+                    {copyFor(language, 'Tap karke Boliye', 'Tap to Speak')}
+                  </Button>
+                </div>
+              )}
+            </Card>
+          ) : (
+            <ChatInput onSend={handleChatSend} loading={isLoading} placeholder={copyFor(language, 'Apne product ke baare me likhiye...', 'Write about your product...')} />
+          )}
         </div>
       ) : (
         <Card className="grid gap-4">
