@@ -140,3 +140,84 @@ async def get_brand(
     if not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
     return result.data
+
+
+@router.post(
+    "/{brand_id}/generate",
+    response_model=JobCreateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Regenerate brand assets for an existing brand",
+    tags=["Brands"],
+)
+async def regenerate_brand(
+    brand_id: str,
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user_id),
+):
+    result = (
+        supabase.table("brands")
+        .select("*")
+        .eq("id", brand_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+
+    pending = (
+        supabase.table("jobs")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("job_type", "brand_onboarding")
+        .eq("ref_id", brand_id)
+        .in_("status", ["queued", "running"])
+        .execute()
+    )
+    if pending.data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Brand assets are already being generated.",
+        )
+
+    brand = result.data
+    job_result = (
+        supabase.table("jobs")
+        .insert(
+            {
+                "user_id": user_id,
+                "job_type": "brand_onboarding",
+                "ref_id": brand_id,
+                "status": "queued",
+                "current_step": "Job queued...",
+                "percent": 0,
+            }
+        )
+        .execute()
+    )
+    job_id = job_result.data[0]["id"]
+
+    initial_state: BrandState = {
+        "job_id": job_id,
+        "brand_id": brand_id,
+        "user_id": user_id,
+        "craft_id": brand["craft_id"],
+        "artisan_name": brand.get("artisan_name") or "",
+        "region": brand.get("region") or "",
+        "years_of_experience": brand.get("years_of_experience", 0),
+        "generations_in_craft": brand.get("generations_in_craft", 1),
+        "primary_occasion": brand.get("primary_occasion", "general"),
+        "target_customer": brand.get("target_customer", "local_bazaar"),
+        "brand_feel": brand.get("brand_feel", "earthy"),
+        "script_preference": brand.get("script_preference", "both"),
+        "artisan_story": brand.get("artisan_story"),
+        "preferred_language": brand.get("preferred_language", "hi"),
+    }
+
+    background_tasks.add_task(run_brand_graph, initial_state)
+
+    logger.info("Brand regeneration job enqueued: job_id=%s, brand_id=%s", job_id, brand_id)
+    return JobCreateResponse(
+        job_id=job_id,
+        message="Brand regeneration started. Poll /api/v1/jobs/{job_id}/status for progress.",
+    )

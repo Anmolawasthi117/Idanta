@@ -16,7 +16,7 @@ export const useProductAsset = () =>
       type,
     }: {
       product: Product
-      type: 'hang_tag' | 'label' | 'photo' | 'story_card' | 'certificate'
+      type: 'hang_tag' | 'label' | 'photo' | 'story_card' | 'certificate' | 'kit'
     }) =>
       getProductAssetUrl(product, type),
   })

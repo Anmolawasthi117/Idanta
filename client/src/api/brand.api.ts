@@ -22,9 +22,9 @@ export const getCrafts = async (): Promise<CraftItem[]> => {
   return data
 }
 
-export const regenerateBrand = async (_brandId: string) => {
-  void _brandId
-  throw new Error('Brand regenerate endpoint abhi backend me available nahi hai.')
+export const regenerateBrand = async (brandId: string): Promise<BrandCreateResponse> => {
+  const { data } = await apiClient.post<BrandCreateResponse>(`/brands/${brandId}/generate`)
+  return data
 }
 
 const parseYears = (value: string) => {

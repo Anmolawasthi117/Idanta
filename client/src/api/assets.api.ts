@@ -37,9 +37,12 @@ export const getBrandAssetUrl = async (
 
 export const getProductAssetUrl = async (
   product: Product,
-  type: 'hang_tag' | 'label' | 'photo' | 'story_card' | 'certificate',
+  type: 'hang_tag' | 'label' | 'photo' | 'story_card' | 'certificate' | 'kit',
 ): Promise<AssetDownload> => {
   const name = slugifyFilename(product.name || 'product')
+  if (type === 'kit' && product.kit_zip_url) {
+    return { url: product.kit_zip_url, filename: `${name}-asset-kit.zip` }
+  }
   if (type === 'hang_tag' && product.hang_tag_url) {
     return { url: product.hang_tag_url, filename: `${name}-hang-tag.pdf` }
   }

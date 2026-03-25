@@ -7,6 +7,8 @@ import json
 import logging
 import zipfile
 
+import httpx
+
 from app.agents.state import BrandState, ProductState
 from app.core.database import supabase
 from app.services.storage_service import upload_bytes
@@ -14,10 +16,18 @@ from app.services.storage_service import upload_bytes
 logger = logging.getLogger(__name__)
 
 
+async def _download_public_file(url: str) -> bytes:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.content
+
+
 async def packager_brand_node(state: BrandState) -> BrandState:
     """Persist brand data, create Brand Kit ZIP, and mark job as done."""
     job_id = state["job_id"]
     user_id = state["user_id"]
+    existing_brand_id = state.get("brand_id")
 
     supabase.table("jobs").update(
         {
@@ -48,8 +58,12 @@ async def packager_brand_node(state: BrandState) -> BrandState:
         "banner_url": state.get("banner_url"),
         "status": "ready",
     }
-    response = supabase.table("brands").insert(brand_record).execute()
-    brand_id = response.data[0]["id"]
+    if existing_brand_id:
+        supabase.table("brands").update(brand_record).eq("id", existing_brand_id).execute()
+        brand_id = existing_brand_id
+    else:
+        response = supabase.table("brands").insert(brand_record).execute()
+        brand_id = response.data[0]["id"]
 
     supabase.table("users").update({"has_brand": True}).eq("id", user_id).execute()
 
@@ -101,7 +115,7 @@ async def packager_brand_node(state: BrandState) -> BrandState:
 
 
 async def packager_product_node(state: ProductState) -> ProductState:
-    """Persist product asset URLs and mark job as done."""
+    """Persist product asset URLs, build product kit ZIP, and mark job as done."""
     job_id = state["job_id"]
     product_id = state["product_id"]
 
@@ -113,12 +127,51 @@ async def packager_product_node(state: ProductState) -> ProductState:
     ).eq("id", job_id).execute()
 
     print_asset_paths = state.get("print_asset_paths", {})
+    asset_sources: dict[str, str] = {
+        "hang_tag.pdf": state.get("hang_tag_url") or print_asset_paths.get("hang_tag", ""),
+        "label.pdf": state.get("label_url") or print_asset_paths.get("label", ""),
+        "story_card.pdf": print_asset_paths.get("story_card", ""),
+        "certificate.pdf": print_asset_paths.get("certificate", ""),
+        "branded_photo.jpg": state.get("branded_photo_url", ""),
+    }
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("listing_copy.txt", state.get("listing_copy", "") or "")
+        archive.writestr("social_caption.txt", state.get("social_caption", "") or "")
+        archive.writestr("care_instructions.txt", state.get("care_instructions", "") or "")
+        archive.writestr(
+            "README.md",
+            (
+                f"# {state.get('product_name', 'Product')} - Product Asset Kit\n\n"
+                f"Brand: {state.get('brand_name', 'Idanta Brand')}\n"
+                f"Category: {state.get('product_category', 'other')}\n"
+                f"Occasion: {state.get('occasion', 'general')}\n"
+                "Included files are ready for packaging, printing, and basic marketing use.\n"
+            ),
+        )
+
+        for filename, url in asset_sources.items():
+            if not url:
+                continue
+            try:
+                archive.writestr(filename, await _download_public_file(url))
+            except Exception as exc:
+                logger.warning("Could not add %s to product asset zip for product=%s: %s", filename, product_id, exc)
+
+    kit_zip_url = await upload_bytes(
+        data=zip_buffer.getvalue(),
+        path=f"products/{product_id}/product_asset_kit.zip",
+        content_type="application/zip",
+    )
+
     supabase.table("products").update(
         {
             "listing_copy": state.get("listing_copy"),
             "branded_photo_url": state.get("branded_photo_url"),
             "hang_tag_url": state.get("hang_tag_url") or print_asset_paths.get("hang_tag"),
             "label_url": state.get("label_url") or print_asset_paths.get("label"),
+            "kit_zip_url": kit_zip_url,
             "story_card_url": print_asset_paths.get("story_card"),
             "certificate_url": print_asset_paths.get("certificate"),
             "status": "ready",
@@ -135,4 +188,4 @@ async def packager_product_node(state: ProductState) -> ProductState:
     ).eq("id", job_id).execute()
 
     logger.info("Product packager complete: product_id=%s, job=%s", product_id, job_id)
-    return {**state, "assets_zip_url": ""}
+    return {**state, "kit_zip_url": kit_zip_url, "assets_zip_url": kit_zip_url}

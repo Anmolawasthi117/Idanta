@@ -90,6 +90,7 @@ class ProductGraphState(TypedDict, total=False):
     print_asset_paths: Dict[str, str]
     hang_tag_url: str
     label_url: str
+    kit_zip_url: str
 
     # Image output
     branded_photo_url: str

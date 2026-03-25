@@ -192,6 +192,13 @@ async def print_assets_node(state: ProductState) -> ProductState:
         if certificate_pdf:
             print_asset_paths["certificate"] = await _upload_pdf(certificate_pdf, product_id, "certificate_auth.pdf")
 
+    required_assets = ("hang_tag", "label", "story_card")
+    missing_assets = [asset for asset in required_assets if asset not in print_asset_paths]
+    if missing_assets:
+        raise RuntimeError(
+            "Core print assets could not be generated: " + ", ".join(missing_assets)
+        )
+
     supabase.table("jobs").update(
         {
             "current_step": "Branding your product photo...",

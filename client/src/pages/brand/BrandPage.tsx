@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import BrandAssetGrid from '../../components/brand/BrandAssetGrid'
 import BrandCard from '../../components/brand/BrandCard'
 import PaletteDisplay from '../../components/brand/PaletteDisplay'
@@ -6,11 +7,12 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useToast } from '../../components/ui/useToast'
 import { useBrandAsset } from '../../hooks/useAssets'
-import { useBrand } from '../../hooks/useBrand'
+import { useBrand, useRegenerateBrand } from '../../hooks/useBrand'
 import { useJobs } from '../../hooks/useJobs'
 import { downloadBlob, getErrorMessage, sanitizeHtml } from '../../lib/utils'
 
 export default function BrandPage() {
+  const navigate = useNavigate()
   const { data: jobs } = useJobs()
   const latestBrandId = useMemo(
     () =>
@@ -21,10 +23,54 @@ export default function BrandPage() {
   )
   const brandQuery = useBrand(latestBrandId)
   const assetMutation = useBrandAsset()
+  const regenerateMutation = useRegenerateBrand()
   const { pushToast } = useToast()
   const [storyTab, setStoryTab] = useState<'en' | 'hi'>('en')
 
   const brand = brandQuery.data
+
+  const handleRegenerate = async () => {
+    if (!brand) return
+
+    try {
+      const result = await regenerateMutation.mutateAsync(brand.id)
+      navigate(`/jobs/${result.job_id}`)
+    } catch (error) {
+      pushToast(getErrorMessage(error))
+    }
+  }
+
+  const assets = [
+    {
+      title: 'Brand kit',
+      type: 'ZIP',
+      preview: null,
+      isAvailable: Boolean(brand?.kit_zip_url),
+      downloadType: 'kit' as const,
+    },
+    {
+      title: 'Logo image',
+      type: 'PNG',
+      preview: brand?.logo_url ? (
+        <div className="flex h-40 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <img src={brand.logo_url} alt={`${brand.name} logo`} className="max-h-full max-w-full object-contain" />
+        </div>
+      ) : null,
+      isAvailable: Boolean(brand?.logo_url),
+      downloadType: 'logo' as const,
+    },
+    {
+      title: 'Banner image',
+      type: 'PNG',
+      preview: brand?.banner_url ? (
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+          <img src={brand.banner_url} alt={`${brand.name} banner`} className="h-40 w-full object-cover" />
+        </div>
+      ) : null,
+      isAvailable: Boolean(brand?.banner_url),
+      downloadType: 'banner' as const,
+    },
+  ]
 
   const handleDownload = async (type: 'kit' | 'logo' | 'banner') => {
     if (!brand) return
@@ -88,19 +134,36 @@ export default function BrandPage() {
           </p>
         </div>
         <BrandAssetGrid>
-          {[
-            { title: 'Brand kit', type: 'ZIP', action: () => handleDownload('kit') },
-            { title: 'Logo image', type: 'PNG', action: () => handleDownload('logo') },
-            { title: 'Banner image', type: 'PNG', action: () => handleDownload('banner') },
-          ].map((asset) => (
+          {assets.map((asset) => (
             <Card key={asset.title} className="space-y-4">
               <div>
                 <p className="text-lg font-semibold text-stone-900">{asset.title}</p>
                 <p className="text-sm text-stone-500">{asset.type}</p>
               </div>
-              <Button className="w-full" onClick={asset.action} loading={assetMutation.isPending}>
-                Download
-              </Button>
+              {asset.preview ?? (
+                <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 text-center text-sm text-stone-500">
+                  Asset abhi available nahi hai.
+                </div>
+              )}
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1"
+                  onClick={() => handleDownload(asset.downloadType)}
+                  loading={assetMutation.isPending}
+                  disabled={!asset.isAvailable || regenerateMutation.isPending}
+                >
+                  Download
+                </Button>
+                <Button
+                  className="flex-1"
+                  variant={asset.isAvailable ? 'secondary' : 'primary'}
+                  onClick={handleRegenerate}
+                  loading={regenerateMutation.isPending}
+                  disabled={assetMutation.isPending}
+                >
+                  {asset.isAvailable ? 'Regenerate' : 'Generate'}
+                </Button>
+              </div>
             </Card>
           ))}
         </BrandAssetGrid>
