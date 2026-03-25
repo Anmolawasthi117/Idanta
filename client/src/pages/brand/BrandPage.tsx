@@ -5,18 +5,18 @@ import PaletteDisplay from '../../components/brand/PaletteDisplay'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useToast } from '../../components/ui/useToast'
+import { useBrandAsset } from '../../hooks/useAssets'
 import { useBrand } from '../../hooks/useBrand'
 import { useJobs } from '../../hooks/useJobs'
-import { useBrandAsset } from '../../hooks/useAssets'
-import { sanitizeHtml, getErrorMessage } from '../../lib/utils'
+import { downloadBlob, getErrorMessage, sanitizeHtml } from '../../lib/utils'
 
 export default function BrandPage() {
   const { data: jobs } = useJobs()
   const latestBrandId = useMemo(
     () =>
-      jobs
-        ?.filter((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id)
-        .map((job) => job.ref_id as string)[0] ?? null,
+      jobs?.filter((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id).map(
+        (job) => job.ref_id as string,
+      )[0] ?? null,
     [jobs],
   )
   const brandQuery = useBrand(latestBrandId)
@@ -28,15 +28,11 @@ export default function BrandPage() {
 
   const handleDownload = async (type: 'kit' | 'logo' | 'banner') => {
     if (!brand) return
+
     try {
-      const { url, filename } = await assetMutation.mutateAsync({ brand, type })
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = filename
-      anchor.style.display = 'none'
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
+      const { url, filename, cleanup } = await assetMutation.mutateAsync({ brand, type })
+      downloadBlob(url, filename)
+      window.setTimeout(() => cleanup?.(), 1000)
     } catch (error) {
       pushToast(getErrorMessage(error))
     }
@@ -88,14 +84,14 @@ export default function BrandPage() {
           <p className="text-sm font-semibold text-orange-600">Apni files download karein</p>
           <h2 className="text-2xl font-semibold text-stone-900">Brand assets</h2>
           <p className="text-sm text-stone-500">
-            Signed asset API abhi backend me nahi hai, isliye current public asset URLs use ho rahe hain.
+            Logo aur banner ab PNG image ke roop me download honge taki print aur share karna aasaan rahe.
           </p>
         </div>
         <BrandAssetGrid>
           {[
             { title: 'Brand kit', type: 'ZIP', action: () => handleDownload('kit') },
-            { title: 'Logo file', type: 'SVG', action: () => handleDownload('logo') },
-            { title: 'Banner file', type: 'SVG', action: () => handleDownload('banner') },
+            { title: 'Logo image', type: 'PNG', action: () => handleDownload('logo') },
+            { title: 'Banner image', type: 'PNG', action: () => handleDownload('banner') },
           ].map((asset) => (
             <Card key={asset.title} className="space-y-4">
               <div>

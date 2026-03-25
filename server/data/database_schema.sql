@@ -131,4 +131,6 @@ ALTER TABLE products
     ADD COLUMN IF NOT EXISTS occasion TEXT DEFAULT 'general',
     ADD COLUMN IF NOT EXISTS time_to_make_hrs INTEGER DEFAULT 0,
     ADD COLUMN IF NOT EXISTS description_voice TEXT,
-    ADD COLUMN IF NOT EXISTS category_data JSONB DEFAULT '{}';
+    ADD COLUMN IF NOT EXISTS category_data JSONB DEFAULT '{}',
+    ADD COLUMN IF NOT EXISTS story_card_url TEXT,
+    ADD COLUMN IF NOT EXISTS certificate_url TEXT;

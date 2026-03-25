@@ -122,6 +122,8 @@ class ProductResponse(BaseModel):
     branded_photo_url: Optional[str]
     hang_tag_url: Optional[str]
     label_url: Optional[str]
+    story_card_url: Optional[str]
+    certificate_url: Optional[str]
     status: str
 
     class Config:

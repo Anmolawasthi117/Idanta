@@ -81,6 +81,7 @@ export interface Product {
   hang_tag_url?: string
   label_url?: string
   story_card_url?: string
+  certificate_url?: string
   kit_zip_url?: string
   status: 'pending' | 'processing' | 'ready' | 'failed'
   category_data: CategoryData

@@ -119,6 +119,8 @@ async def packager_product_node(state: ProductState) -> ProductState:
             "branded_photo_url": state.get("branded_photo_url"),
             "hang_tag_url": state.get("hang_tag_url") or print_asset_paths.get("hang_tag"),
             "label_url": state.get("label_url") or print_asset_paths.get("label"),
+            "story_card_url": print_asset_paths.get("story_card"),
+            "certificate_url": print_asset_paths.get("certificate"),
             "status": "ready",
         }
     ).eq("id", product_id).execute()

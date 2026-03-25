@@ -1,31 +1,53 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import ProgressBar from '../../components/ui/ProgressBar'
-import Button from '../../components/ui/Button'
 import { useJobPolling } from '../../hooks/useJobs'
+import { copyFor, useLanguage } from '../../lib/i18n'
 
-const BRAND_STEPS = [
-  { label: 'Craft ki jaankari', percent: 10 },
-  { label: 'Brand naam', percent: 25 },
-  { label: 'Logo aur banner', percent: 50 },
-  { label: 'Brand ki kahani', percent: 50 },
-  { label: 'Kit tayyar', percent: 90 },
-  { label: 'Tayyar!', percent: 100 },
-]
+const BRAND_STEPS = {
+  hi: [
+    { label: 'Craft ki jaankari', percent: 10 },
+    { label: 'Brand naam', percent: 25 },
+    { label: 'Logo aur banner', percent: 50 },
+    { label: 'Brand ki kahani', percent: 50 },
+    { label: 'Kit tayyar', percent: 90 },
+    { label: 'Tayyar!', percent: 100 },
+  ],
+  en: [
+    { label: 'Craft knowledge', percent: 10 },
+    { label: 'Brand name', percent: 25 },
+    { label: 'Logo and banner', percent: 50 },
+    { label: 'Brand story', percent: 50 },
+    { label: 'Kit ready', percent: 90 },
+    { label: 'Done!', percent: 100 },
+  ],
+}
 
-const PRODUCT_STEPS = [
-  { label: 'Product details', percent: 5 },
-  { label: 'Description', percent: 40 },
-  { label: 'Tags aur labels', percent: 60 },
-  { label: 'Photo branding', percent: 70 },
-  { label: 'Assets pack', percent: 90 },
-  { label: 'Tayyar!', percent: 100 },
-]
+const PRODUCT_STEPS = {
+  hi: [
+    { label: 'Product details', percent: 5 },
+    { label: 'Description', percent: 40 },
+    { label: 'Tags aur labels', percent: 60 },
+    { label: 'Photo branding', percent: 70 },
+    { label: 'Assets pack', percent: 90 },
+    { label: 'Tayyar!', percent: 100 },
+  ],
+  en: [
+    { label: 'Product details', percent: 5 },
+    { label: 'Description', percent: 40 },
+    { label: 'Tags and labels', percent: 60 },
+    { label: 'Photo branding', percent: 70 },
+    { label: 'Assets pack', percent: 90 },
+    { label: 'Done!', percent: 100 },
+  ],
+}
 
 export default function JobProgressPage() {
   const { jobId } = useParams()
   const navigate = useNavigate()
+  const language = useLanguage()
   const jobQuery = useJobPolling(jobId ?? null)
 
   useEffect(() => {
@@ -37,23 +59,25 @@ export default function JobProgressPage() {
     }
   }, [jobQuery.data, navigate])
 
-  const steps = jobQuery.data?.job_type === 'product_assets' ? PRODUCT_STEPS : BRAND_STEPS
+  const steps = jobQuery.data?.job_type === 'product_assets' ? PRODUCT_STEPS[language] : BRAND_STEPS[language]
 
   if (jobQuery.isLoading) {
-    return <Card className="space-y-4 text-center">Progress load ho raha hai...</Card>
+    return <Card className="space-y-4 text-center">{copyFor(language, 'Progress load ho raha hai...', 'Loading progress...')}</Card>
   }
 
   if (!jobQuery.data) {
-    return <Card>Job nahi mila.</Card>
+    return <Card>{copyFor(language, 'Job nahi mila.', 'Job not found.')}</Card>
   }
 
   if (jobQuery.data.status === 'failed') {
     return (
       <Card className="space-y-4 text-center">
-        <p className="text-2xl font-semibold text-stone-900">Kuch gadbad ho gayi</p>
+        <p className="text-2xl font-semibold text-stone-900">
+          {copyFor(language, 'Kuch gadbad ho gayi', 'Something went wrong')}
+        </p>
         <p className="text-stone-600">{jobQuery.data.error}</p>
         <Button onClick={() => navigate(jobQuery.data?.job_type === 'brand_onboarding' ? '/onboarding' : '/products/add')}>
-          Dobara try karein
+          {copyFor(language, 'Dobara try karein', 'Try again')}
         </Button>
       </Card>
     )
@@ -70,7 +94,9 @@ export default function JobProgressPage() {
         </div>
         <div className="space-y-2">
           <p className="text-3xl font-semibold text-stone-900">{jobQuery.data.current_step}</p>
-          <p className="text-base text-stone-500">Aapka brand ban raha hai - thoda sabr karo</p>
+          <p className="text-base text-stone-500">
+            {copyFor(language, 'Aapka brand ban raha hai - thoda sabr karo', 'Your brand is being prepared - please wait a little')}
+          </p>
         </div>
         <div className="space-y-3 px-2 sm:px-8">
           <ProgressBar value={jobQuery.data.percent} />
@@ -78,15 +104,12 @@ export default function JobProgressPage() {
         </div>
         <div className="grid gap-3 px-2 sm:grid-cols-3 sm:px-8">
           {steps.map((step) => (
-            <div
-              key={`${step.label}-${step.percent}`}
-              className={`rounded-2xl border px-3 py-3 text-sm ${jobQuery.data.percent >= step.percent ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-stone-200 bg-stone-50 text-stone-500'}`}
-            >
+            <div key={`${step.label}-${step.percent}`} className={`rounded-2xl border px-3 py-3 text-sm ${jobQuery.data.percent >= step.percent ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>
               {step.label}
             </div>
           ))}
         </div>
-        {jobQuery.data.status === 'done' ? <div className="mx-auto h-14 w-14 animate-bounce rounded-full bg-emerald-500 text-white">✓</div> : null}
+        {jobQuery.data.status === 'done' ? <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">✓</div> : null}
       </Card>
     </div>
   )

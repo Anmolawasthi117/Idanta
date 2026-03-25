@@ -13,6 +13,8 @@ import AppShell from '../components/layout/AppShell'
 
 function ProtectedRoute() {
   const token = useAuthStore((state) => state.token)
+  const hasHydrated = useAuthStore((state) => state.hasHydrated)
+  if (!hasHydrated) return null
   if (!token) return <Navigate to="/login" replace />
   return <Outlet />
 }

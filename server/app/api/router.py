@@ -5,7 +5,7 @@ Main API router — mounts all route modules under /api/v1.
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
-from app.api.routes import auth, brand, product, jobs
+from app.api.routes import auth, brand, chat, product, jobs
 
 api_router = APIRouter()
 
@@ -23,6 +23,7 @@ async def redirect_regester():
 
 # ── Route Modules ───────────────────────────────────────────────────────────────
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
+api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 api_router.include_router(brand.router, prefix="/brands", tags=["Brands"])
 api_router.include_router(product.router, prefix="/products", tags=["Products"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs"])

@@ -1,15 +1,16 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Package, Palette, PlusCircle } from 'lucide-react'
-
-const items = [
-  { to: '/dashboard', label: 'Home', icon: Home },
-  { to: '/products', label: 'Products', icon: Package },
-  { to: '/brand', label: 'Brand', icon: Palette },
-  { to: '/products/add', label: 'Add', icon: PlusCircle },
-]
+import { copyFor, useLanguage } from '../../lib/i18n'
 
 export default function BottomNav() {
   const location = useLocation()
+  const language = useLanguage()
+  const items = [
+    { to: '/dashboard', label: copyFor(language, 'Home', 'Home'), icon: Home },
+    { to: '/products', label: copyFor(language, 'Products', 'Products'), icon: Package },
+    { to: '/brand', label: copyFor(language, 'Brand', 'Brand'), icon: Palette },
+    { to: '/products/add', label: copyFor(language, 'Add', 'Add'), icon: PlusCircle },
+  ]
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white md:hidden">

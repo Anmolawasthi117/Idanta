@@ -11,6 +11,12 @@ export const useBrandAsset = () =>
 
 export const useProductAsset = () =>
   useMutation({
-    mutationFn: ({ product, type }: { product: Product; type: 'hang_tag' | 'label' | 'photo' }) =>
+    mutationFn: ({
+      product,
+      type,
+    }: {
+      product: Product
+      type: 'hang_tag' | 'label' | 'photo' | 'story_card' | 'certificate'
+    }) =>
       getProductAssetUrl(product, type),
   })
