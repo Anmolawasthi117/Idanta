@@ -33,7 +33,6 @@ class BrandState(TypedDict, total=False):
     palette: Dict[str, str]
 
     # Visual identity output
-    logo_svg: str
     logo_url: str
     banner_url: str
 
@@ -75,7 +74,6 @@ class ProductGraphState(TypedDict, total=False):
     brand_name: str
     tagline: str
     palette: Dict[str, str]
-    logo_svg: str
     region: str
     craft_id: str
     product_theme: Dict[str, Any]

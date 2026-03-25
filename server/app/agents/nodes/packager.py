@@ -67,15 +67,12 @@ async def packager_brand_node(state: BrandState) -> BrandState:
 
     supabase.table("users").update({"has_brand": True}).eq("id", user_id).execute()
 
-    logo_url = await upload_bytes(
-        data=state.get("logo_svg", "").encode("utf-8"),
-        path=f"brands/{brand_id}/logo.svg",
-        content_type="image/svg+xml",
-    )
-
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("logo.svg", state.get("logo_svg", ""))
+        if state.get("logo_url"):
+            archive.writestr("logo.png", await _download_public_file(state["logo_url"]))
+        if state.get("banner_url"):
+            archive.writestr("banner.png", await _download_public_file(state["banner_url"]))
         archive.writestr("brand_story_en.txt", state.get("story_en", ""))
         archive.writestr("brand_story_hi.txt", state.get("story_hi", ""))
         archive.writestr("palette.json", json.dumps(state.get("palette", {}), indent=2))
@@ -95,7 +92,7 @@ async def packager_brand_node(state: BrandState) -> BrandState:
         content_type="application/zip",
     )
 
-    supabase.table("brands").update({"kit_zip_url": kit_zip_url, "logo_url": logo_url}).eq("id", brand_id).execute()
+    supabase.table("brands").update({"kit_zip_url": kit_zip_url, "logo_url": state.get("logo_url")}).eq("id", brand_id).execute()
     supabase.table("jobs").update(
         {
             "status": "done",
@@ -109,7 +106,7 @@ async def packager_brand_node(state: BrandState) -> BrandState:
     return {
         **state,
         "brand_id": brand_id,
-        "logo_url": logo_url,
+        "logo_url": state.get("logo_url", ""),
         "kit_zip_url": kit_zip_url,
     }
 
@@ -128,11 +125,11 @@ async def packager_product_node(state: ProductState) -> ProductState:
 
     print_asset_paths = state.get("print_asset_paths", {})
     asset_sources: dict[str, str] = {
-        "hang_tag.pdf": state.get("hang_tag_url") or print_asset_paths.get("hang_tag", ""),
-        "label.pdf": state.get("label_url") or print_asset_paths.get("label", ""),
-        "story_card.pdf": print_asset_paths.get("story_card", ""),
-        "certificate.pdf": print_asset_paths.get("certificate", ""),
-        "branded_photo.jpg": state.get("branded_photo_url", ""),
+        "hang_tag.png": state.get("hang_tag_url") or print_asset_paths.get("hang_tag", ""),
+        "label.png": state.get("label_url") or print_asset_paths.get("label", ""),
+        "story_card.png": print_asset_paths.get("story_card", ""),
+        "certificate.png": print_asset_paths.get("certificate", ""),
+        "branded_photo.png": state.get("branded_photo_url", ""),
     }
 
     zip_buffer = io.BytesIO()

@@ -6,11 +6,18 @@ All values are read from the .env file or environment variables.
 from functools import lru_cache
 from typing import List
 
-from pydantic import AnyHttpUrl, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     # ── App ────────────────────────────────────────────────────────────────────
     PROJECT_NAME: str = "Idanta API"
     API_V1_STR: str = "/api/v1"
@@ -44,22 +51,15 @@ class Settings(BaseSettings):
     # ── Google Gemini ──────────────────────────────────────────────────────────
     GEMINI_API_KEY: str
     GEMINI_VISION_MODEL: str = "gemini-1.5-flash"
+    GEMINI_IMAGE_MODEL: str = "gemini-2.0-flash-preview-image-generation"
 
     # ── Pollinations.ai ────────────────────────────────────────────────────────
-    POLLINATIONS_BASE_URL: str = "https://image.pollinations.ai/prompt"
 
     # ── RAG / Embeddings ───────────────────────────────────────────────────────
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     RAG_TOP_K: int = 4
 
     # ── PDF Engine ─────────────────────────────────────────────────────────────
-    PDF_TEMPLATE_DIR: str = "data/pdf_templates"
-
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
 
 @lru_cache()
 def get_settings() -> Settings:

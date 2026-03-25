@@ -57,14 +57,9 @@ export default function ProductDetailPage() {
       type: 'hang_tag' as const,
       available: Boolean(product.hang_tag_url),
       preview: product.hang_tag_url ? (
-        <a
-          href={product.hang_tag_url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex h-40 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-center text-sm font-medium text-orange-700"
-        >
-          Open hang tag PDF
-        </a>
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+          <img src={product.hang_tag_url} alt={`${product.name} hang tag`} className="h-40 w-full object-cover" />
+        </div>
       ) : null,
       supported: true,
     },
@@ -73,14 +68,9 @@ export default function ProductDetailPage() {
       type: 'label' as const,
       available: Boolean(product.label_url),
       preview: product.label_url ? (
-        <a
-          href={product.label_url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex h-40 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-center text-sm font-medium text-orange-700"
-        >
-          Open label PDF
-        </a>
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+          <img src={product.label_url} alt={`${product.name} label`} className="h-40 w-full object-cover" />
+        </div>
       ) : null,
       supported: true,
     },
@@ -100,14 +90,9 @@ export default function ProductDetailPage() {
       type: 'story_card' as const,
       available: Boolean(product.story_card_url),
       preview: product.story_card_url ? (
-        <a
-          href={product.story_card_url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex h-40 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-center text-sm font-medium text-orange-700"
-        >
-          Open story card PDF
-        </a>
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+          <img src={product.story_card_url} alt={`${product.name} story card`} className="h-40 w-full object-cover" />
+        </div>
       ) : null,
       supported: true,
     },
@@ -116,14 +101,9 @@ export default function ProductDetailPage() {
       type: 'certificate' as const,
       available: Boolean(product.certificate_url),
       preview: product.certificate_url ? (
-        <a
-          href={product.certificate_url}
-          target="_blank"
-          rel="noreferrer"
-          className="flex h-40 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50 px-4 text-center text-sm font-medium text-orange-700"
-        >
-          Open certificate PDF
-        </a>
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+          <img src={product.certificate_url} alt={`${product.name} certificate`} className="h-40 w-full object-cover" />
+        </div>
       ) : null,
       supported: product.category === 'painting',
     },

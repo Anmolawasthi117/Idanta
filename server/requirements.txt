@@ -19,19 +19,13 @@ groq>=0.9.0
 langchain>=0.2.0
 langchain-groq>=0.1.6
 langgraph>=0.1.0
-google-generativeai>=0.7.0
 sentence-transformers>=3.0.0
 
 # HTTP Client
 httpx>=0.27.0
 
-# PDF Generation
-weasyprint>=62.0
-jinja2>=3.1.4
-
 # Image Processing
 Pillow>=10.3.0
-cairosvg>=2.7.1
 
 # Utilities
 python-slugify>=8.0.4

@@ -77,7 +77,6 @@ async def load_product_data_node(state: ProductState) -> ProductState:
         "brand_name": brand.get("name", ""),
         "tagline": brand.get("tagline", ""),
         "palette": brand.get("palette", {"primary": "#8B2635", "secondary": "#4A7C59", "accent": "#C4963B"}),
-        "logo_svg": brand.get("logo_url", ""),
         "region": brand.get("region") or craft_data.get("region", "India"),
         "craft_id": brand.get("craft_id", ""),
         "product_theme": {
