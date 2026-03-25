@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Story Card</title>
+    <style>
+        @page { size: 105mm 148mm; margin: 10mm; }
+        :root { --primary: {{ primary_color }}; --accent: {{ accent_color }}; --background: {{ background_color }}; }
+        body { margin: 0; font-family: Georgia, serif; background: var(--background); color: #222; font-size: 10pt; }
+        h1, h2 { margin: 0; }
+    </style>
+</head>
+<body>
+    <div style="text-align:center">{{ logo_svg | safe }}</div>
+    <h1 style="text-align:center;color:var(--primary);font-size:20pt">{{ brand_name }}</h1>
+    <div style="text-align:center;color:#666;margin-top:2mm">{{ brand_tagline }}</div>
+    <h2 style="margin-top:8mm;color:var(--primary);font-size:15pt">Our Story</h2>
+    <p>{{ story_excerpt_en }}</p>
+    <p>{{ story_excerpt_hi }}</p>
+    <p><strong>{{ product_name }}</strong> - {{ product_material_sentence }}</p>
+    <p>Made with love in {{ region }}</p>
+    {% if whatsapp_number %}<p>WhatsApp: {{ whatsapp_number }}</p>{% endif %}
+    <div style="margin-top:8mm;text-align:center;color:#666">{{ brand_tagline }}</div>
+</body>
+</html>

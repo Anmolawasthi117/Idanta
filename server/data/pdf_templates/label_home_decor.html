@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Home Decor Label</title>
+    <style>
+        @page { size: 9cm 6cm; margin: 0.35cm; }
+        :root { --primary: {{ primary_color }}; --accent: {{ accent_color }}; --background: {{ background_color }}; }
+        body { margin: 0; font-family: Arial, sans-serif; background: var(--background); color: #222; font-size: 8pt; }
+        .barcode { border: 1px dashed #777; height: 1cm; display:flex; align-items:center; justify-content:center; margin-top:0.18cm; }
+    </style>
+</head>
+<body>
+    <div style="display:flex;justify-content:space-between;gap:0.2cm">
+        <div style="display:flex;gap:0.15cm;align-items:center">
+            <div>{{ logo_svg | safe }}</div>
+            <div>
+                <div style="color:var(--primary);font-weight:700;font-size:11pt">{{ brand_name }}</div>
+                <div>{{ product_name }}</div>
+            </div>
+        </div>
+        <div style="font-weight:700;color:var(--primary)">Rs. {{ "%.0f"|format(price_mrp) }}</div>
+    </div>
+    <div><strong>Material:</strong> {{ material_primary or material or "Not specified" }}</div>
+    {% if width_cm or height_cm or depth_cm %}<div><strong>Size:</strong> {{ width_cm or "-" }} × {{ height_cm or "-" }} × {{ depth_cm or "-" }} cm</div>{% endif %}
+    {% if assembly_required %}<div><strong>Assembly:</strong> Required</div>{% endif %}
+    <div class="barcode">Barcode</div>
+    <div style="position:absolute;bottom:0.3cm;left:0.35cm;right:0.35cm;text-align:center;font-size:6.8pt;color:#666">{{ brand_tagline }}</div>
+</body>
+</html>

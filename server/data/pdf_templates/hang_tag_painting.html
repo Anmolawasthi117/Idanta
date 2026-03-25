@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Painting Hang Tag</title>
+    <style>
+        @page { size: 8cm 13cm; margin: 0.5cm; }
+        :root {
+            --primary: {{ primary_color }};
+            --accent: {{ accent_color }};
+            --background: {{ background_color }};
+        }
+        body { margin: 0; font-family: Georgia, serif; background: var(--background); color: #222; font-size: 9pt; }
+        .brand { text-align: center; color: var(--primary); font-size: 15pt; font-weight: 700; }
+        .tagline { text-align: center; font-size: 7.5pt; color: #666; }
+        .notice { border: 1px solid var(--accent); padding: 0.12cm; margin-top: 0.18cm; font-weight: 700; color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div style="text-align:center">{{ logo_svg | safe }}</div>
+    <div class="brand">{{ brand_name }}</div>
+    <div class="tagline">{{ brand_tagline }}</div>
+    <div style="margin-top:0.2cm;font-weight:700;font-size:11pt">{{ product_name }}</div>
+    <div><strong>Art Style:</strong> {{ art_style }}</div>
+    <div><strong>Medium:</strong> {{ medium }}</div>
+    <div><strong>Surface:</strong> {{ surface }}</div>
+    <div><strong>Dimensions:</strong> {{ width_cm }} × {{ height_cm }} cm</div>
+    <div><strong>Edition:</strong> {% if is_original %}Original{% else %}Print{% endif %}</div>
+    <div><strong>Artist:</strong> {{ artisan_name }}</div>
+    <div style="margin-top:0.15cm"><strong>Story:</strong> {{ story_excerpt_en }}</div>
+    {% if is_original %}
+    <div class="notice">Original Artwork - Certificate Enclosed</div>
+    {% endif %}
+    <div style="position:absolute;bottom:0.5cm;left:0.5cm;right:0.5cm;text-align:center;font-size:7.5pt;color:#666">{{ brand_tagline }}</div>
+</body>
+</html>

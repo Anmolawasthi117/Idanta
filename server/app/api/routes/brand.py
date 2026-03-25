@@ -1,13 +1,12 @@
 """
 Brand routes.
-POST /api/v1/brands/             — Trigger brand onboarding (creates job + runs graph)
-GET  /api/v1/brands/{brand_id}  — Fetch brand details
-GET  /api/v1/crafts/            — List all available craft types
+POST /api/v1/brands/             - Trigger brand onboarding
+GET  /api/v1/brands/{brand_id}  - Fetch brand details
+GET  /api/v1/brands/crafts      - List all available craft types
 """
 
 import json
 import logging
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -26,20 +25,21 @@ LIBRARY_DIR = Path("data/craft_library")
 
 
 def _list_crafts() -> list[CraftInfo]:
-    """Read all craft JSON files and return summary info."""
-    crafts = []
-    for fp in LIBRARY_DIR.glob("*.json"):
+    crafts: list[CraftInfo] = []
+    for file_path in LIBRARY_DIR.glob("*.json"):
         try:
-            with open(fp, encoding="utf-8") as f:
-                data = json.load(f)
-            crafts.append(CraftInfo(
-                craft_id=data["craft_id"],
-                display_name=data.get("display_name", data["craft_id"]),
-                region=data.get("region", "India"),
-                description=data.get("description", ""),
-            ))
-        except Exception as e:
-            logger.warning(f"Failed to parse craft file {fp.name}: {e}")
+            with open(file_path, encoding="utf-8") as file:
+                data = json.load(file)
+            crafts.append(
+                CraftInfo(
+                    craft_id=data["craft_id"],
+                    display_name=data.get("display_name", data["craft_id"]),
+                    region=data.get("region", "India"),
+                    description=data.get("description", ""),
+                )
+            )
+        except Exception as exc:
+            logger.warning("Failed to parse craft file %s: %s", file_path.name, exc)
     return crafts
 
 
@@ -50,7 +50,6 @@ def _list_crafts() -> list[CraftInfo]:
     tags=["Crafts"],
 )
 async def get_crafts():
-    """Return all craft types available in the Idanta library."""
     return _list_crafts()
 
 
@@ -66,11 +65,6 @@ async def create_brand(
     background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id),
 ):
-    """
-    Trigger the brand onboarding LangGraph pipeline as a background task.
-    Returns a job_id for polling the /jobs/{id}/status endpoint.
-    """
-    # Check user doesn't already have a pending job
     pending = (
         supabase.table("jobs")
         .select("id")
@@ -85,33 +79,40 @@ async def create_brand(
             detail="A brand creation job is already in progress for this account.",
         )
 
-    # Create job record
-    job_row = {
-        "user_id": user_id,
-        "job_type": "brand_onboarding",
-        "status": "queued",
-        "current_step": "⏳ Job queued...",
-        "percent": 0,
-    }
-    job_result = supabase.table("jobs").insert(job_row).execute()
+    job_result = (
+        supabase.table("jobs")
+        .insert(
+            {
+                "user_id": user_id,
+                "job_type": "brand_onboarding",
+                "status": "queued",
+                "current_step": "Job queued...",
+                "percent": 0,
+            }
+        )
+        .execute()
+    )
     job_id = job_result.data[0]["id"]
 
-    # Build initial graph state
     initial_state: BrandState = {
         "job_id": job_id,
         "user_id": user_id,
         "craft_id": payload.craft_id,
         "artisan_name": payload.artisan_name,
-        "years_of_experience": payload.years_of_experience,
         "region": payload.region,
-        "inspiration": payload.inspiration,
+        "years_of_experience": payload.years_of_experience,
+        "generations_in_craft": payload.generations_in_craft,
+        "primary_occasion": payload.primary_occasion.value,
+        "target_customer": payload.target_customer.value,
+        "brand_feel": payload.brand_feel.value,
+        "script_preference": payload.script_preference.value,
+        "artisan_story": payload.artisan_story,
         "preferred_language": payload.preferred_language,
     }
 
-    # Kick off graph in background
     background_tasks.add_task(run_brand_graph, initial_state)
 
-    logger.info(f"Brand onboarding job enqueued: job_id={job_id}, user_id={user_id}")
+    logger.info("Brand onboarding job enqueued: job_id=%s, user_id=%s", job_id, user_id)
     return JobCreateResponse(
         job_id=job_id,
         message="Brand creation started. Poll /api/v1/jobs/{job_id}/status for progress.",
@@ -128,7 +129,6 @@ async def get_brand(
     brand_id: str,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Fetch a brand by its ID. Must belong to the authenticated user."""
     result = (
         supabase.table("brands")
         .select("*")

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Painting Label</title>
+    <style>
+        @page { size: 10cm 7cm; margin: 0.35cm; }
+        :root { --primary: {{ primary_color }}; --accent: {{ accent_color }}; --background: {{ background_color }}; }
+        body { margin: 0; font-family: Georgia, serif; background: var(--background); color: #222; font-size: 8pt; }
+        .barcode { border: 1px dashed #777; height: 1.2cm; display:flex; align-items:center; justify-content:center; margin-top:0.18cm; }
+    </style>
+</head>
+<body>
+    <div style="display:flex;gap:0.18cm;align-items:center">
+        <div>{{ logo_svg | safe }}</div>
+        <div>
+            <div style="color:var(--primary);font-weight:700;font-size:12pt">{{ brand_name }}</div>
+            <div>{{ brand_tagline }}</div>
+        </div>
+    </div>
+    <div style="margin-top:0.15cm"><strong>{{ art_style }}</strong> | {{ medium }}</div>
+    <div>{{ width_cm }} × {{ height_cm }} cm | {{ "Original" if is_original else "Print" }}</div>
+    <div>Artist: {{ artisan_name }}</div>
+    <div class="barcode">Barcode</div>
+</body>
+</html>

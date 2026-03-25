@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Apparel Hang Tag</title>
+    <style>
+        @page { size: 7cm 12cm; margin: 0.45cm; }
+        :root {
+            --primary: {{ primary_color }};
+            --accent: {{ accent_color }};
+            --background: {{ background_color }};
+        }
+        body { margin: 0; font-family: Arial, sans-serif; color: #1f1f1f; background: var(--background); font-size: 9pt; }
+        .top { text-align: center; border-bottom: 1px solid var(--accent); padding-bottom: 0.2cm; }
+        .logo svg { width: 1.4cm; height: 1.4cm; }
+        .brand { font-size: 15pt; font-weight: 700; color: var(--primary); }
+        .tagline { font-size: 7.5pt; color: #555; margin-top: 0.05cm; }
+        .product { margin: 0.25cm 0 0.15cm; font-weight: 700; font-size: 11pt; }
+        .price { display: inline-block; background: var(--primary); color: #fff; padding: 0.08cm 0.2cm; border-radius: 999px; font-weight: 700; }
+        .meta { margin: 0.12cm 0; }
+        .meta-label { font-weight: 700; color: var(--primary); }
+        .sizes { display: flex; flex-wrap: wrap; gap: 0.12cm; margin-top: 0.1cm; }
+        .size-box { border: 1px solid var(--accent); padding: 0.06cm 0.14cm; min-width: 0.42cm; text-align: center; border-radius: 0.08cm; }
+        .care-row { margin-top: 0.14cm; line-height: 1.45; }
+        .badge { display: inline-block; border: 1px solid var(--primary); color: var(--primary); padding: 0.05cm 0.16cm; border-radius: 999px; font-size: 7pt; font-weight: 700; margin-right: 0.08cm; }
+        .footer { position: absolute; bottom: 0.45cm; left: 0.45cm; right: 0.45cm; font-size: 7.5pt; color: #555; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div class="logo">{{ logo_svg | safe }}</div>
+        <div class="brand">{{ brand_name }}</div>
+        <div class="tagline">{{ brand_tagline }}</div>
+    </div>
+    <div class="product">{{ product_name }}</div>
+    <div class="price">Rs. {{ "%.0f"|format(price_mrp) }}</div>
+    <div class="meta"><span class="meta-label">Fabric:</span> {{ fabric_type or material or "Not specified" }}</div>
+    <div class="meta">
+        <span class="meta-label">Sizes:</span>
+        <div class="sizes">
+            {% for size in sizes_available %}
+            <div class="size-box">{{ size }}</div>
+            {% endfor %}
+            {% if not sizes_available %}<div class="size-box">Free</div>{% endif %}
+        </div>
+    </div>
+    <div class="meta"><span class="meta-label">Wash Care:</span></div>
+    <div class="care-row">
+        {% if "dry" in (wash_care or "")|lower %}
+        <div>Dry clean only</div>
+        {% elif "machine" in (wash_care or "")|lower %}
+        <div>Machine cold</div>
+        {% else %}
+        <div>Hand wash</div>
+        {% endif %}
+    </div>
+    <div class="meta"><span class="meta-label">Technique:</span> {{ print_technique or motif_used or "Artisan process" }}</div>
+    {% if dye_type and "natural" in dye_type|lower %}
+    <div class="badge">Natural Dyes</div>
+    {% endif %}
+    {% if gi_tag %}
+    <div class="badge">{{ gi_tag_name or "GI Tag Craft" }}</div>
+    {% endif %}
+    <div class="meta"><span class="meta-label">Care:</span> {{ care_instructions }}</div>
+    <div class="footer">{{ brand_tagline }}</div>
+</body>
+</html>

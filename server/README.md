@@ -1,207 +1,184 @@
-# Idanta API — Brand-in-a-Box for Indian Artisans
+# Idanta API
 
-> A production-grade **FastAPI** backend that converts an artisan's voice and craft heritage into a complete professional brand identity — logos, stories, palettes, hang tags, and social copy — using a **Multi-Agent LangGraph** pipeline and **RAG** (Retrieval-Augmented Generation).
+FastAPI backend for generating artisan brand identities and category-aware product assets with LangGraph, Groq, RAG, WeasyPrint, and Supabase.
 
----
+## What Changed
 
-## ✨ What It Does
+- Brand onboarding now captures richer artisan context:
+  `generations_in_craft`, `years_of_experience`, `primary_occasion`, `target_customer`, `brand_feel`, `artisan_story`, `script_preference`, `preferred_language`.
+- Product creation now supports category-aware validation and asset generation:
+  `category`, `occasion`, `time_to_make_hrs`, `description_voice`, `category_data`.
+- Print assets are now category-specific:
+  apparel, jewelry, pottery, painting, and home decor each use dedicated hang tag and label templates.
+- Painting originals additionally generate a certificate of authenticity.
+- Every product run now also generates a story card PDF.
 
-| Feature | Technology |
-|---|---|
-| Real-time bilingual brand stories | Groq (Llama 3.3 70B) |
-| Heritage-grounded branding (RAG) | pgvector + all-MiniLM-L6-v2 |
-| SVG Logo + Pattern Banner | Groq SVG + Pollinations Flux.1 |
-| PDF Hang Tags & Labels | WeasyPrint + Jinja2 |
-| Branded Product Photos | Pillow + CairoSVG |
-| Stateful parallel AI pipeline | LangGraph |
-| Progress polling | FastAPI BackgroundTasks |
+## Setup
 
----
-
-## 🏗️ Architecture
-
-```
-Client → FastAPI → BackgroundTasks
-                       ↓
-                  LangGraph Graph
-                    ├─ Context Builder  (RAG retrieval)
-                    ├─ Brand Intelligence (Groq naming)
-                    ├─ [PARALLEL]
-                    │   ├─ Visual Identity (SVG + Pollinations)
-                    │   └─ Copy Agent (Bilingual stories)
-                    └─ Packager (Upload + ZIP + DB write)
-```
-
----
-
-## 📁 Project Structure
-
-```
-server/
-├── main.py                      # App entry point + lifespan
-├── requirements.txt
-├── .env.example                 # Environment variable template
-├── data/
-│   ├── craft_library/           # RAG knowledge JSONs (one per craft)
-│   ├── pdf_templates/           # Jinja2 HTML templates for PDFs
-│   └── database_schema.sql      # Run this in Supabase SQL Editor
-└── app/
-    ├── core/
-    │   ├── config.py            # Pydantic settings
-    │   ├── database.py          # Supabase client singleton
-    │   └── security.py          # JWT + bcrypt
-    ├── api/
-    │   ├── deps.py              # JWT auth dependency
-    │   ├── router.py            # Mount all route modules
-    │   └── routes/
-    │       ├── auth.py          # POST /auth/register, /auth/login
-    │       ├── brand.py         # POST /brands/, GET /brands/{id}, GET /crafts/
-    │       ├── product.py       # POST /products/, POST /products/{id}/generate
-    │       └── jobs.py          # GET /jobs/{id}/status, GET /jobs/
-    ├── agents/
-    │   ├── state.py             # BrandState, ProductState TypedDicts
-    │   ├── graphs/
-    │   │   ├── brand_graph.py   # Brand onboarding orchestration
-    │   │   └── product_graph.py # Product asset generation
-    │   └── nodes/
-    │       ├── context_builder.py
-    │       ├── intelligence.py
-    │       ├── visual_identity.py
-    │       ├── copy_agent.py
-    │       ├── print_assets.py
-    │       └── packager.py
-    ├── rag/
-    │   ├── embedder.py          # all-MiniLM-L6-v2 wrapper
-    │   ├── retriever.py         # pgvector cosine search
-    │   └── indexer.py           # One-time indexing script
-    ├── services/
-    │   ├── groq_client.py       # Groq + exponential backoff
-    │   ├── storage_service.py   # Supabase Storage
-    │   └── pdf_service.py       # Jinja2 + WeasyPrint
-    └── models/
-        ├── user.py
-        ├── brand.py
-        ├── product.py
-        └── job.py
-```
-
----
-
-## 🚀 Quickstart
-
-### 1. Prerequisites
-
-- Python 3.11+
-- A [Supabase](https://supabase.com) project
-- A [Groq](https://console.groq.com) API key
-- A [Google AI Studio](https://aistudio.google.com) API key (Gemini)
-- **Windows only**: [GTK3 Runtime](https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases) (required for WeasyPrint + CairoSVG)
-
-### 2. Clone & Install
+1. Install dependencies.
 
 ```powershell
-# Create and activate virtual environment
 python -m venv venv
 .\venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
+2. Configure environment variables.
 
 ```powershell
 copy .env.example .env
-# Edit .env and fill in all required values
 ```
 
-### 4. Set Up Database
+3. Run the base schema in Supabase SQL Editor:
+   [database_schema.sql](/Users/sir_anmol/Desktop/Idanta/server/data/database_schema.sql)
 
-Open your **Supabase SQL Editor** and run the contents of:
+4. Run the additive migration block from the same file in Supabase SQL Editor before using the new API fields:
 
+```sql
+alter table brands
+  add column if not exists artisan_name text,
+  add column if not exists region text,
+  add column if not exists preferred_language text default 'hi',
+  add column if not exists generations_in_craft integer default 1,
+  add column if not exists years_of_experience integer default 0,
+  add column if not exists primary_occasion text default 'general',
+  add column if not exists target_customer text default 'local',
+  add column if not exists brand_feel text default 'earthy',
+  add column if not exists artisan_story text,
+  add column if not exists script_preference text default 'both';
+
+alter table products
+  add column if not exists category text default 'apparel',
+  add column if not exists occasion text default 'general',
+  add column if not exists time_to_make_hrs integer default 0,
+  add column if not exists description_voice text,
+  add column if not exists category_data jsonb default '{}';
 ```
-data/database_schema.sql
-```
 
-This creates all tables, indexes, and the `match_craft_chunks` RPC function required for RAG.
-
-### 5. Index Craft Knowledge (RAG)
+5. Index craft library data for RAG.
 
 ```powershell
 python -m app.rag.indexer
 ```
 
-This embeds all JSON files in `data/craft_library/` and upserts them to Supabase.
-
-### 6. Run the Server
+6. Start the API.
 
 ```powershell
 uvicorn main:app --reload
 ```
 
-| Endpoint | URL |
-|---|---|
-| Swagger UI | `http://localhost:8000/api/v1/docs` |
-| ReDoc | `http://localhost:8000/api/v1/redoc` |
-| Health Check | `http://localhost:8000/api/v1/health` |
+## Craft Library Shape
 
----
+Each file in [craft_library](/Users/sir_anmol/Desktop/Idanta/server/data/craft_library) now includes:
 
-## 🔑 Environment Variables
+- `category`
+- `gi_tag` and `gi_tag_name`
+- structured `motifs`
+- structured `traditional_colors`
+- structured `materials`
+- `brand_tone_keywords`
+- `selling_points`
+- `occasions`
+- `product_copy_hints`
+- `rag_chunks`
 
-See [`.env.example`](.env.example) for a full list with instructions on where to obtain each key.
+## Brand API
 
-| Variable | Description |
-|---|---|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Admin key for server-side DB access |
-| `GROQ_API_KEY` | Groq console → API Keys |
-| `GEMINI_API_KEY` | Google AI Studio → Get API Key |
-| `JWT_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
+`POST /api/v1/brands/`
 
----
-
-## 🔄 Agent Pipeline Flow
-
-### Brand Onboarding
-
-```
-POST /api/v1/brands/  →  returns { job_id }
-GET  /api/v1/jobs/{job_id}/status  →  poll for progress
-GET  /api/v1/brands/{brand_id}     →  fetch completed brand
-```
-
-Progress steps:
-1. `📚 Gathering craft heritage knowledge...` (10%)
-2. `🎨 Crafting your brand identity...` (25%)
-3. `🖌️ Designing your logo and banner...` + `✍️ Writing your brand story...` (50% — parallel)
-4. `📦 Packaging your brand kit...` (90%)
-5. `✅ Brand kit ready!` (100%)
-
-### Product Assets
-
-```
-POST /api/v1/products/             →  create product + upload photos
-POST /api/v1/products/{id}/generate →  returns { job_id }
-GET  /api/v1/jobs/{job_id}/status  →  poll for progress
-GET  /api/v1/products/{id}         →  fetch completed product
+```json
+{
+  "craft_id": "block_print_jaipur",
+  "artisan_name": "Ramesh Kumar",
+  "region": "Sanganer, Jaipur",
+  "years_of_experience": 15,
+  "generations_in_craft": 3,
+  "primary_occasion": "wedding",
+  "target_customer": "online_india",
+  "brand_feel": "royal",
+  "script_preference": "both",
+  "artisan_story": "My grandfather carved these blocks by hand.",
+  "preferred_language": "hi"
+}
 ```
 
----
+Allowed values:
 
-## 🧱 Adding a New Craft
+- `primary_occasion`: `wedding`, `festival`, `daily`, `gifting`, `home_decor`, `export`, `general`
+- `target_customer`: `local_bazaar`, `tourist`, `online_india`, `export`
+- `brand_feel`: `earthy`, `royal`, `vibrant`, `minimal`
+- `script_preference`: `hindi`, `english`, `both`
 
-1. Create `data/craft_library/<craft_id>.json` following the existing format:
-   - `craft_id`, `display_name`, `region`, `motifs[]`, `palette_suggestions{}`, `rag_chunks[]`
-2. Run the indexer:
-   ```powershell
-   python -m app.rag.indexer
-   ```
-3. The craft will automatically appear in `GET /api/v1/brands/crafts`.
+## Product API
 
----
+`POST /api/v1/products/` expects `multipart/form-data`.
 
-## ⚠️ Windows-Specific Notes
+Required form fields:
 
-- **WeasyPrint & CairoSVG**: Require the GTK3 runtime DLLs. Install from the [GTK3 Releases page](https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases). If not installed, PDF generation and branded photos will fail gracefully with a fallback.
-- **sentence-transformers**: Downloads ~80MB model from HuggingFace on first run. Cached in `~/.cache/huggingface/`.
+- `brand_id`
+- `name`
+- `price_mrp`
+- `category`
+- `category_data` as a JSON string
+
+Optional form fields:
+
+- `occasion`
+- `motif_used`
+- `material`
+- `description_voice`
+- `time_to_make_hrs`
+- `photos`
+
+Allowed `category` values:
+
+- `apparel`
+- `jewelry`
+- `pottery`
+- `painting`
+- `home_decor`
+- `other`
+
+Example `category_data` payloads:
+
+```json
+{
+  "fabric_type": "Cotton",
+  "sizes_available": ["S", "M", "L"],
+  "wash_care": "Hand wash only",
+  "print_technique": "Block print",
+  "dye_type": "Natural dyes"
+}
+```
+
+```json
+{
+  "art_style": "Madhubani",
+  "medium": "Natural colors",
+  "surface": "Handmade paper",
+  "width_cm": 30,
+  "height_cm": 45,
+  "is_original": true
+}
+```
+
+The backend injects the correct `category_type` discriminator during validation, so the client only needs to send the category-specific fields.
+
+## Product Asset Outputs
+
+The product graph now produces:
+
+- listing copy
+- branded product photo
+- category-aware hang tag PDF
+- category-aware label PDF
+- story card PDF
+- certificate of authenticity PDF for original paintings
+
+`GET /api/v1/products/{id}` still returns the persisted DB asset URLs for `hang_tag_url`, `label_url`, and `branded_photo_url`.
+
+## Important Notes
+
+- The Supabase migration was not executed from this workspace; update the SQL editor manually with the statements above.
+- The PDF rendering service itself was left unchanged. Only template selection and template files were updated.
+- RAG files, Groq client, storage service, auth routes, jobs routes, and `main.py` were intentionally left alone.

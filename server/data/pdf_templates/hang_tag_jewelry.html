@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Jewelry Hang Tag</title>
+    <style>
+        @page { size: 6cm 10cm; margin: 0.4cm; }
+        :root {
+            --primary: {{ primary_color }};
+            --accent: {{ accent_color }};
+            --background: {{ background_color }};
+        }
+        body { margin: 0; font-family: Georgia, serif; background: var(--background); color: #222; border: 2px solid var(--primary); padding: 0.2cm; font-size: 8.5pt; }
+        .logo svg { width: 1.1cm; height: 1.1cm; }
+        .brand { color: var(--primary); font-size: 14pt; font-weight: 700; text-align: center; }
+        .tagline { text-align: center; font-size: 7pt; margin-bottom: 0.2cm; }
+        .product { font-weight: 700; font-size: 10pt; margin: 0.14cm 0; }
+        .price { color: var(--primary); font-weight: 700; margin-bottom: 0.12cm; }
+        .row { margin: 0.1cm 0; }
+    </style>
+</head>
+<body>
+    <div style="text-align:center" class="logo">{{ logo_svg | safe }}</div>
+    <div class="brand">{{ brand_name }}</div>
+    <div class="tagline">{{ brand_tagline }}</div>
+    <div class="product">{{ product_name }}</div>
+    <div class="price">Rs. {{ "%.0f"|format(price_mrp) }}</div>
+    <div class="row"><strong>Type:</strong> {{ jewelry_type or "Jewelry" }}</div>
+    <div class="row"><strong>Base:</strong> {{ metal_or_base or material or "Not specified" }}</div>
+    {% if stone_or_inlay %}<div class="row"><strong>Inlay:</strong> {{ stone_or_inlay }}</div>{% endif %}
+    {% if sizes_available %}<div class="row"><strong>Sizes:</strong> {{ sizes_available|join(", ") }}</div>{% endif %}
+    <div class="row"><strong>Set:</strong> {{ pair_or_set or "single" }}</div>
+    <div class="row"><strong>Occasion:</strong> Perfect for {{ occasion or "celebrations" }}</div>
+    <div class="tagline" style="position:absolute;bottom:0.35cm;left:0.4cm;right:0.4cm">{{ brand_tagline }}</div>
+</body>
+</html>

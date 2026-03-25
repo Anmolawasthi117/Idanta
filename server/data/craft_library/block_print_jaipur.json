@@ -1,29 +1,128 @@
 {
   "craft_id": "block_print_jaipur",
   "display_name": "Bagru & Sanganer Block Print",
+  "category": "textiles",
   "region": "Jaipur, Rajasthan",
-  "description": "Traditional hand-block printing using hand-carved wooden blocks and natural dyes from Rajasthan.",
-  "motifs": [
-    "Buta (paisley)",
-    "Jaal (net pattern)",
-    "Boota (small floral sprigs)",
-    "Leheriya (diagonal stripes)",
-    "Aamdani (mango motif)",
-    "Peacock feather",
-    "Lotus"
-  ],
-  "palette_suggestions": {
-    "bagru": ["#8B2635", "#4A7C59", "#C4963B", "#2C3E6B", "#F5E6C8"],
-    "sanganer": ["#E8A0BF", "#A0C4E8", "#A8D5A2", "#F7C59F", "#FFFFFF"]
+  "description": "Traditional hand-block printing from Bagru and Sanganer using hand-carved wooden blocks, resist processes, and natural dyes.",
+  "gi_tag": true,
+  "gi_tag_name": "Sanganeri Hand Block Printing",
+  "motifs": {
+    "primary": [
+      "Buta",
+      "Jaal",
+      "Lotus vine",
+      "Mango paisley"
+    ],
+    "secondary": [
+      "Bel border",
+      "Peacock feather",
+      "Booti sprig",
+      "Cypress trail"
+    ],
+    "occasion_specific": {
+      "wedding": [
+        "Lotus jaal",
+        "Mango buta",
+        "Peacock border"
+      ],
+      "festival": [
+        "Marigold sprig",
+        "Leheriya stripe",
+        "Dense floral jaal"
+      ],
+      "daily": [
+        "Small booti repeat",
+        "Buta trail",
+        "Minimal jaal"
+      ]
+    }
   },
-  "typical_materials": ["Pure cotton", "Chanderi silk", "Mul mul", "Linen", "Georgette"],
+  "traditional_colors": {
+    "names": [
+      "Indigo",
+      "Madder red",
+      "Kasis black",
+      "Pomegranate yellow",
+      "Unbleached ivory"
+    ],
+    "hex": [
+      "#2C3E6B",
+      "#8B2635",
+      "#3E322C",
+      "#C4963B",
+      "#F5E6C8"
+    ],
+    "natural_sources": [
+      "Indigofera leaves",
+      "Madder root",
+      "Iron-rich mud and jaggery fermentation",
+      "Pomegranate rind",
+      "Undyed cotton base"
+    ]
+  },
+  "materials": {
+    "primary": [
+      "Pure cotton",
+      "Mulmul",
+      "Chanderi silk",
+      "Linen"
+    ],
+    "tools": [
+      "Hand-carved teak blocks",
+      "Printing table",
+      "Dabu trays",
+      "Drying grounds"
+    ],
+    "dyes": [
+      "Natural indigo",
+      "Madder",
+      "Pomegranate",
+      "Azo-free reactive dyes"
+    ]
+  },
+  "brand_tone_keywords": [
+    "rooted",
+    "sun-warmed",
+    "detailed",
+    "heritage-rich",
+    "artisanal",
+    "graceful"
+  ],
+  "selling_points": [
+    "Every repeat is stamped by hand with carved wooden blocks.",
+    "Natural dyes create a soft, breathable finish favored in Indian summers.",
+    "Subtle irregularities are proof of handmade authenticity, not defects.",
+    "Bagru dabu and Sanganer floral styles offer both earthy and refined expressions.",
+    "GI-recognized Sanganeri printing carries protected regional heritage value.",
+    "Traditional motifs communicate prosperity, fertility, and auspiciousness.",
+    "The craft supports Chhipa printing communities and allied block carvers."
+  ],
+  "occasions": [
+    "wedding",
+    "festival",
+    "daily",
+    "gifting",
+    "home_decor",
+    "export"
+  ],
+  "product_copy_hints": {
+    "apparel": "Mention the hand-carved teak wood blocks used to stamp every repeat and the slight variation that proves the piece was printed by hand. Emphasize breathable cotton or mulmul, the comfort of natural indigo or madder-based dyes on Indian skin, and the time needed for washing, drying, and overprinting. If relevant, reference Sanganeri GI heritage and explain motif meanings such as buta for abundance and lotus for auspiciousness.",
+    "jewelry": "Jaipur block print is not a classical jewelry craft, so position it as a textile-inspired fusion piece. Highlight printed fabric, lacquer, or wood surfaces that borrow from Sanganer floral repeats, and frame it as a conversation starter for festive dressing rather than a generic accessory.",
+    "pottery": "This is not a traditional block-print pottery lineage, so avoid inventing history. If the design borrows Bagru or Sanganer motifs on ceramic surfaces, describe it as a cross-craft adaptation that brings Jaipur print language into serveware or display objects.",
+    "painting": "If the artwork is created through repeated hand-stamping on paper, canvas, or cloth, focus on the meditative rhythm of block placement, the beauty of alignment, and how floral jaals and paisleys turn pattern into a visual narrative rooted in Rajasthan.",
+    "home_decor": "Emphasize how block printed textiles bring Rajasthani heritage into modern living spaces. Mention carved blocks, natural dyes, and symbolic motifs such as buti for prosperity and jaal for continuity. Position the piece as a warm bridge between craft tradition and contemporary Indian interiors.",
+    "other": "Lead with the tactile hand-block process, the layered dye work, and Jaipur's Chhipa heritage. Mention that each variation comes from human pressure and alignment, which makes every piece distinct."
+  },
   "rag_chunks": [
-    "Block printing in Jaipur dates back over 500 years, originating in the village of Sanganer and later Bagru. The craft was patronized by the Rajput royalty, who commissioned elaborate printed fabrics for court attire and royal gifts. Artisans, known as 'Chhipas', were granted special social status for their mastery.",
-    "The wooden blocks used in Jaipur block printing are hand-carved by specialist craftsmen called 'Kharadi'. A single block can take 2-3 days to carve and may last decades if properly maintained. Complex designs use multiple blocks — one for each color — requiring precise alignment by the printer.",
-    "Bagru printing is distinguished by its use of a mud-resist technique called 'dabu'. A mixture of clay, lime, and gum is applied over dyed areas before the next color bath, creating sharp white outlines. This process requires multiple rounds of drying in the sun and can take 7-10 days for a single piece.",
-    "Natural dyes form the soul of traditional Jaipur block printing. Pomegranate rinds yield yellows, indigo plants produce deep blues, madder roots give rich reds, and iron-rich mud creates charcoal blacks. The use of natural dyes not only ensures eco-friendliness but creates a characteristic warmth and depth impossible to replicate with synthetic alternatives.",
-    "The Sanganer style is characterized by delicate floral patterns on white backgrounds, traditionally printed with fermented tamarind seed solution as a fixative. The village of Sanganer, now a suburb of Jaipur, once had over 100 printing households. Today, a GI (Geographical Indication) tag protects the Sanganeri print's authenticity.",
-    "A single block-printed sari can require 40-60 individual block applications per row, with each row repeated 300-400 times across the full length. Master printers develop an almost meditative rhythm, pressing blocks with precisely consistent pressure to ensure uniform ink transfer — a skill that takes 3-5 years to master.",
-    "Block printing motifs carry deep symbolic meaning in Rajasthani culture. The 'Buta' or paisley represents the mango, a symbol of fertility and abundance. The lotus symbolizes purity and divine consciousness. The peacock feather represents the blessings of Lord Krishna. These motifs connect garments to centuries of cultural and spiritual narrative."
+    "Block printing in Jaipur dates back over five centuries and flourished in the centers of Sanganer and Bagru, where Chhipa communities developed highly specialized printing traditions under royal and mercantile patronage.",
+    "A traditional printer works with hand-carved wooden blocks, often made from teak or sheesham, and each color in a design usually requires a separate block that must align with exact pressure and rhythm across the cloth.",
+    "Bagru is especially associated with the dabu resist process, where a mud paste of clay, lime, and gum protects selected areas before subsequent dye baths, creating layered surfaces and crisp outlines after sun drying and washing.",
+    "Sanganer printing is known for its fine floral layouts, delicate outlines, and lighter grounds, historically favored for courtly dress, furnishings, and export textiles because of its airy elegance.",
+    "Traditional dyers in Rajasthan relied on indigo for blue, madder for deep red, pomegranate rind for yellow, and iron fermentation for black, producing tones that age beautifully and carry a soft mineral warmth.",
+    "The buta and mango paisley motifs signify abundance and fertility, lotus forms convey purity and auspiciousness, and peacock elements evoke beauty and Krishna-associated symbolism in north Indian visual culture.",
+    "A finely printed textile can require hundreds of precise impressions, and the consistency demanded of the artisan is such that master printers often describe the work as rhythmic, almost musical labor guided by touch and muscle memory.",
+    "Sanganeri hand block printing has Geographical Indication protection, which helps distinguish authentic regional practice from mass-printed imitations and preserves the identity of the craft in modern markets.",
+    "Block printed textiles remain adaptable across apparel, home linen, and ceremonial gifting because the craft balances strong repeat geometry with deeply cultural motif language that Indian buyers immediately recognize.",
+    "The Jaipur print ecosystem also depends on allied specialists such as block carvers, dyers, washers, and cloth preparers, making each finished product the outcome of a collaborative craft network rather than a single isolated step."
   ]
 }

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Jewelry Label</title>
+    <style>
+        @page { size: 8cm 5cm; margin: 0.3cm; }
+        :root { --primary: {{ primary_color }}; --accent: {{ accent_color }}; --background: {{ background_color }}; }
+        body { margin: 0; font-family: Georgia, serif; background: var(--background); color: #222; font-size: 8pt; }
+        .barcode { border: 1px dashed #777; height: 0.9cm; display: flex; align-items: center; justify-content: center; margin-top: 0.18cm; }
+    </style>
+</head>
+<body>
+    <div style="display:flex;justify-content:space-between;gap:0.2cm">
+        <div style="display:flex;gap:0.15cm;align-items:center">
+            <div>{{ logo_svg | safe }}</div>
+            <div>
+                <div style="color:var(--primary);font-weight:700;font-size:11pt">{{ brand_name }}</div>
+                <div>{{ product_name }}</div>
+            </div>
+        </div>
+        <div style="font-weight:700;color:var(--primary)">Rs. {{ "%.0f"|format(price_mrp) }}</div>
+    </div>
+    <div><strong>Metal:</strong> {{ metal_or_base or material or "Not specified" }}</div>
+    {% if sizes_available %}<div><strong>Sizes:</strong> {{ sizes_available|join(", ") }}</div>{% endif %}
+    <div><strong>Occasion:</strong> Perfect for {{ occasion or "celebrations" }}</div>
+    <div class="barcode">Barcode</div>
+    <div style="position:absolute;bottom:0.25cm;left:0.3cm;right:0.3cm;text-align:center;font-size:6.8pt;color:#666">{{ brand_tagline }}</div>
+</body>
+</html>

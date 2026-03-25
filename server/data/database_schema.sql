@@ -112,3 +112,23 @@ BEGIN
     LIMIT match_count;
 END;
 $$;
+
+-- Migration: additive schema changes for richer brand and product onboarding.
+ALTER TABLE brands
+    ADD COLUMN IF NOT EXISTS artisan_name TEXT,
+    ADD COLUMN IF NOT EXISTS region TEXT,
+    ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT 'hi',
+    ADD COLUMN IF NOT EXISTS generations_in_craft INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS years_of_experience INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS primary_occasion TEXT DEFAULT 'general',
+    ADD COLUMN IF NOT EXISTS target_customer TEXT DEFAULT 'local',
+    ADD COLUMN IF NOT EXISTS brand_feel TEXT DEFAULT 'earthy',
+    ADD COLUMN IF NOT EXISTS artisan_story TEXT,
+    ADD COLUMN IF NOT EXISTS script_preference TEXT DEFAULT 'both';
+
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'apparel',
+    ADD COLUMN IF NOT EXISTS occasion TEXT DEFAULT 'general',
+    ADD COLUMN IF NOT EXISTS time_to_make_hrs INTEGER DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS description_voice TEXT,
+    ADD COLUMN IF NOT EXISTS category_data JSONB DEFAULT '{}';

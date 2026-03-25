@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ brand_name }} Home Decor Hang Tag</title>
+    <style>
+        @page { size: 7cm 11cm; margin: 0.45cm; }
+        :root {
+            --primary: {{ primary_color }};
+            --accent: {{ accent_color }};
+            --background: {{ background_color }};
+        }
+        body { margin: 0; font-family: Arial, sans-serif; background: var(--background); color: #222; font-size: 9pt; }
+        .brand { text-align: center; color: var(--primary); font-size: 15pt; font-weight: 700; }
+        .tagline { text-align: center; font-size: 7.5pt; color: #666; }
+    </style>
+</head>
+<body>
+    <div style="text-align:center">{{ logo_svg | safe }}</div>
+    <div class="brand">{{ brand_name }}</div>
+    <div class="tagline">{{ brand_tagline }}</div>
+    <div style="margin-top:0.2cm;font-weight:700">{{ product_name }}</div>
+    <div><strong>Decor Type:</strong> {{ decor_type or "Home decor" }}</div>
+    <div><strong>Material:</strong> {{ material_primary or material or "Not specified" }}</div>
+    {% if width_cm or height_cm or depth_cm %}
+    <div><strong>Dimensions:</strong> {{ width_cm or "-" }} × {{ height_cm or "-" }} × {{ depth_cm or "-" }} cm</div>
+    {% endif %}
+    {% if assembly_required %}<div><strong>Assembly:</strong> Light assembly required</div>{% endif %}
+    <div><strong>Use:</strong> {{ indoor_outdoor or "indoor" }}</div>
+    <div style="margin-top:0.15cm"><strong>Care:</strong> {{ care_instructions }}</div>
+    <div style="position:absolute;bottom:0.45cm;left:0.45cm;right:0.45cm;text-align:center;font-size:7.5pt;color:#666">{{ brand_tagline }}</div>
+</body>
+</html>
