@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { brandAssistStream } from '../../api/chat.api'
 import { brandAssistChat } from '../../api/brand.api'
@@ -7,6 +7,9 @@ import ChatMessage from '../../components/chat/ChatMessage'
 import ChatWindow from '../../components/chat/ChatWindow'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import Input from '../../components/ui/Input'
+import Select from '../../components/ui/Select'
+import Textarea from '../../components/ui/Textarea'
 import { useToast } from '../../components/ui/useToast'
 import { useCrafts, useCreateBrand } from '../../hooks/useBrand'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
@@ -100,6 +103,8 @@ export default function OnboardingChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isBackendChatLive, setIsBackendChatLive] = useState(true)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const [mode, setMode] = useState<'chat' | 'form'>('chat')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -109,6 +114,7 @@ export default function OnboardingChatPage() {
     startRecording,
     stopRecording,
     playSynthesizedSpeech,
+    enqueueSynthesizedSpeech,
     stopAudio,
   } = useVoiceChat({
     language: language,
@@ -150,6 +156,7 @@ export default function OnboardingChatPage() {
     try {
       let mergedData = extractedData
       let fullMessage = ''
+      let spokenLength = 0
       const assistantMessageId = `assistant-${Date.now()}`
       setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: '', timestamp: new Date() }])
 
@@ -175,9 +182,20 @@ export default function OnboardingChatPage() {
               setMessages((current) => 
                 current.map(m => m.id === assistantMessageId ? { ...m, content: fullMessage } : m)
               )
+              if (isVoiceMode) {
+                const unseen = fullMessage.substring(spokenLength)
+                const sentences = unseen.match(/[^।.?!\n]+[।.?!\n]+/g)
+                if (sentences) {
+                  for (const s of sentences) {
+                    spokenLength += s.length
+                    enqueueSynthesizedSpeech(s)
+                  }
+                }
+              }
             } else if (event.type === 'message_done') {
-              if (isVoiceMode && fullMessage) {
-                playSynthesizedSpeech(fullMessage)
+              if (isVoiceMode) {
+                 const remaining = fullMessage.substring(spokenLength)
+                 if (remaining.trim()) enqueueSynthesizedSpeech(remaining)
               }
             } else if (event.type === 'final') {
               const normalizedExtracted = normalizeBrandExtracted(event.extracted ?? {})
@@ -239,11 +257,16 @@ export default function OnboardingChatPage() {
   }
 
   const submitBrand = () => {
-    if (missingFields.length) {
-      pushToast(copyFor(language, 'Abhi thodi aur jaankari chahiye.', 'A little more information is still needed.'))
+    if (missingFields.length || isSubmitting) {
+      if (mode === 'chat') {
+        pushToast(copyFor(language, 'Abhi thodi aur jaankari chahiye.', 'A little more information is still needed.'))
+      } else {
+        pushToast(copyFor(language, 'Saari fields bharna zaruri hai.', 'All fields are required.'))
+      }
       return
     }
-
+    
+    setIsSubmitting(true)
     createBrandMutation.mutate(
       {
         ...(extractedData as BrandCreatePayload),
@@ -252,10 +275,19 @@ export default function OnboardingChatPage() {
       },
       {
         onSuccess: (data) => navigate(`/jobs/${data.job_id}`),
-        onError: (error) => pushToast(getErrorMessage(error)),
+        onError: (error) => {
+          setIsSubmitting(false)
+          pushToast(getErrorMessage(error))
+        },
       },
     )
   }
+
+  useEffect(() => {
+    if (isComplete && missingFields.length === 0 && !isSubmitting && extractedData.craft_id) {
+       submitBrand()
+    }
+  }, [isComplete, missingFields.length, isSubmitting, extractedData.craft_id])
 
   return (
     <div className="space-y-6">
@@ -278,9 +310,19 @@ export default function OnboardingChatPage() {
         </p>
       </Card>
 
+      <div className="flex gap-3">
+        <Button variant={mode === 'chat' ? 'primary' : 'secondary'} onClick={() => setMode('chat')}>
+          {copyFor(language, 'Baat karke batao', 'Chat it out')}
+        </Button>
+        <Button variant={mode === 'form' ? 'primary' : 'secondary'} onClick={() => setMode('form')}>
+          {copyFor(language, 'Form bharo', 'Fill the form')}
+        </Button>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
-        <div className="space-y-4">
-          <div className="space-y-2">
+        {mode === 'chat' ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
           <div className="flex flex-col items-start gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">
               {copyFor(language, 'Baat karke brand banao', 'Create your brand by chatting')}
@@ -368,7 +410,45 @@ export default function OnboardingChatPage() {
             placeholder={copyFor(language, 'Yahan jawaab likhiye...', 'Write your answer here...')}
           />
         )}
-      </div>
+        </div>
+        ) : (
+          <Card className="grid gap-4">
+            <Select
+              label={copyFor(language, 'Craft', 'Craft')}
+              value={extractedData.craft_id ?? ''}
+              onChange={(event) => setExtractedData(current => ({...current, craft_id: event.target.value}))}
+              options={craftsQuery.data?.map(c => ({ label: c.name_en, value: c.id })) ?? []}
+            />
+            <Input label={copyFor(language, 'Artisan Name', 'Artisan Name')} value={extractedData.artisan_name ?? ''} onChange={(event) => setExtractedData(current => ({...current, artisan_name: event.target.value}))} />
+            <Input label={copyFor(language, 'Region', 'Region')} value={extractedData.region ?? ''} onChange={(event) => setExtractedData(current => ({...current, region: event.target.value}))} />
+            <Input type="number" label={copyFor(language, 'Years of Experience', 'Years of Experience')} value={extractedData.years_of_experience ?? ''} onChange={(event) => setExtractedData(current => ({...current, years_of_experience: Number(event.target.value)}))} />
+            <Input type="number" label={copyFor(language, 'Generations in Craft', 'Generations in Craft')} value={extractedData.generations_in_craft ?? ''} onChange={(event) => setExtractedData(current => ({...current, generations_in_craft: Number(event.target.value)}))} />
+            <Select
+              label={copyFor(language, 'Primary Occasion', 'Primary Occasion')}
+              value={extractedData.primary_occasion ?? 'general'}
+              onChange={(event) => setExtractedData((current) => ({ ...current, primary_occasion: event.target.value as any }))}
+              options={['general', 'wedding', 'festival', 'daily', 'gifting', 'home_decor', 'export'].map((item) => ({ label: item, value: item }))}
+            />
+            <Select
+              label={copyFor(language, 'Target Customer', 'Target Customer')}
+              value={extractedData.target_customer ?? 'local_bazaar'}
+              onChange={(event) => setExtractedData((current) => ({ ...current, target_customer: event.target.value as any }))}
+              options={['local_bazaar', 'tourist', 'online_india', 'export'].map((item) => ({ label: item, value: item }))}
+            />
+            <Select
+               label={copyFor(language, 'Brand Feel', 'Brand Feel')}
+               value={extractedData.brand_feel ?? 'earthy'}
+               onChange={(event) => setExtractedData(current => ({...current, brand_feel: event.target.value as any}))}
+               options={['earthy', 'royal', 'vibrant', 'minimal'].map(i => ({label: i, value: i}))}
+            />
+            <Textarea label={copyFor(language, 'Story', 'Story')} value={extractedData.artisan_story ?? ''} onChange={(event) => setExtractedData(current => ({...current, artisan_story: event.target.value}))} />
+            {(mode === 'form' || isComplete) && (
+              <Button className="w-full mt-2" size="lg" loading={isSubmitting || createBrandMutation.isPending} onClick={submitBrand}>
+                {copyFor(language, 'Apna Brand Banao', 'Create My Brand')}
+              </Button>
+            )}
+          </Card>
+        )}
 
         <Card className="space-y-4">
           <div>
@@ -396,13 +476,9 @@ export default function OnboardingChatPage() {
           <SummaryRow label={copyFor(language, 'Customer', 'Customer')} value={extractedData.target_customer} language={language} />
           <SummaryRow label={copyFor(language, 'Feel', 'Feel')} value={extractedData.brand_feel} language={language} />
           <SummaryRow label={copyFor(language, 'Kahani', 'Story')} value={extractedData.artisan_story} language={language} />
-          {isComplete ? (
-            <Button className="w-full" size="lg" loading={createBrandMutation.isPending} onClick={submitBrand}>
-              {copyFor(language, 'Apna Brand Banao', 'Create My Brand')}
-            </Button>
-          ) : (
-            <p className="text-sm text-stone-500">
-              {copyFor(language, 'Chat complete hone ke baad yahan bada button dikhega.', 'The main button will appear here after the chat is complete.')}
+          {isComplete && mode === 'chat' && (
+            <p className="text-sm font-medium text-orange-600 mt-2">
+              {copyFor(language, 'Jankari complete! Form auto-submit ho raha hai...', 'Information complete! Auto-submitting the form...')}
             </p>
           )}
         </Card>

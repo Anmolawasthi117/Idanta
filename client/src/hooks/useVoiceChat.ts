@@ -23,6 +23,19 @@ export const useVoiceChat = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const ttsQueue = useRef<string[]>([])
+  const isPlayingQueueRef = useRef(false)
+
+  const stopAudio = useCallback(() => {
+    ttsQueue.current = []
+    isPlayingQueueRef.current = false
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    setIsPlaying(false)
+  }, [])
 
   const startRecording = useCallback(async () => {
     try {
@@ -86,44 +99,60 @@ export const useVoiceChat = ({
     }
   }, [])
 
+
+  const processTTSQueue = useCallback(async () => {
+    if (isPlayingQueueRef.current || ttsQueue.current.length === 0) return
+    isPlayingQueueRef.current = true
+    setIsPlaying(true)
+    const textToPlay = ttsQueue.current.shift()!
+    try {
+      const audioBase64 = await synthesizeSpeech(textToPlay, language)
+      const audioEl = new Audio(`data:audio/wav;base64,${audioBase64}`)
+      audioRef.current = audioEl
+      
+      audioEl.onended = () => {
+        isPlayingQueueRef.current = false
+        if (ttsQueue.current.length === 0) setIsPlaying(false)
+        processTTSQueue()
+      }
+      audioEl.onerror = () => {
+         isPlayingQueueRef.current = false
+         if (ttsQueue.current.length === 0) setIsPlaying(false)
+         processTTSQueue()
+      }
+      await audioEl.play()
+    } catch (err) {
+      console.error('TTS error:', err)
+      isPlayingQueueRef.current = false
+      if (ttsQueue.current.length === 0) setIsPlaying(false)
+      processTTSQueue()
+    }
+  }, [language])
+
+  const enqueueSynthesizedSpeech = useCallback(
+    (text: string) => {
+      const cleanText = text.replace(/[*_#`~>]/g, '').trim()
+      if (!cleanText) return
+      ttsQueue.current.push(cleanText)
+      processTTSQueue()
+    },
+    [processTTSQueue]
+  )
+
   const playSynthesizedSpeech = useCallback(
     async (text: string) => {
-      // Strip markdown
-      const cleanText = text.replace(/[*_#`~>]/g, '')
-      if (!cleanText.trim()) return
+      ttsQueue.current = []
+      isPlayingQueueRef.current = false
+      const cleanText = text.replace(/[*_#`~>]/g, '').trim()
+      if (!cleanText) return
 
       stopAudio()
-      setIsPlaying(true)
-      
-      try {
-        const audioBase64 = await synthesizeSpeech(cleanText, language)
-        const audioEl = new Audio(`data:audio/wav;base64,${audioBase64}`)
-        audioRef.current = audioEl
-        
-        audioEl.onended = () => {
-          setIsPlaying(false)
-        }
-        audioEl.onerror = () => {
-           setIsPlaying(false)
-        }
-        
-        await audioEl.play()
-      } catch (err) {
-        console.error('TTS error:', err)
-        setIsPlaying(false)
-      }
+      ttsQueue.current.push(cleanText)
+      await processTTSQueue()
     },
-    [language]
+    [processTTSQueue, stopAudio]
   )
   
-  const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-      audioRef.current = null
-    }
-    setIsPlaying(false)
-  }, [])
 
   return {
     isRecording,
@@ -132,6 +161,7 @@ export const useVoiceChat = ({
     startRecording,
     stopRecording,
     playSynthesizedSpeech,
+    enqueueSynthesizedSpeech,
     stopAudio,
   }
 }

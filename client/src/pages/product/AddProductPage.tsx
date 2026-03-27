@@ -114,6 +114,7 @@ export default function AddProductPage() {
     startRecording,
     stopRecording,
     playSynthesizedSpeech,
+    enqueueSynthesizedSpeech,
     stopAudio,
   } = useVoiceChat({
     language,
@@ -154,6 +155,7 @@ export default function AddProductPage() {
     try {
       let mergedData = phaseOne
       let fullMessage = ''
+      let spokenLength = 0
       const assistantMessageId = `assistant-${Date.now()}`
       setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: '', timestamp: new Date() }])
 
@@ -178,9 +180,20 @@ export default function AddProductPage() {
               setMessages((current) => 
                 current.map(m => m.id === assistantMessageId ? { ...m, content: fullMessage } : m)
               )
+              if (isVoiceMode) {
+                const unseen = fullMessage.substring(spokenLength)
+                const sentences = unseen.match(/[^।.?!\n]+[।.?!\n]+/g)
+                if (sentences) {
+                  for (const s of sentences) {
+                    spokenLength += s.length
+                    enqueueSynthesizedSpeech(s)
+                  }
+                }
+              }
             } else if (event.type === 'message_done') {
-              if (isVoiceMode && fullMessage) {
-                playSynthesizedSpeech(fullMessage)
+              if (isVoiceMode) {
+                 const remaining = fullMessage.substring(spokenLength)
+                 if (remaining.trim()) enqueueSynthesizedSpeech(remaining)
               }
             } else if (event.type === 'final') {
               const normalizedExtracted = normalizeProductExtracted(event.extracted ?? {})
