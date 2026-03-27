@@ -54,6 +54,7 @@ Important normalization rules:
 - script_preference must be one of: hindi, english, both
 - preferred_language must be "${language === 'en' ? 'en' : 'hi'}"
 
+CRITICAL RULE: You must only ask a maximum of 10 questions in total across the entire conversation. If you reach 10 questions and still do not have all information, you must immediately wrap up the conversation gracefully and mark is_complete as true even if required fields are missing. Do not exceed 10 questions under any circumstance.
 Ask natural questions, but when returning JSON always use only the exact allowed values above.
 If the user's answer is unclear, ask a clarification question instead of guessing.
 Respond as JSON with keys: message, extracted, is_complete.`

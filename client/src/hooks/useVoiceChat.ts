@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { transcribeAudio } from '../api/chat.api'
+import { transcribeAudio, synthesizeSpeech } from '../api/chat.api'
 
 export interface VoiceChatOptions {
   language: 'hi' | 'en' | 'hg'
@@ -22,11 +22,11 @@ export const useVoiceChat = ({
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
-  const utterancesRef = useRef<SpeechSynthesisUtterance[]>([])
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const startRecording = useCallback(async () => {
     try {
-      window.speechSynthesis.cancel()
+      stopAudio()
       setIsPlaying(false)
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -87,52 +87,42 @@ export const useVoiceChat = ({
   }, [])
 
   const playSynthesizedSpeech = useCallback(
-    (text: string) => {
-      if (!window.speechSynthesis) return
-
-      // Strip markdown so the bot doesn't pronounce asterisks
+    async (text: string) => {
+      // Strip markdown
       const cleanText = text.replace(/[*_#`~>]/g, '')
       if (!cleanText.trim()) return
 
-      window.speechSynthesis.cancel()
+      stopAudio()
       setIsPlaying(true)
       
-      const utterance = new SpeechSynthesisUtterance(cleanText)
-      utterancesRef.current.push(utterance) // Prevent Chrome garbage collection bug
-      
-      utterance.lang = language === 'en' ? 'en-IN' : 'hi-IN'
-      
-      const voices = window.speechSynthesis.getVoices()
-      const langPrefix = language === 'en' ? 'en' : 'hi'
-      
-      const preferredVoice = voices.find(
-        v => v.lang.startsWith(langPrefix) && v.localService
-      ) || voices.find(v => v.lang.startsWith(langPrefix))
-
-      if (preferredVoice) {
-        utterance.voice = preferredVoice
-      }
-
-      utterance.onend = () => {
-        setIsPlaying(false)
-        // Cleanup ref
-        const index = utterancesRef.current.indexOf(utterance)
-        if (index > -1) utterancesRef.current.splice(index, 1)
-      }
-      
-      utterance.onerror = () => {
+      try {
+        const audioBase64 = await synthesizeSpeech(cleanText, language)
+        const audioEl = new Audio(`data:audio/wav;base64,${audioBase64}`)
+        audioRef.current = audioEl
+        
+        audioEl.onended = () => {
+          setIsPlaying(false)
+        }
+        audioEl.onerror = () => {
+           setIsPlaying(false)
+        }
+        
+        await audioEl.play()
+      } catch (err) {
+        console.error('TTS error:', err)
         setIsPlaying(false)
       }
-      
-      window.speechSynthesis.speak(utterance)
     },
     [language]
   )
   
   const stopAudio = useCallback(() => {
-    window.speechSynthesis.cancel()
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
     setIsPlaying(false)
-    utterancesRef.current = []
   }, [])
 
   return {

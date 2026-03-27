@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # ── Pollinations.ai ────────────────────────────────────────────────────────
     POLLINATIONS_API_KEY: str
 
+    # ── Sarvam AI ──────────────────────────────────────────────────────────────
+    SARVAM_API_KEY: str
+
     # ── RAG / Embeddings ───────────────────────────────────────────────────────
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     RAG_TOP_K: int = 4

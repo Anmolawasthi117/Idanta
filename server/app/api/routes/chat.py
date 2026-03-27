@@ -9,7 +9,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user_id
-from app.services.groq_client import groq_json_completion, groq_stream_completion, groq_transcribe_audio
+from app.services.groq_client import groq_json_completion, groq_stream_completion
+from app.services.sarvam_client import sarvam_transcribe_audio, sarvam_synthesize_speech
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -129,8 +130,27 @@ async def transcribe_audio(
 ):
     try:
         content = await audio.read()
-        text = await groq_transcribe_audio(audio.filename or "audio.webm", content, language)
+        text = await sarvam_transcribe_audio(content, audio.filename or "audio.webm")
         return {"text": text}
     except Exception as exc:
         logger.error("Audio transcription failed: %s", exc)
         raise HTTPException(status_code=500, detail="Transcription failed.") from exc
+
+class SynthesizeSpeechRequest(BaseModel):
+    text: str
+    target_language_code: str = "hi-IN"
+
+@router.post("/synthesize-speech")
+async def synthesize_speech(
+    payload: SynthesizeSpeechRequest,
+    _user_id: str = Depends(get_current_user_id)
+):
+    try:
+        audio_base64 = await sarvam_synthesize_speech(
+            text=payload.text,
+            target_language_code=payload.target_language_code
+        )
+        return {"audio_base64": audio_base64}
+    except Exception as exc:
+        logger.error("Speech synthesis failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Synthesis failed.") from exc

@@ -129,3 +129,13 @@ export const transcribeAudio = async (audioBlob: Blob, language: string): Promis
   })
   return data.text
 }
+
+export const synthesizeSpeech = async (text: string, language: string): Promise<string> => {
+  // Enforce Hindi target language as per user requirement for this version
+  const payload = {
+    text,
+    target_language_code: 'hi-IN'
+  }
+  const { data } = await apiClient.post<{ audio_base64: string }>('/chat/synthesize-speech', payload)
+  return data.audio_base64
+}

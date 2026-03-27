@@ -54,6 +54,8 @@ Important normalization rules:
 - Ask simple user-facing questions, but when returning JSON always use only the exact allowed values above.
 - If the user's answer is unclear or does not map cleanly, ask a clarification question instead of guessing.
 
+CRITICAL RULE: You must only ask a maximum of 10 questions in total across the entire conversation. If you reach 10 questions and still do not have all information, you must immediately wrap up the conversation gracefully and mark is_complete as true even if required fields are missing. Do not exceed 10 questions under any circumstance.
+
 Respond as JSON with keys: message, extracted, is_complete.`
 
   if (language === 'hi') {
