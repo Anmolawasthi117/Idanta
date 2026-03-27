@@ -34,7 +34,7 @@ const createMessage = (role: Message['role'], content: string): Message => ({
 
 import type { AppLanguage } from '../../store/uiStore'
 
-const buildBrandPrompt = (language: AppLanguage) => {
+const buildBrandPrompt = (language: AppLanguage, isVoiceMode: boolean) => {
   const baseRules = `
 You need to collect:
 1. craft_id
@@ -59,7 +59,7 @@ Ask natural questions, but when returning JSON always use only the exact allowed
 If the user's answer is unclear, ask a clarification question instead of guessing.
 Respond as JSON with keys: message, extracted, is_complete.`
 
-  if (language === 'hi') {
+  if (language === 'hi' || isVoiceMode) {
     return `
 You are Idanta's friendly brand assistant helping Indian artisans create their brand.
 Speak only in pure Hindi using the Devanagari script. Do not use English words.
@@ -158,7 +158,7 @@ export default function OnboardingChatPage() {
       try {
         await brandAssistStream(
           {
-            system_prompt: buildBrandPrompt(language),
+            system_prompt: buildBrandPrompt(language, isVoiceMode),
             messages: nextMessages.map((item) => ({
               role: item.role,
               content: item.content,
@@ -175,6 +175,10 @@ export default function OnboardingChatPage() {
               setMessages((current) => 
                 current.map(m => m.id === assistantMessageId ? { ...m, content: fullMessage } : m)
               )
+            } else if (event.type === 'message_done') {
+              if (isVoiceMode && fullMessage) {
+                playSynthesizedSpeech(fullMessage)
+              }
             } else if (event.type === 'final') {
               const normalizedExtracted = normalizeBrandExtracted(event.extracted ?? {})
               if (normalizedExtracted) {
@@ -193,9 +197,6 @@ export default function OnboardingChatPage() {
               ]
               setIsComplete(Boolean(event.is_complete) && requiredFields.every((field) => Boolean(mergedData[field])))
               
-              if (isVoiceMode && fullMessage) {
-                playSynthesizedSpeech(fullMessage)
-              }
               setIsLoading(false)
             } else if (event.type === 'error') {
               pushToast(event.content)

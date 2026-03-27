@@ -59,6 +59,7 @@ export const productAssist = async (
 
 export type StreamEvent<T> =
   | { type: 'chunk'; content: string }
+  | { type: 'message_done'; content: string }
   | { type: 'final'; extracted?: Partial<T>; is_complete?: boolean }
   | { type: 'error'; content: string }
 

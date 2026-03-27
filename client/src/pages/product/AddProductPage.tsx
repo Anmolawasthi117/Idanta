@@ -38,7 +38,7 @@ const makeMessage = (role: Message['role'], content: string): Message => ({
 
 import type { AppLanguage } from '../../store/uiStore'
 
-const buildProductPrompt = (language: AppLanguage) => {
+const buildProductPrompt = (language: AppLanguage, isVoiceMode: boolean) => {
   const baseRules = `
 Collect these fields naturally:
 1. name
@@ -58,7 +58,7 @@ CRITICAL RULE: You must only ask a maximum of 10 questions in total across the e
 
 Respond as JSON with keys: message, extracted, is_complete.`
 
-  if (language === 'hi') {
+  if (language === 'hi' || isVoiceMode) {
     return `
 You are Idanta's warm product assistant for Indian artisans.
 Speak only in pure Hindi using the Devanagari script. Do not use English words.
@@ -162,7 +162,7 @@ export default function AddProductPage() {
       try {
         await productAssistStream(
           {
-            system_prompt: buildProductPrompt(language),
+            system_prompt: buildProductPrompt(language, isVoiceMode),
             messages: nextMessages.map((item) => ({
               role: item.role,
               content: item.content,
@@ -178,6 +178,10 @@ export default function AddProductPage() {
               setMessages((current) => 
                 current.map(m => m.id === assistantMessageId ? { ...m, content: fullMessage } : m)
               )
+            } else if (event.type === 'message_done') {
+              if (isVoiceMode && fullMessage) {
+                playSynthesizedSpeech(fullMessage)
+              }
             } else if (event.type === 'final') {
               const normalizedExtracted = normalizeProductExtracted(event.extracted ?? {})
               if (normalizedExtracted) {
@@ -195,9 +199,6 @@ export default function AddProductPage() {
                       mergedData.time_to_make_hrs,
                   ),
               )
-              if (isVoiceMode && fullMessage) {
-                playSynthesizedSpeech(fullMessage)
-              }
               setIsLoading(false)
             } else if (event.type === 'error') {
               pushToast(event.content)

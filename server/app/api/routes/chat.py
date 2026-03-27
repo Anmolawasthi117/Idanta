@@ -87,6 +87,8 @@ async def _chat_stream(payload: ChatAssistRequest):
             message_content += chunk
             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
             
+        yield f"data: {json.dumps({'type': 'message_done', 'content': message_content}, ensure_ascii=False)}\n\n"
+            
     except Exception as e:
         logger.error(f"Stream failed: {e}")
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
