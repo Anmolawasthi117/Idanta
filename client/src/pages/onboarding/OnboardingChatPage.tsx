@@ -45,15 +45,9 @@ You need to collect:
 3. region
 4. years_of_experience
 5. generations_in_craft
-6. primary_occasion
-7. target_customer
-8. brand_feel
-9. artisan_story
+6. artisan_story
 
 Important normalization rules:
-- primary_occasion must be one of: wedding, festival, daily, gifting, home_decor, export, general
-- target_customer must be one of: local_bazaar, tourist, online_india, export
-- brand_feel must be one of: earthy, royal, vibrant, minimal
 - script_preference must be one of: hindi, english, both
 - preferred_language must be "${language === 'en' ? 'en' : 'hi'}"
 
@@ -138,9 +132,6 @@ export default function OnboardingChatPage() {
       'region',
       'years_of_experience',
       'generations_in_craft',
-      'primary_occasion',
-      'target_customer',
-      'brand_feel',
       'script_preference',
       'preferred_language',
     ]
@@ -210,8 +201,7 @@ export default function OnboardingChatPage() {
               }
               const requiredFields: Array<keyof BrandCreatePayload> = [
                 'craft_id', 'artisan_name', 'region', 'years_of_experience',
-                'generations_in_craft', 'primary_occasion', 'target_customer',
-                'brand_feel', 'script_preference', 'preferred_language'
+                'generations_in_craft', 'script_preference', 'preferred_language'
               ]
               setIsComplete(Boolean(event.is_complete) && requiredFields.every((field) => Boolean(mergedData[field])))
               
@@ -423,24 +413,6 @@ export default function OnboardingChatPage() {
             <Input label={copyFor(language, 'Region', 'Region')} value={extractedData.region ?? ''} onChange={(event) => setExtractedData(current => ({...current, region: event.target.value}))} />
             <Input type="number" label={copyFor(language, 'Years of Experience', 'Years of Experience')} value={extractedData.years_of_experience ?? ''} onChange={(event) => setExtractedData(current => ({...current, years_of_experience: Number(event.target.value)}))} />
             <Input type="number" label={copyFor(language, 'Generations in Craft', 'Generations in Craft')} value={extractedData.generations_in_craft ?? ''} onChange={(event) => setExtractedData(current => ({...current, generations_in_craft: Number(event.target.value)}))} />
-            <Select
-              label={copyFor(language, 'Primary Occasion', 'Primary Occasion')}
-              value={extractedData.primary_occasion ?? 'general'}
-              onChange={(event) => setExtractedData((current) => ({ ...current, primary_occasion: event.target.value as any }))}
-              options={['general', 'wedding', 'festival', 'daily', 'gifting', 'home_decor', 'export'].map((item) => ({ label: item, value: item }))}
-            />
-            <Select
-              label={copyFor(language, 'Target Customer', 'Target Customer')}
-              value={extractedData.target_customer ?? 'local_bazaar'}
-              onChange={(event) => setExtractedData((current) => ({ ...current, target_customer: event.target.value as any }))}
-              options={['local_bazaar', 'tourist', 'online_india', 'export'].map((item) => ({ label: item, value: item }))}
-            />
-            <Select
-               label={copyFor(language, 'Brand Feel', 'Brand Feel')}
-               value={extractedData.brand_feel ?? 'earthy'}
-               onChange={(event) => setExtractedData(current => ({...current, brand_feel: event.target.value as any}))}
-               options={['earthy', 'royal', 'vibrant', 'minimal'].map(i => ({label: i, value: i}))}
-            />
             <Textarea label={copyFor(language, 'Story', 'Story')} value={extractedData.artisan_story ?? ''} onChange={(event) => setExtractedData(current => ({...current, artisan_story: event.target.value}))} />
             {(mode === 'form' || isComplete) && (
               <Button className="w-full mt-2" size="lg" loading={isSubmitting || createBrandMutation.isPending} onClick={submitBrand}>
@@ -472,9 +444,6 @@ export default function OnboardingChatPage() {
             value={extractedData.generations_in_craft ? `${extractedData.generations_in_craft}` : undefined}
             language={language}
           />
-          <SummaryRow label={copyFor(language, 'Occasion', 'Occasion')} value={extractedData.primary_occasion} language={language} />
-          <SummaryRow label={copyFor(language, 'Customer', 'Customer')} value={extractedData.target_customer} language={language} />
-          <SummaryRow label={copyFor(language, 'Feel', 'Feel')} value={extractedData.brand_feel} language={language} />
           <SummaryRow label={copyFor(language, 'Kahani', 'Story')} value={extractedData.artisan_story} language={language} />
           {isComplete && mode === 'chat' && (
             <p className="text-sm font-medium text-orange-600 mt-2">

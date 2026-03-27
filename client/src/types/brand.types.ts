@@ -17,9 +17,9 @@ export interface BrandCreatePayload {
   region: string
   years_of_experience: number
   generations_in_craft: number
-  primary_occasion: PrimaryOccasion
-  target_customer: TargetCustomer
-  brand_feel: BrandFeel
+  primary_occasion?: PrimaryOccasion
+  target_customer?: TargetCustomer
+  brand_feel?: BrandFeel
   script_preference: ScriptPreference
   artisan_story?: string
   preferred_language: string

@@ -1,0 +1,126 @@
+{
+  "craft_id": "maheshwari_weaving_madhya_pradesh",
+  "display_name": "Maheshwari Handloom",
+  "category": "textiles",
+  "region": "Maheshwar, Madhya Pradesh",
+  "description": "A 18th-century weaving tradition characterized by its lightweight gossamer texture, reversible borders (Bugdi), and architectural motifs inspired by the Maheshwar Fort.",
+  "gi_tag": true,
+  "gi_tag_name": "Maheshwari Saree & Fabrics",
+  "motifs": {
+    "primary": [
+      "Leher (Wave)",
+      "Narmada (Ripple of the river)",
+      "Chatai (Mat pattern)",
+      "Eent (Brick)"
+    ],
+    "secondary": [
+      "Rui Phool (Cotton flower)",
+      "Chameli (Jasmine)",
+      "Heera (Diamond)",
+      "Zari Butti (Gold thread sprigs)"
+    ],
+    "occasion_specific": {
+      "wedding": [
+        "Tissue Maheshwari with heavy Zari",
+        "Dense Gold Butti",
+        "Ornate Bugdi border"
+      ],
+      "festival": [
+        "Double-bordered (Bugdi) saree",
+        "Vibrant jewel tones",
+        "Architectural border stripes"
+      ],
+      "daily": [
+        "Plain body with subtle border",
+        "Cotton-silk blends",
+        "Checks and stripes (Chatai)"
+      ]
+    }
+  },
+  "traditional_colors": {
+    "names": [
+      "Aamrak (Mango)",
+      "Angoori (Grape green)",
+      "Gulabi (Pink)",
+      "Gomutra (Golden brown)",
+      "Kakasii (Iron black)"
+    ],
+    "hex": [
+      "#FF8000",
+      "#D0F0C0",
+      "#FF69B4",
+      "#966919",
+      "#2B2B2B"
+    ],
+    "natural_sources": [
+      "Turmeric and Lime",
+      "Pomegranate rind",
+      "Madder root",
+      "Harada and rusted iron",
+      "Indigo immersion"
+    ]
+  },
+  "materials": {
+    "primary": [
+      "Pure Silk (Warp)",
+      "Fine Cotton (Weft)",
+      "Mercerized Cotton",
+      "Zari (Metallic thread)"
+    ],
+    "tools": [
+      "Pit Looms",
+      "Frame Looms",
+      "Dobby attachment (for borders)",
+      "Charkha (Spinning wheel)"
+    ],
+    "dyes": [
+      "Vegetable dyes",
+      "Eco-friendly synthetic dyes",
+      "Vat dyes"
+    ]
+  },
+  "brand_tone_keywords": [
+    "architectural",
+    "gossamer",
+    "regal",
+    "reversible",
+    "linear",
+    "refined"
+  ],
+  "selling_points": [
+    "Patronized by Queen Ahilyabai Holkar in the 1700s to support local weaver livelihoods.",
+    "Known for its 'Bugdi' or reversible border, allowing the garment to be worn on either side.",
+    "Unique blend of silk warp and cotton weft creates a fabric that is glossy yet breathable.",
+    "Motifs are directly inspired by the stone carvings of the Maheshwar Fort and the ripples of the Narmada River.",
+    "The fabric is exceptionally lightweight, earning the nickname 'the woven air of Central India'.",
+    "The traditional 'Aar-Tari' technique creates a distinctive linear texture in the borders.",
+    "Recognized with a GI tag, ensuring the preservation of the unique weaving heritage of the Narmada valley."
+  ],
+  "occasions": [
+    "formal_office_wear",
+    "temple_visit",
+    "wedding_guest",
+    "summer_festivals",
+    "luxury_gifting"
+  ],
+  "product_copy_hints": {
+    "apparel": "Focus on the reversible 'Bugdi' border—a design marvel that makes the saree versatile. Highlight the play of light on the silk-cotton blend and the comfort it offers in humid climates. Mention the legacy of Queen Ahilyabai Holkar and the architectural inspiration behind the 'Leher' and 'Chatai' patterns.",
+    "jewelry": "Position as the perfect accompaniment to handloom. Suggest temple jewelry or minimalist gold pieces that echo the geometric precision of Maheshwari stone-carved motifs.",
+    "pottery": "Maheshwari is primarily a textile craft, but design adaptations should focus on the 'Eent' (brick) and 'Chatai' (mat) geometric repeats found in the weaving.",
+    "painting": "Focus on the linear symmetry. Frame the artwork as a tribute to the Narmada river ripples and the stone latticework of the Maheshwar ghats.",
+    "home_decor": "Emphasize the sophistication of Maheshwari silk-cotton curtains or cushion covers. Use the brand keywords 'architectural' and 'regal' to describe how these textiles elevate a modern interior with historical gravitas.",
+    "other": "Mention that every thread is a bridge to the 18th-century Malwa royalty. Highlight the artisanal skill required to manage the tension between silk and cotton fibers on a pit loom."
+  },
+  "rag_chunks": [
+    "Maheshwari weaving was established in the 18th century by Maharani Ahilyabai Holkar, who invited master weavers from Surat and Mandu to create a signature textile for the Holkar royalty and guests.",
+    "A defining feature of a Maheshwari saree is its reversible border, known locally as 'Bugdi,' which allows the wearer to drape the garment without worrying about the 'wrong' side.",
+    "The motifs in Maheshwari textiles are distinctively geometric; patterns like 'Eent' (brick), 'Chatai' (mat), and 'Leher' (wave) are stylized versions of the stone carvings found on the Maheshwar Fort walls.",
+    "Historically, Maheshwari sarees were made of pure silk, but over time, a blend of silk in the warp and cotton in the weft became the standard, resulting in a fabric that is sturdy, light, and lustrous.",
+    "The weaving process typically uses a pit loom or frame loom equipped with a dobby mechanism to create the intricate, zari-laden borders that the craft is famous for.",
+    "The Narmada River, which flows through Maheshwar, serves as a primary aesthetic muse, with many patterns mimicking the steady ripples and flow of the sacred water.",
+    "Maheshwari fabric is known for its high thread count and fine denier, making it transparent and airy, suitable for the warm climate of Central India.",
+    "Traditional Maheshwari colors were inspired by nature and local elements, such as 'Gomutra' (the color of the sacred cow's urine) and 'Aamrak' (the golden hue of a ripe mango).",
+    "The craft received Geographical Indication (GI) status in 2010, protecting the identity of the 3,000+ weavers currently operating in the Maheshwar cluster.",
+    "Maheshwari weaving is not just a commercial product but a cultural symbol of the Holkar dynasty’s commitment to self-reliance and the empowerment of artisan communities."
+  ]
+}

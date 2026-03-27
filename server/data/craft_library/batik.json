@@ -1,0 +1,129 @@
+{
+  "craft_id": "batik_print_india",
+  "display_name": "Batik Wax-Resist Art",
+  "category": "textiles",
+  "region": "Ujjain (Madhya Pradesh), Mundra (Gujarat), Santiniketan (West Bengal), and Nellore (Andhra Pradesh)",
+  "description": "An ancient wax-resist dyeing technique where molten wax is applied to fabric to prevent dye penetration, characterized by its signature 'crackle' effect and multi-layered color depth.",
+  "gi_tag": true,
+  "gi_tag_name": "Ujjain Batik Print",
+  "motifs": {
+    "primary": [
+      "Charkaliya (Sparrow)",
+      "Phulkiya (Floral sprigs)",
+      "Shihn-Champo (Lion and Magnolia)",
+      "Bajariya (Grains/Geometric dots)"
+    ],
+    "secondary": [
+      "Vein-like crackle lines",
+      "Fish and Aquatic life",
+      "Tree of Life",
+      "Folklore narratives"
+    ],
+    "occasion_specific": {
+      "wedding": [
+        "Symmetrical Mandala",
+        "Lotus bloom",
+        "Ornate peacock"
+      ],
+      "festival": [
+        "Sun and Moon circles",
+        "Vibrant Alpona patterns",
+        "Mythological deities"
+      ],
+      "daily": [
+        "Geometric repeating dots",
+        "Simple vine trails",
+        "Abstract wax splashes"
+      ]
+    }
+  },
+  "traditional_colors": {
+    "names": [
+      "Indigo blue",
+      "Madder maroon",
+      "Earthy brown",
+      "Golden turmeric",
+      "Wax white"
+    ],
+    "hex": [
+      "#1A2E5A",
+      "#7B1B1C",
+      "#4E3629",
+      "#D4AF37",
+      "#FFFFFF"
+    ],
+    "natural_sources": [
+      "Indigofera tinctoria",
+      "Alizarin from Madder root",
+      "Cutch (Katha) or iron-rich earth",
+      "Turmeric and Pomegranate rind",
+      "Resist-protected base fabric"
+    ]
+  },
+  "materials": {
+    "primary": [
+      "Fine Cotton",
+      "Mulberry Silk",
+      "Tussar Silk",
+      "Leather (Santiniketan style)"
+    ],
+    "tools": [
+      "Tjanting (Copper spout pen)",
+      "Tuli (Brushes for Santiniketan style)",
+      "Hand-carved wooden blocks",
+      "Wax melting pot",
+      "Sand-filled printing tables"
+    ],
+    "dyes": [
+      "Paraffin and Beeswax blend",
+      "Napthol dyes",
+      "Vat dyes",
+      "Natural vegetable extracts"
+    ]
+  },
+  "brand_tone_keywords": [
+    "fluid",
+    "crackled",
+    "expressive",
+    "soulful",
+    "vibrant",
+    "layered"
+  ],
+  "selling_points": [
+    "The signature 'crackle' effect ensures that no two pieces are ever identical.",
+    "A labor-intensive process where each color layer requires a new application of wax.",
+    "Deeply rooted in the cultural history of the Silk Route and Indian trade heritage.",
+    "Features a 'three-dimensional' visual depth due to the wax-resist layering.",
+    "Revived by Rabindranath Tagore at Santiniketan, blending fine art with craft.",
+    "Unlike surface prints, the dye penetrates deep into the fibers for lasting vibrance.",
+    "Hand-drawn 'Tjanting' work allows for fluid, painterly expressions on fabric."
+  ],
+  "occasions": [
+    "casual_wear",
+    "art_exhibitions",
+    "ceremonial",
+    "home_furnishing",
+    "resort_wear",
+    "gifting"
+  ],
+  "product_copy_hints": {
+    "apparel": "Highlight the organic 'crackle' patterns that act as a thumbprint of authenticity. Mention the cool, tactile feel of wax-printed cotton and the deep saturation of indigo and madder tones. Emphasize that the design is visible on both sides of the fabric, a hallmark of genuine hand-batik.",
+    "jewelry": "Position batik-inspired jewelry as a fusion of textile art and accessory. Mention hand-painted batik silk beads or leather accents that carry the 'veined' aesthetic of the craft, perfect for bohemian or heritage-focused styling.",
+    "pottery": "Describe as 'Batik-glaze' effects where the wax-resist technique is adapted to ceramics. Focus on the unpredictable flow of glaze and the marble-like veins that mimic the traditional fabric crackle.",
+    "painting": "Focus on the 'Tuli' (brush) or 'Tjanting' (pen) technique. Frame the piece as a 'canvas of wax,' where the artist must work in reverse—thinking of what to hide before they reveal the final vibrant image through boiling.",
+    "home_decor": "Emphasize the warmth and 'lived-in' heritage look of batik wall hangings and bedspreads. Mention how the motifs like the Tree of Life or folk deities bring a storied, artisanal energy to modern living spaces.",
+    "other": "Focus on the 'Batik Renaissance'—the transition of a functional craft into a global fashion statement. Mention the patience of the artisan in the 'wax-dye-boil' cycle."
+  },
+  "rag_chunks": [
+    "Batik is a centuries-old wax-resist dyeing technique that reached its artistic peak in Java but has deep historical roots in India, specifically through the Khatri community of Gujarat and the artisans of Bhairavgarh.",
+    "The hallmark of authentic Batik is the 'crackle' effect, caused when the dried wax is intentionally broken, allowing dye to seep into the fissures and create fine, marble-like veins across the design.",
+    "In the early 20th century, Rabindranath Tagore reintroduced Batik to India at Santiniketan after a trip to Java, evolving it into 'Tuli Batik' which uses brushes for a more painterly, free-hand style.",
+    "The process involves applying a molten mixture of paraffin and beeswax; the wax acts as a shield, preserving the underlying color while the rest of the fabric is immersed in a cold dye bath.",
+    "Bhairavgarh in Ujjain is a premier center for Batik in India, known for using large wooden blocks to stamp wax patterns onto cotton, a tradition dating back to the Mughal era.",
+    "Traditional motifs in Kutch Batik often include 'Charkaliya' (sparrows) and 'Phulkiya' (flowers), reflecting the local flora and fauna of the Gujarat coastline and desert.",
+    "The Santiniketan style of Batik is unique for its use of 'Alpona' motifs—traditional floor patterns from Bengal—transferred onto fabric and leather using fine brushes and natural dyes.",
+    "Batik tools vary by region: while Gujarat and Madhya Pradesh often use hand-carved wooden blocks for speed, South Indian and West Bengali artisans prefer the 'Tjanting' copper pen for intricate detailing.",
+    "The 'boiling reveal' is the final stage of the craft, where the fabric is plunged into boiling water to melt away the wax, uncovering the vibrant, multi-colored patterns hidden beneath the resist.",
+    "Modern Batik has expanded beyond textiles into leatherwork, wood, and ceramics, but it remains defined by the science of wax resisting water-based dyes to create layered, narrative art."
+  ]
+}
