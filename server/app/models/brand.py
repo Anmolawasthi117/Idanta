@@ -54,6 +54,7 @@ class BrandCreate(BaseModel):
     script_preference: ScriptPreference = ScriptPreference.both
     artisan_story: Optional[str] = Field(default=None, max_length=4000)
     preferred_language: str = Field(default="hi", pattern="^(hi|en)$")
+    reference_images: list[str] = Field(default_factory=list, description="Array of Supabase storage image URLs")
 
 
 class BrandResponse(BaseModel):

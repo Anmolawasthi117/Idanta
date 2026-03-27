@@ -169,3 +169,47 @@ async def groq_transcribe_audio(filename: str, file_bytes: bytes, language: str 
     except Exception as e:
         logger.error(f"Groq transcription failed: {e}")
         raise RuntimeError(f"Failed to transcribe audio: {e}") from e
+
+
+async def groq_vision_completion(
+    system_prompt: str,
+    user_prompt: str,
+    image_urls: list[str],
+    max_tokens: int = 1024,
+    temperature: float = 0.5,
+    max_retries: int = 4,
+) -> str:
+    """
+    Call Groq Vision model (llama-3.2-90b-vision-preview) to analyze an array of image URLs.
+    """
+    client = get_groq_client()
+    delay = 2.0
+    
+    content = [{"type": "text", "text": user_prompt}]
+    for url in image_urls:
+         content.append({
+             "type": "image_url",
+             "image_url": {"url": url}
+         })
+
+    for attempt in range(max_retries):
+        try:
+            response = await client.chat.completions.create(
+                model="llama-3.2-90b-vision-preview",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": content},
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return response.choices[0].message.content.strip()
+
+        except RateLimitError:
+            if attempt == max_retries - 1:
+                raise RuntimeError("Groq rate limit exceeded after all retries.")
+            wait = delay * (2 ** attempt)
+            logger.warning(f"Groq rate limit hit. Retrying in {wait}s (attempt {attempt + 1})...")
+            await asyncio.sleep(wait)
+
+    raise RuntimeError("Groq vision completion failed after maximum retries.")

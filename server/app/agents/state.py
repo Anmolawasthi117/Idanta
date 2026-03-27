@@ -18,6 +18,7 @@ class BrandState(TypedDict, total=False):
     artisan_story: Optional[str]
     script_preference: str
     preferred_language: str
+    reference_images: List[str]
 
     # Context builder output
     craft_data: Dict[str, Any]

@@ -1,0 +1,66 @@
+{
+  "palettes": [
+    {
+      "id": "earthy_terracotta",
+      "name": "Earthy Terracotta",
+      "primary": "#8B4513",
+      "secondary": "#D2B48C",
+      "accent": "#CD853F",
+      "description": "Warm, grounded tones reflecting clay, soil, and natural dyes. Ideal for pottery and block prints."
+    },
+    {
+      "id": "royal_indigo",
+      "name": "Royal Indigo",
+      "primary": "#1A2E5A",
+      "secondary": "#4E3629",
+      "accent": "#D4AF37",
+      "description": "Deep, majestic blues and golds. Ideal for premium heritage crafts, silk weaving, and regal metalwork."
+    },
+    {
+      "id": "vibrant_saffron",
+      "name": "Vibrant Saffron",
+      "primary": "#E25822",
+      "secondary": "#FFB347",
+      "accent": "#8C001A",
+      "description": "High-energy, saturated festive colors. Perfect for embroidery, festive wear, and lively regional arts."
+    },
+    {
+      "id": "minimal_sand",
+      "name": "Minimal Sand",
+      "primary": "#2F4F4F",
+      "secondary": "#F5F5DC",
+      "accent": "#A9A9A9",
+      "description": "Restrained, natural, and highly modern. Great for contemporary adaptations, minimalist decor, and stark geometric prints."
+    },
+    {
+      "id": "forest_vermillion",
+      "name": "Forest Vermillion",
+      "primary": "#228B22",
+      "secondary": "#E34234",
+      "accent": "#DAA520",
+      "description": "Rich greens offset by sharp vermillion reds. Strong connection to folklore, tribal art, and organic materials."
+    }
+  ],
+  "illustration_languages": [
+    {
+      "id": "block_print_stamp",
+      "name": "Block Print Stamp",
+      "description": "Imperfect edges, monochromatic ink dispersion, mimics hand-carved wooden blocks."
+    },
+    {
+      "id": "fine_line_etching",
+      "name": "Fine Line Etching",
+      "description": "Highly geometric, intricate, crisp lines. Appeals to precision crafts like Maheshwari weaving or filigree."
+    },
+    {
+      "id": "fluid_watercolor",
+      "name": "Fluid Watercolor",
+      "description": "Soft edges, bleeding tones, organic spreads. Mirrors dyeing techniques like Batik or Bandhani."
+    },
+    {
+      "id": "modern_minimal_vector",
+      "name": "Modern Minimal Vector",
+      "description": "Clean, flat geometric shapes. Modernizes traditional motifs for a highly premium, urban audience."
+    }
+  ]
+}

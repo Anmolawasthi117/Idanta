@@ -12,6 +12,13 @@ export const createBrand = async (payload: BrandCreatePayload): Promise<BrandCre
   return data
 }
 
+export const uploadBrandImages = async (formData: FormData): Promise<string[]> => {
+  const { data } = await apiClient.post<string[]>('/brands/upload-images', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
 export const getBrand = async (brandId: string): Promise<Brand> => {
   const { data } = await apiClient.get<Brand>(`/brands/${brandId}`)
   return data

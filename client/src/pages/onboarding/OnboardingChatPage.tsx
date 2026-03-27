@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { brandAssistStream } from '../../api/chat.api'
-import { brandAssistChat } from '../../api/brand.api'
+import { brandAssistChat, uploadBrandImages } from '../../api/brand.api'
 import ChatInput from '../../components/chat/ChatInput'
 import ChatMessage from '../../components/chat/ChatMessage'
 import ChatWindow from '../../components/chat/ChatWindow'
@@ -98,6 +98,8 @@ export default function OnboardingChatPage() {
   const [isBackendChatLive, setIsBackendChatLive] = useState(true)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
   const [mode, setMode] = useState<'chat' | 'form'>('chat')
+  const [phase, setPhase] = useState<1 | 2>(1)
+  const [files, setFiles] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -246,7 +248,28 @@ export default function OnboardingChatPage() {
     }
   }
 
-  const submitBrand = () => {
+  const handleFiles = (incoming: FileList | null) => {
+    if (!incoming) return
+    const next = [...files]
+    for (const file of Array.from(incoming)) {
+      if (next.length >= 8) {
+        pushToast(copyFor(language, 'Max 8 photos upload kar sakte hain, usme se 3 select karni hongi.', 'Max 8 photos allowed, you must select the best 3.'))
+        break
+      }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        pushToast(copyFor(language, 'Sirf JPG, PNG ya WEBP allow hain.', 'Only JPG, PNG, or WEBP allowed.'))
+        continue
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        pushToast(copyFor(language, 'File 5MB se chhoti honi chahiye.', 'File must be under 5MB.'))
+        continue
+      }
+      next.push(file)
+    }
+    setFiles(next)
+  }
+
+  const submitBrand = async () => {
     if (missingFields.length || isSubmitting) {
       if (mode === 'chat') {
         pushToast(copyFor(language, 'Abhi thodi aur jaankari chahiye.', 'A little more information is still needed.'))
@@ -255,29 +278,50 @@ export default function OnboardingChatPage() {
       }
       return
     }
+
+    if (files.length > 3) {
+      pushToast(copyFor(language, 'Kripya sirf best 3 photos rakhein. Baaki remove karein.', 'Please keep only your best 3 photos. Remove the rest.'))
+      return
+    }
     
     setIsSubmitting(true)
-    createBrandMutation.mutate(
-      {
-        ...(extractedData as BrandCreatePayload),
-        preferred_language: language === 'en' ? 'en' : 'hi',
-        script_preference: extractedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
-      },
-      {
-        onSuccess: (data) => navigate(`/jobs/${data.job_id}`),
-        onError: (error) => {
-          setIsSubmitting(false)
-          pushToast(getErrorMessage(error))
+    
+    try {
+      let uploadedUrls: string[] = []
+      if (files.length > 0) {
+        const formData = new FormData()
+        files.forEach((file) => formData.append('photos', file))
+        uploadedUrls = await uploadBrandImages(formData)
+      }
+      
+      createBrandMutation.mutate(
+        {
+          ...(extractedData as BrandCreatePayload),
+          preferred_language: language === 'en' ? 'en' : 'hi',
+          script_preference: extractedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+          reference_images: uploadedUrls
         },
-      },
-    )
+        {
+          onSuccess: (data) => navigate(`/jobs/${data.job_id}`),
+          onError: (error) => {
+            setIsSubmitting(false)
+            pushToast(getErrorMessage(error))
+          },
+        },
+      )
+    } catch (e) {
+      setIsSubmitting(false)
+      pushToast(getErrorMessage(e))
+    }
   }
 
   useEffect(() => {
-    if (isComplete && missingFields.length === 0 && !isSubmitting && extractedData.craft_id) {
-       submitBrand()
+    if (isComplete && missingFields.length === 0 && !isSubmitting && extractedData.craft_id && phase === 1) {
+       setPhase(2)
+       stopAudio()
+       stopRecording()
     }
-  }, [isComplete, missingFields.length, isSubmitting, extractedData.craft_id])
+  }, [isComplete, missingFields.length, isSubmitting, extractedData.craft_id, phase])
 
   return (
     <div className="space-y-6">
@@ -414,23 +458,74 @@ export default function OnboardingChatPage() {
             <Input type="number" label={copyFor(language, 'Years of Experience', 'Years of Experience')} value={extractedData.years_of_experience ?? ''} onChange={(event) => setExtractedData(current => ({...current, years_of_experience: Number(event.target.value)}))} />
             <Input type="number" label={copyFor(language, 'Generations in Craft', 'Generations in Craft')} value={extractedData.generations_in_craft ?? ''} onChange={(event) => setExtractedData(current => ({...current, generations_in_craft: Number(event.target.value)}))} />
             <Textarea label={copyFor(language, 'Story', 'Story')} value={extractedData.artisan_story ?? ''} onChange={(event) => setExtractedData(current => ({...current, artisan_story: event.target.value}))} />
-            {(mode === 'form' || isComplete) && (
-              <Button className="w-full mt-2" size="lg" loading={isSubmitting || createBrandMutation.isPending} onClick={submitBrand}>
-                {copyFor(language, 'Apna Brand Banao', 'Create My Brand')}
+            {(mode === 'form' || isComplete) && phase === 1 && (
+              <Button className="w-full mt-2" size="lg" onClick={() => {
+                if (missingFields.length) {
+                  pushToast(copyFor(language, 'Saari fields bharna zaruri hai.', 'All fields are required.'))
+                  return
+                }
+                setPhase(2)
+              }}>
+                {copyFor(language, 'Aage Badhein (Photos)', 'Next (Photos)')}
               </Button>
             )}
           </Card>
         )}
 
-        <Card className="space-y-4">
-          <div>
-            <p className="text-sm font-semibold text-orange-600">
-              {copyFor(language, 'Brand summary', 'Brand summary')}
-            </p>
-            <h2 className="text-2xl font-semibold text-stone-900">
-              {copyFor(language, 'Jo humne samjha', 'What we understood')}
-            </h2>
-          </div>
+        {phase === 2 && (
+          <Card className="col-span-1 lg:col-span-2 space-y-5 animate-in fade-in slide-in-from-bottom-4">
+             <div>
+              <h2 className="text-xl font-semibold text-stone-900 sm:text-2xl">
+                {copyFor(language, 'Phase 2: Apne kaam ki photos', 'Phase 2: Photos of your work')}
+              </h2>
+              <p className="text-sm text-stone-600 sm:text-base">
+                {copyFor(language, 'AI aapki photos dekh kar aapke brand ke rang aur design chusega. Apni best 3 photos hi select karke rakhein.', 'The AI will analyze your photos to select the best colors and designs for your brand. Please keep exactly your best 3 photos.')}
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-orange-200 bg-orange-50 px-4 py-6 text-center text-stone-600 transition-colors hover:bg-orange-100">
+                <span className="font-medium text-stone-800">{copyFor(language, 'Photo yahan select karo', 'Select photos here')}</span>
+                <span className="text-sm">JPG, PNG, WEBP · select max 3 photos</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
+              </label>
+              
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {files.map((file) => (
+                  <div key={`${file.name}-${file.size}`} className="rounded-2xl border border-stone-200 bg-white p-3 text-sm flex flex-col justify-between">
+                    <div>
+                      <p className="truncate font-medium text-stone-800" title={file.name}>{file.name}</p>
+                      <p className="text-stone-500">{Math.round(file.size / 1024)} KB</p>
+                    </div>
+                    <button type="button" className="mt-2 text-red-600 text-left font-medium" onClick={() => setFiles((current) => current.filter((item) => item !== file))}>
+                      {copyFor(language, 'Remove', 'Remove')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-4">
+              <Button variant="secondary" onClick={() => setPhase(1)}>
+                {copyFor(language, 'Peeche Jao', 'Go Back')}
+              </Button>
+              <Button className="flex-1" size="lg" loading={isSubmitting || createBrandMutation.isPending} onClick={submitBrand}>
+                {copyFor(language, 'Apna Brand Banao', 'Create My Brand')} ({files.length}/3)
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {phase === 1 && (
+          <Card className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-orange-600">
+                {copyFor(language, 'Brand summary', 'Brand summary')}
+              </p>
+              <h2 className="text-2xl font-semibold text-stone-900">
+                {copyFor(language, 'Jo humne samjha', 'What we understood')}
+              </h2>
+            </div>
           <SummaryRow label={copyFor(language, 'Craft', 'Craft')} value={extractedData.craft_id} language={language} />
           <SummaryRow label={copyFor(language, 'Naam', 'Name')} value={extractedData.artisan_name} language={language} />
           <SummaryRow label={copyFor(language, 'Jagah', 'Region')} value={extractedData.region} language={language} />
@@ -447,10 +542,11 @@ export default function OnboardingChatPage() {
           <SummaryRow label={copyFor(language, 'Kahani', 'Story')} value={extractedData.artisan_story} language={language} />
           {isComplete && mode === 'chat' && (
             <p className="text-sm font-medium text-orange-600 mt-2">
-              {copyFor(language, 'Jankari complete! Form auto-submit ho raha hai...', 'Information complete! Auto-submitting the form...')}
+              {copyFor(language, 'Jankari complete! Phase 2 loading...', 'Information complete! Loading Phase 2...')}
             </p>
           )}
         </Card>
+        )}
       </div>
     </div>
   )

@@ -7,9 +7,10 @@ GET  /api/v1/brands/crafts      - List all available craft types
 
 import json
 import logging
+import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 
 from app.agents.graphs.brand_graph import run_brand_graph
 from app.agents.state import BrandState
@@ -17,6 +18,7 @@ from app.api.deps import get_current_user_id
 from app.core.database import supabase
 from app.models.brand import BrandCreateRequest, BrandPublic, CraftInfo
 from app.models.job import JobCreateResponse
+from app.services.storage_service import upload_bytes
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -108,6 +110,7 @@ async def create_brand(
         "script_preference": payload.script_preference.value,
         "artisan_story": payload.artisan_story,
         "preferred_language": payload.preferred_language,
+        "reference_images": payload.reference_images,
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)
@@ -117,6 +120,31 @@ async def create_brand(
         job_id=job_id,
         message="Brand creation started. Poll /api/v1/jobs/{job_id}/status for progress.",
     )
+
+
+@router.post(
+    "/upload-images",
+    response_model=list[str],
+    summary="Upload reference images for brand onboarding",
+    tags=["Brands"],
+)
+async def upload_brand_images(
+    photos: list[UploadFile] = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    photo_urls: list[str] = []
+    session_id = str(uuid.uuid4())[:8]
+    for index, photo in enumerate(photos[:3]):
+        content = await photo.read()
+        ext = photo.filename.rsplit(".", 1)[-1] if photo.filename and "." in photo.filename else "jpg"
+        storage_path = f"brands/temp_{user_id}/{session_id}_{index}.{ext}"
+        url = await upload_bytes(
+            data=content,
+            path=storage_path,
+            content_type=photo.content_type or "image/jpeg",
+        )
+        photo_urls.append(url)
+    return photo_urls
 
 
 @router.get(
@@ -212,6 +240,7 @@ async def regenerate_brand(
         "script_preference": brand.get("script_preference", "both"),
         "artisan_story": brand.get("artisan_story"),
         "preferred_language": brand.get("preferred_language", "hi"),
+        "reference_images": brand.get("reference_images", []),
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)
