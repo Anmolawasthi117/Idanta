@@ -17,7 +17,7 @@ import { normalizeBrandExtracted } from '../../lib/chatNormalization'
 import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
 import { Mic, Square, Volume2, MicOff } from 'lucide-react'
-import type { BrandCreatePayload } from '../../types/brand.types'
+import type { BrandCreatePayload, CraftItem } from '../../types/brand.types'
 
 interface Message {
   id: string
@@ -27,6 +27,16 @@ interface Message {
 }
 
 type ExtractedFormData = Partial<BrandCreatePayload>
+const REQUIRED_BRAND_FIELDS: Array<keyof BrandCreatePayload> = [
+  'craft_id',
+  'artisan_name',
+  'region',
+  'years_of_experience',
+  'generations_in_craft',
+  'artisan_story',
+  'script_preference',
+  'preferred_language',
+]
 
 const createMessage = (role: Message['role'], content: string): Message => ({
   id: `${role}-${Date.now()}-${Math.random()}`,
@@ -38,7 +48,8 @@ const createMessage = (role: Message['role'], content: string): Message => ({
 import type { AppLanguage } from '../../store/uiStore'
 
 const buildBrandPrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: any[]) => {
-  const craftChoices = crafts.map((c: any) => `ID: "${c.craft_id}" (${c.display_name})`).join(', ')
+  const craftChoices = crafts.map((c: any) => `"${c.display_name}" => "${c.craft_id}"`).join(', ')
+  const craftExamples = crafts.slice(0, 5).map((c: any) => c.display_name).join(', ')
   const baseRules = `
 You need to collect the following information from the user:
 1. craft_id (Must be ONE of exactly these IDs: ${craftChoices})
@@ -51,6 +62,8 @@ You need to collect the following information from the user:
 Important normalization rules:
 - script_preference must be: "hindi", "english", or "both"
 - preferred_language must be: "${language === 'en' ? 'en' : 'hi'}"
+- When asking about craft, give examples ONLY from this list: ${craftExamples || craftChoices}
+- Do not ask or suggest any craft that is outside the allowed craft list.
 
 CRITICAL RULE: You must ask a maximum of 10 questions in total across the entire conversation. If you reach 10 questions and still do not have all information, you must immediately wrap up the conversation gracefully.
 If the user's answer is unclear, ask a clarification question. Never guess the craft ID if the user statement does not match.`
@@ -73,6 +86,40 @@ You are Idanta's friendly brand assistant helping Indian artisans create their b
 Speak only in simple English. Do not reply in Hindi or Hinglish.
 Keep every message under 2 sentences. Ask one question at a time. Never use technical jargon.
 ${baseRules}`.trim()
+  }
+}
+
+const buildAutoFilledBrandData = (
+  current: ExtractedFormData,
+  crafts: CraftItem[],
+  language: AppLanguage,
+): ExtractedFormData => {
+  const allowedCraftIds = new Set(crafts.map((craft) => craft.craft_id))
+  const fallbackCraft = crafts[0]
+  const craftId = current.craft_id && allowedCraftIds.has(current.craft_id) ? current.craft_id : fallbackCraft?.craft_id
+  const selectedCraft = crafts.find((craft) => craft.craft_id === craftId) ?? fallbackCraft
+
+  const artisanName = current.artisan_name?.trim() || copyFor(language, 'Kalakar', 'Artisan')
+  const region = current.region?.trim() || selectedCraft?.region || 'India'
+  const craftName = selectedCraft?.display_name || copyFor(language, 'haath ka kaam', 'handcrafted art')
+  const story =
+    current.artisan_story?.trim() ||
+    copyFor(
+      language,
+      `${artisanName} ${region} se ${craftName} ka kaam karte hain aur paramparik kala ko aage badha rahe hain.`,
+      `${artisanName} from ${region} practices ${craftName} and continues a traditional craft legacy.`,
+    )
+
+  return {
+    ...current,
+    craft_id: craftId,
+    artisan_name: artisanName,
+    region,
+    years_of_experience: Number(current.years_of_experience) > 0 ? Number(current.years_of_experience) : 1,
+    generations_in_craft: Number(current.generations_in_craft) > 0 ? Number(current.generations_in_craft) : 1,
+    artisan_story: story,
+    script_preference: current.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+    preferred_language: current.preferred_language ?? (language === 'en' ? 'en' : 'hi'),
   }
 }
 
@@ -127,17 +174,26 @@ export default function OnboardingChatPage() {
   }, [messages])
 
   const missingFields = useMemo(() => {
-    const required: Array<keyof BrandCreatePayload> = [
-      'craft_id',
-      'artisan_name',
-      'region',
-      'years_of_experience',
-      'generations_in_craft',
-      'script_preference',
-      'preferred_language',
-    ]
-    return required.filter((field) => !extractedData[field])
+    return REQUIRED_BRAND_FIELDS.filter((field) => !extractedData[field])
   }, [extractedData])
+
+  useEffect(() => {
+    if (!craftsQuery.data?.length) return
+    const craftExamples = craftsQuery.data.slice(0, 5).map((craft) => craft.display_name).join(', ')
+    setMessages((current) => {
+      if (current.length !== 1 || current[0]?.role !== 'assistant') return current
+      return [
+        {
+          ...current[0],
+          content: copyFor(
+            language,
+            `Namaste. Aap kaunsi kala karte ho? Jaise: ${craftExamples}`,
+            `Hello. Which craft do you practice? For example: ${craftExamples}`,
+          ),
+        },
+      ]
+    })
+  }, [craftsQuery.data, language])
 
   const handleSend = async (message: string) => {
     const userMessage = createMessage('user', message)
@@ -193,19 +249,26 @@ export default function OnboardingChatPage() {
             } else if (event.type === 'final') {
               const normalizedExtracted = normalizeBrandExtracted(event.extracted ?? {})
               if (normalizedExtracted) {
+                const cleaned: any = {}
+                for (const [k, v] of Object.entries(normalizedExtracted)) {
+                  if (v !== null && v !== undefined && v !== '') {
+                    cleaned[k] = v
+                  }
+                }
                 mergedData = {
                   ...mergedData,
-                  ...normalizedExtracted,
+                  ...cleaned,
                   preferred_language: language === 'en' ? 'en' : 'hi',
-                  script_preference: normalizedExtracted.script_preference ?? mergedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+                  script_preference: cleaned.script_preference ?? mergedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
                 }
-                setExtractedData(mergedData)
               }
-              const requiredFields: Array<keyof BrandCreatePayload> = [
-                'craft_id', 'artisan_name', 'region', 'years_of_experience',
-                'generations_in_craft', 'script_preference', 'preferred_language'
-              ]
-              setIsComplete(Boolean(event.is_complete) && requiredFields.every((field) => Boolean(mergedData[field])))
+              const completionSignaled = Boolean(event.is_complete)
+              if (completionSignaled) {
+                mergedData = buildAutoFilledBrandData(mergedData, craftsQuery.data ?? [], language)
+              }
+              setExtractedData(mergedData)
+              const hasAllRequired = REQUIRED_BRAND_FIELDS.every((field) => Boolean(mergedData[field]))
+              setIsComplete(completionSignaled || hasAllRequired)
               
               setIsLoading(false)
             } else if (event.type === 'error') {
@@ -225,20 +288,32 @@ export default function OnboardingChatPage() {
         const response = await brandAssistChat(message, extractedData, craftsQuery.data ?? [], language)
         const normalizedExtracted = normalizeBrandExtracted(response.extracted ?? {})
         if (normalizedExtracted) {
+          const cleaned: any = {}
+          for (const [k, v] of Object.entries(normalizedExtracted)) {
+            if (v !== null && v !== undefined && v !== '') {
+              cleaned[k] = v
+            }
+          }
           mergedData = {
             ...mergedData,
-            ...normalizedExtracted,
+            ...cleaned,
             preferred_language: language === 'en' ? 'en' : 'hi',
-            script_preference: normalizedExtracted.script_preference ?? mergedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+            script_preference: cleaned.script_preference ?? mergedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
           }
-          setExtractedData(mergedData)
         }
+        const completionSignaled = Boolean(response.is_complete)
+        if (completionSignaled) {
+          mergedData = buildAutoFilledBrandData(mergedData, craftsQuery.data ?? [], language)
+        }
+        setExtractedData(mergedData)
         setMessages((current) => 
           current.map(m => m.id === assistantMessageId ? { ...m, content: response.message } : m)
         )
         if (isVoiceMode && response.message) {
           playSynthesizedSpeech(response.message)
         }
+        const hasAllRequired = REQUIRED_BRAND_FIELDS.every((field) => Boolean(mergedData[field]))
+        setIsComplete(completionSignaled || hasAllRequired)
         setIsLoading(false)
       }
 
@@ -270,12 +345,18 @@ export default function OnboardingChatPage() {
   }
 
   const submitBrand = async () => {
-    if (missingFields.length || isSubmitting) {
-      if (mode === 'chat') {
-        pushToast(copyFor(language, 'Abhi thodi aur jaankari chahiye.', 'A little more information is still needed.'))
-      } else {
-        pushToast(copyFor(language, 'Saari fields bharna zaruri hai.', 'All fields are required.'))
-      }
+    if (isSubmitting) {
+      return
+    }
+
+    let dataToSubmit = extractedData
+    if (missingFields.length) {
+      dataToSubmit = buildAutoFilledBrandData(extractedData, craftsQuery.data ?? [], language)
+      setExtractedData(dataToSubmit)
+    }
+    const stillMissing = REQUIRED_BRAND_FIELDS.filter((field) => !dataToSubmit[field])
+    if (stillMissing.length) {
+      pushToast(copyFor(language, 'Kuch jaankari abhi auto-fill nahi ho payi. Kripya dobara try karein.', 'Some details could not be auto-filled yet. Please try again.'))
       return
     }
 
@@ -296,9 +377,9 @@ export default function OnboardingChatPage() {
       
       createBrandMutation.mutate(
         {
-          ...(extractedData as BrandCreatePayload),
+          ...(dataToSubmit as BrandCreatePayload),
           preferred_language: language === 'en' ? 'en' : 'hi',
-          script_preference: extractedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+          script_preference: dataToSubmit.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
           reference_images: uploadedUrls
         },
         {

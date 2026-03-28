@@ -96,14 +96,17 @@ async def _chat_stream(payload: ChatAssistRequest):
 
     # 2. Extract structured data
     extraction_prompt = (
-        "Based on the conversation so far, and your latest reply:\n"
+        "Conversation transcript:\n"
+        f"{transcript}\n\n"
+        "Latest assistant reply:\n"
         f"{message_content}\n\n"
         "Context constraints:\n"
         f"{payload.context}\n\n"
-        "Extract the current state into JSON with exactly two top-level keys: 'extracted' and 'is_complete'.\n"
-        "The 'extracted' object MUST contain ONLY these keys if known: craft_id, artisan_name, region, years_of_experience, generations_in_craft, artisan_story, script_preference, preferred_language. "
-        "Leave out keys that are not yet provided by the user.\n"
-        "Set 'is_complete' to true IF you have successfully collected all data OR if you have reached the 10 question limit across the conversation."
+        "Extract the FULL CUMULATIVE state into JSON with exactly two top-level keys: 'extracted' and 'is_complete'.\n"
+        "If context includes extracted_data, start from that state and update it using the latest conversation.\n"
+        "The 'extracted' object MUST contain all accumulated information gathered so far, not only fields from the latest turn.\n"
+        "Do NOT output null or empty strings for information already present in context unless the user explicitly cleared them.\n"
+        "Set 'is_complete' to true when required onboarding fields are collected, or when the 10-question limit has been reached."
     )
     try:
         extraction_result = await groq_json_completion(
