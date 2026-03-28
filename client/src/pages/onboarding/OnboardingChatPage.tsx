@@ -37,24 +37,23 @@ const createMessage = (role: Message['role'], content: string): Message => ({
 
 import type { AppLanguage } from '../../store/uiStore'
 
-const buildBrandPrompt = (language: AppLanguage, isVoiceMode: boolean) => {
+const buildBrandPrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: any[]) => {
+  const craftChoices = crafts.map((c: any) => `ID: "${c.craft_id}" (${c.display_name})`).join(', ')
   const baseRules = `
-You need to collect:
-1. craft_id
-2. artisan_name
-3. region
-4. years_of_experience
-5. generations_in_craft
-6. artisan_story
+You need to collect the following information from the user:
+1. craft_id (Must be ONE of exactly these IDs: ${craftChoices})
+2. artisan_name (Name of the artisan)
+3. region (Location/Village/City)
+4. years_of_experience (Numerical years)
+5. generations_in_craft (Numerical generations)
+6. artisan_story (A short background story)
 
 Important normalization rules:
-- script_preference must be one of: hindi, english, both
-- preferred_language must be "${language === 'en' ? 'en' : 'hi'}"
+- script_preference must be: "hindi", "english", or "both"
+- preferred_language must be: "${language === 'en' ? 'en' : 'hi'}"
 
-CRITICAL RULE: You must only ask a maximum of 10 questions in total across the entire conversation. If you reach 10 questions and still do not have all information, you must immediately wrap up the conversation gracefully and mark is_complete as true even if required fields are missing. Do not exceed 10 questions under any circumstance.
-Ask natural questions, but when returning JSON always use only the exact allowed values above.
-If the user's answer is unclear, ask a clarification question instead of guessing.
-Respond as JSON with keys: message, extracted, is_complete.`
+CRITICAL RULE: You must ask a maximum of 10 questions in total across the entire conversation. If you reach 10 questions and still do not have all information, you must immediately wrap up the conversation gracefully.
+If the user's answer is unclear, ask a clarification question. Never guess the craft ID if the user statement does not match.`
 
   if (language === 'hi' || isVoiceMode) {
     return `
@@ -158,7 +157,7 @@ export default function OnboardingChatPage() {
       try {
         await brandAssistStream(
           {
-            system_prompt: buildBrandPrompt(language, isVoiceMode),
+            system_prompt: buildBrandPrompt(language, isVoiceMode, craftsQuery.data ?? []),
             messages: nextMessages.map((item) => ({
               role: item.role,
               content: item.content,
@@ -177,7 +176,8 @@ export default function OnboardingChatPage() {
               )
               if (isVoiceMode) {
                 const unseen = fullMessage.substring(spokenLength)
-                const sentences = unseen.match(/[^।.?!\n]+[।.?!\n]+/g)
+                // Chunk on punctuation or commas to reduce perceived latency
+                const sentences = unseen.match(/[^।.?!,\n]+[।.?!,\n]+/g)
                 if (sentences) {
                   for (const s of sentences) {
                     spokenLength += s.length
@@ -316,12 +316,17 @@ export default function OnboardingChatPage() {
   }
 
   useEffect(() => {
-    if (isComplete && missingFields.length === 0 && !isSubmitting && extractedData.craft_id && phase === 1) {
-       setPhase(2)
+    if (isComplete && phase === 1 && !isSubmitting) {
+       if (missingFields.length === 0) {
+         setPhase(2)
+       } else {
+         setMode('form')
+         pushToast(copyFor(language, 'Kuch jankari adhoori hai, form se poori karein.', 'Some info is missing, please complete the form.'))
+       }
        stopAudio()
        stopRecording()
     }
-  }, [isComplete, missingFields.length, isSubmitting, extractedData.craft_id, phase])
+  }, [isComplete, missingFields.length, isSubmitting, phase, language])
 
   return (
     <div className="space-y-6">
@@ -451,7 +456,7 @@ export default function OnboardingChatPage() {
               label={copyFor(language, 'Craft', 'Craft')}
               value={extractedData.craft_id ?? ''}
               onChange={(event) => setExtractedData(current => ({...current, craft_id: event.target.value}))}
-              options={craftsQuery.data?.map(c => ({ label: c.name_en, value: c.id })) ?? []}
+              options={craftsQuery.data?.map(c => ({ label: c.display_name, value: c.craft_id })) ?? []}
             />
             <Input label={copyFor(language, 'Artisan Name', 'Artisan Name')} value={extractedData.artisan_name ?? ''} onChange={(event) => setExtractedData(current => ({...current, artisan_name: event.target.value}))} />
             <Input label={copyFor(language, 'Region', 'Region')} value={extractedData.region ?? ''} onChange={(event) => setExtractedData(current => ({...current, region: event.target.value}))} />

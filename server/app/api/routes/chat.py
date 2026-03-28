@@ -100,7 +100,10 @@ async def _chat_stream(payload: ChatAssistRequest):
         f"{message_content}\n\n"
         "Context constraints:\n"
         f"{payload.context}\n\n"
-        "Extract the current state into JSON with keys: extracted, is_complete."
+        "Extract the current state into JSON with exactly two top-level keys: 'extracted' and 'is_complete'.\n"
+        "The 'extracted' object MUST contain ONLY these keys if known: craft_id, artisan_name, region, years_of_experience, generations_in_craft, artisan_story, script_preference, preferred_language. "
+        "Leave out keys that are not yet provided by the user.\n"
+        "Set 'is_complete' to true IF you have successfully collected all data OR if you have reached the 10 question limit across the conversation."
     )
     try:
         extraction_result = await groq_json_completion(
