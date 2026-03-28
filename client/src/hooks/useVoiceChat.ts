@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { transcribeAudio, synthesizeSpeech } from '../api/chat.api'
+import { transcribeAudio, synthesizeSpeech, synthesizeSpeechStreamResponse } from '../api/chat.api'
 
 export interface VoiceChatOptions {
   language: 'hi' | 'en' | 'hg'
@@ -105,24 +105,165 @@ export const useVoiceChat = ({
     isPlayingQueueRef.current = true
     setIsPlaying(true)
     const textToPlay = ttsQueue.current.shift()!
+    console.info('[TTS] start queue item', { chars: textToPlay.length, language })
     try {
-      const audioBase64 = await synthesizeSpeech(textToPlay, language)
-      const audioEl = new Audio(`data:audio/wav;base64,${audioBase64}`)
+      const streamResponse = await synthesizeSpeechStreamResponse(textToPlay, language)
+      const streamMime = streamResponse.headers.get('content-type')?.split(';')[0]?.trim() || 'audio/webm'
+      console.info('[TTS] stream response', {
+        ok: streamResponse.ok,
+        status: streamResponse.status,
+        contentType: streamResponse.headers.get('content-type'),
+      })
+      const streamBody = streamResponse.body
+      if (!streamBody) throw new Error('No audio stream body')
+
+      const mimeForMse =
+        streamMime === 'audio/webm'
+          ? 'audio/webm; codecs=opus'
+          : streamMime === 'audio/mpeg'
+          ? 'audio/mpeg'
+          : ''
+      if (!mimeForMse || !MediaSource.isTypeSupported(mimeForMse)) {
+        throw new Error(`Unsupported MediaSource MIME type: ${mimeForMse || streamMime}`)
+      }
+
+      const mediaSource = new MediaSource()
+      const objectUrl = URL.createObjectURL(mediaSource)
+      const audioEl = new Audio(objectUrl)
+      audioEl.autoplay = false
+      audioEl.muted = false
+      audioEl.volume = 1
       audioRef.current = audioEl
-      
-      audioEl.onended = () => {
-        isPlayingQueueRef.current = false
-        if (ttsQueue.current.length === 0) setIsPlaying(false)
-        processTTSQueue()
-      }
-      audioEl.onerror = () => {
-         isPlayingQueueRef.current = false
-         if (ttsQueue.current.length === 0) setIsPlaying(false)
-         processTTSQueue()
-      }
-      await audioEl.play()
+
+      await new Promise<void>((resolve, reject) => {
+        const onError = () => reject(new Error('Audio stream playback failed'))
+        audioEl.onerror = onError
+        audioEl.onplay = () => console.info('[TTS] audio element onplay fired')
+        audioEl.onpause = () => console.info('[TTS] audio element onpause fired')
+        audioEl.onwaiting = () => console.info('[TTS] audio element onwaiting fired')
+        audioEl.onstalled = () => console.info('[TTS] audio element onstalled fired')
+        audioEl.oncanplay = () => console.info('[TTS] audio element oncanplay fired')
+        audioEl.oncanplaythrough = () => console.info('[TTS] audio element oncanplaythrough fired')
+        let sawTimeProgress = false
+        audioEl.ontimeupdate = () => {
+          if (!sawTimeProgress && audioEl.currentTime > 0) {
+            sawTimeProgress = true
+            console.info('[TTS] audio time progressed', { currentTime: audioEl.currentTime })
+          }
+        }
+        audioEl.onended = () => {
+          console.info('[TTS] stream playback ended')
+          URL.revokeObjectURL(objectUrl)
+          resolve()
+        }
+
+        mediaSource.addEventListener(
+          'sourceopen',
+          async () => {
+            console.info('[TTS] MediaSource opened')
+            try {
+              const sourceBuffer = mediaSource.addSourceBuffer(mimeForMse)
+              sourceBuffer.mode = 'sequence'
+              const reader = streamBody.getReader()
+              let hasStartedPlayback = false
+              let chunkCount = 0
+              let totalBytes = 0
+              const minBytesToStart = 12000
+
+              const appendChunk = (chunk: BufferSource) =>
+                new Promise<void>((appendResolve, appendReject) => {
+                  const onUpdateEnd = () => {
+                    sourceBuffer.removeEventListener('updateend', onUpdateEnd)
+                    appendResolve()
+                  }
+                  const onUpdateError = () => {
+                    sourceBuffer.removeEventListener('error', onUpdateError)
+                    appendReject(new Error('SourceBuffer append failed'))
+                  }
+                  sourceBuffer.addEventListener('updateend', onUpdateEnd)
+                  sourceBuffer.addEventListener('error', onUpdateError, { once: true })
+                  sourceBuffer.appendBuffer(chunk)
+                })
+
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (value && value.byteLength > 0) {
+                  chunkCount += 1
+                  totalBytes += value.byteLength
+                  if (chunkCount <= 3 || chunkCount % 10 === 0) {
+                    console.info('[TTS] stream chunk', { chunkCount, bytes: value.byteLength, totalBytes })
+                  }
+                  await appendChunk(value)
+                  if (!hasStartedPlayback && totalBytes >= minBytesToStart) {
+                    hasStartedPlayback = true
+                    console.info('[TTS] attempting first audioEl.play() from stream')
+                    await audioEl.play()
+                    console.info('[TTS] first audioEl.play() resolved')
+                    window.setTimeout(() => {
+                      if (!sawTimeProgress && chunkCount > 0) {
+                        console.warn('[TTS] playback still buffering after initial play()')
+                      }
+                    }, 2500)
+                  }
+                }
+              }
+
+              console.info('[TTS] stream read complete', { chunkCount, totalBytes, hasStartedPlayback })
+
+              if (chunkCount === 0) {
+                reject(new Error('No audio chunks received from streaming TTS'))
+                return
+              }
+
+              if (!hasStartedPlayback) {
+                console.info('[TTS] starting playback at end of stream due low buffered bytes', { totalBytes })
+                await audioEl.play()
+                hasStartedPlayback = true
+              }
+
+              if (!hasStartedPlayback) {
+                reject(new Error('Streaming TTS did not start audio playback'))
+                return
+              }
+
+              if (mediaSource.readyState === 'open') {
+                mediaSource.endOfStream()
+              }
+            } catch (err) {
+              reject(err instanceof Error ? err : new Error('Unknown audio stream error'))
+            }
+          },
+          { once: true },
+        )
+      })
     } catch (err) {
-      console.error('TTS error:', err)
+      console.error('Streaming TTS error, falling back to REST TTS:', err)
+      try {
+        const audioBase64 = await synthesizeSpeech(textToPlay, language)
+        console.info('[TTS] fallback REST audio received', { base64Chars: audioBase64.length })
+        const audioEl = new Audio(`data:audio/mpeg;base64,${audioBase64}`)
+        audioRef.current = audioEl
+        await new Promise<void>((resolve) => {
+          audioEl.onended = () => {
+            console.info('[TTS] fallback playback ended')
+            resolve()
+          }
+          audioEl.onerror = () => {
+            console.error('[TTS] fallback audio element error')
+            resolve()
+          }
+          void audioEl.play().then(() => {
+            console.info('[TTS] fallback audioEl.play() resolved')
+          }).catch((playErr) => {
+            console.error('[TTS] fallback audioEl.play() rejected', playErr)
+            resolve()
+          })
+        })
+      } catch (fallbackErr) {
+        console.error('Fallback TTS error:', fallbackErr)
+      }
+    } finally {
       isPlayingQueueRef.current = false
       if (ttsQueue.current.length === 0) setIsPlaying(false)
       processTTSQueue()

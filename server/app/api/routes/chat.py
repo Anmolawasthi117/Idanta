@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user_id
 from app.services.groq_client import groq_json_completion, groq_stream_completion
-from app.services.sarvam_client import sarvam_transcribe_audio, sarvam_synthesize_speech
+from app.services.sarvam_client import sarvam_transcribe_audio, sarvam_synthesize_speech, sarvam_stream_speech
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -162,3 +162,37 @@ async def synthesize_speech(
     except Exception as exc:
         logger.error("Speech synthesis failed: %s", exc)
         raise HTTPException(status_code=500, detail="Synthesis failed.") from exc
+
+
+@router.post("/synthesize-speech-stream")
+async def synthesize_speech_stream(
+    payload: SynthesizeSpeechRequest,
+    _user_id: str = Depends(get_current_user_id),
+):
+    logger.info(
+        "TTS stream request: chars=%s lang=%s",
+        len(payload.text or ""),
+        payload.target_language_code,
+    )
+
+    async def audio_stream():
+        chunk_count = 0
+        total_bytes = 0
+        async for chunk in sarvam_stream_speech(
+            text=payload.text,
+            target_language_code=payload.target_language_code,
+        ):
+            chunk_count += 1
+            total_bytes += len(chunk)
+            yield chunk
+        logger.info(
+            "TTS stream response complete: chunks=%s total_bytes=%s",
+            chunk_count,
+            total_bytes,
+        )
+
+    try:
+        return StreamingResponse(audio_stream(), media_type="audio/mpeg")
+    except Exception as exc:
+        logger.error("Speech stream synthesis failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Streaming synthesis failed.") from exc

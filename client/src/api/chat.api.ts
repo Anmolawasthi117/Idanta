@@ -132,11 +132,31 @@ export const transcribeAudio = async (audioBlob: Blob, language: string): Promis
 }
 
 export const synthesizeSpeech = async (text: string, language: string): Promise<string> => {
-  // Enforce Hindi target language as per user requirement for this version
+  const targetLanguage = language === 'en' ? 'en-IN' : 'hi-IN'
   const payload = {
     text,
-    target_language_code: 'hi-IN'
+    target_language_code: targetLanguage,
   }
   const { data } = await apiClient.post<{ audio_base64: string }>('/chat/synthesize-speech', payload)
   return data.audio_base64
+}
+
+export const synthesizeSpeechStreamResponse = async (text: string, language: string): Promise<Response> => {
+  const token = useAuthStore.getState().token
+  const targetLanguage = language === 'en' ? 'en-IN' : 'hi-IN'
+  const response = await fetch(`${API_BASE_URL}/chat/synthesize-speech-stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      text,
+      target_language_code: targetLanguage,
+    }),
+  })
+  if (!response.ok) {
+    throw new Error(`Streaming TTS failed: ${response.statusText}`)
+  }
+  return response
 }
