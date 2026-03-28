@@ -1,5 +1,13 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createBrand, getBrand, getCrafts, regenerateBrand, regenerateBrandAsset, type RegenerableBrandAsset } from '../api/brand.api'
+import {
+  createBrand,
+  getBrand,
+  getCrafts,
+  regenerateBrand,
+  regenerateBrandAsset,
+  type RegenerableBrandAsset,
+  updateBrandIdentity,
+} from '../api/brand.api'
 import type { BrandCreatePayload } from '../types/brand.types'
 
 export const useCrafts = () =>
@@ -28,6 +36,19 @@ export const useRegenerateBrand = () =>
 
 export const useRegenerateBrandAsset = () =>
   useMutation({
-    mutationFn: ({ brandId, assetType }: { brandId: string; assetType: RegenerableBrandAsset }) =>
-      regenerateBrandAsset(brandId, assetType),
+    mutationFn: ({
+      brandId,
+      assetType,
+      payload,
+    }: {
+      brandId: string
+      assetType: RegenerableBrandAsset
+      payload?: { name?: string; tagline?: string }
+    }) => regenerateBrandAsset(brandId, assetType, payload),
+  })
+
+export const useUpdateBrandIdentity = () =>
+  useMutation({
+    mutationFn: ({ brandId, name, tagline }: { brandId: string; name: string; tagline: string }) =>
+      updateBrandIdentity(brandId, { name, tagline }),
   })

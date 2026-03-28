@@ -135,3 +135,11 @@ ALTER TABLE products
     ADD COLUMN IF NOT EXISTS kit_zip_url TEXT,
     ADD COLUMN IF NOT EXISTS story_card_url TEXT,
     ADD COLUMN IF NOT EXISTS certificate_url TEXT;
+
+-- Migration: allow targeted brand regeneration jobs in existing projects.
+ALTER TABLE jobs
+    DROP CONSTRAINT IF EXISTS jobs_job_type_check;
+
+ALTER TABLE jobs
+    ADD CONSTRAINT jobs_job_type_check
+    CHECK (job_type IN ('brand_onboarding', 'brand_asset_regeneration', 'product_assets'));

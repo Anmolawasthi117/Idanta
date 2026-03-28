@@ -1,5 +1,5 @@
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed'
-export type JobType = 'brand_onboarding' | 'product_assets'
+export type JobType = 'brand_onboarding' | 'brand_asset_regeneration' | 'product_assets'
 
 export interface Job {
   id: string

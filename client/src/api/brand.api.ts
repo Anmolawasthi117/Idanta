@@ -6,7 +6,7 @@ export interface BrandCreateResponse {
   job_id: string
   message: string
 }
-export type RegenerableBrandAsset = 'logo' | 'banner' | 'tagline'
+export type RegenerableBrandAsset = 'logo' | 'banner' | 'tagline' | 'name' | 'identity'
 
 export const createBrand = async (payload: BrandCreatePayload): Promise<BrandCreateResponse> => {
   const { data } = await apiClient.post<BrandCreateResponse>('/brands/', payload)
@@ -38,10 +38,20 @@ export const regenerateBrand = async (brandId: string): Promise<BrandCreateRespo
 export const regenerateBrandAsset = async (
   brandId: string,
   assetType: RegenerableBrandAsset,
+  payload?: { name?: string; tagline?: string },
 ): Promise<BrandCreateResponse> => {
   const { data } = await apiClient.post<BrandCreateResponse>(`/brands/${brandId}/regenerate-asset`, {
     asset_type: assetType,
+    ...(payload ?? {}),
   })
+  return data
+}
+
+export const updateBrandIdentity = async (
+  brandId: string,
+  payload: { name: string; tagline: string },
+): Promise<Brand> => {
+  const { data } = await apiClient.patch<Brand>(`/brands/${brandId}/identity`, payload)
   return data
 }
 

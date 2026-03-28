@@ -24,6 +24,35 @@ const BRAND_STEPS = {
     { label: 'Kit ready', percent: 90 },
     { label: 'Done!', percent: 100 },
   ],
+  hg: [
+    { label: 'Craft details', percent: 10 },
+    { label: 'Brand name', percent: 25 },
+    { label: 'Logo and banner', percent: 50 },
+    { label: 'Brand story', percent: 50 },
+    { label: 'Kit ready', percent: 90 },
+    { label: 'Done!', percent: 100 },
+  ],
+}
+
+const BRAND_ASSET_STEPS = {
+  hi: [
+    { label: 'Asset prepare', percent: 15 },
+    { label: 'Asset regenerate', percent: 55 },
+    { label: 'Kit refresh', percent: 85 },
+    { label: 'Tayyar!', percent: 100 },
+  ],
+  en: [
+    { label: 'Asset prep', percent: 15 },
+    { label: 'Asset regenerate', percent: 55 },
+    { label: 'Kit refresh', percent: 85 },
+    { label: 'Done!', percent: 100 },
+  ],
+  hg: [
+    { label: 'Asset prep', percent: 15 },
+    { label: 'Asset regenerate', percent: 55 },
+    { label: 'Kit refresh', percent: 85 },
+    { label: 'Done!', percent: 100 },
+  ],
 }
 
 const PRODUCT_STEPS = {
@@ -43,6 +72,14 @@ const PRODUCT_STEPS = {
     { label: 'Assets pack', percent: 90 },
     { label: 'Done!', percent: 100 },
   ],
+  hg: [
+    { label: 'Product details', percent: 5 },
+    { label: 'Description', percent: 40 },
+    { label: 'Tags and labels', percent: 60 },
+    { label: 'Photo branding', percent: 70 },
+    { label: 'Assets pack', percent: 90 },
+    { label: 'Done!', percent: 100 },
+  ],
 }
 
 export default function JobProgressPage() {
@@ -54,7 +91,6 @@ export default function JobProgressPage() {
 
   useEffect(() => {
     if (jobQuery.data?.status === 'done' && jobQuery.data.ref_id) {
-      // Invalidate cached product/brand data so fresh URLs are fetched
       if (jobQuery.data.job_type === 'product_assets') {
         queryClient.invalidateQueries({ queryKey: ['product', jobQuery.data.ref_id] })
         queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -63,13 +99,29 @@ export default function JobProgressPage() {
       }
 
       const timeout = window.setTimeout(() => {
-        navigate(jobQuery.data?.job_type === 'brand_onboarding' ? '/brand' : `/products/${jobQuery.data?.ref_id}`)
-      }, 1500)
+        navigate(jobQuery.data?.job_type === 'product_assets' ? `/products/${jobQuery.data?.ref_id}` : '/brand')
+      }, 1200)
       return () => window.clearTimeout(timeout)
     }
   }, [jobQuery.data, navigate, queryClient])
 
-  const steps = jobQuery.data?.job_type === 'product_assets' ? PRODUCT_STEPS[language] : BRAND_STEPS[language]
+  const looksLikeAssetRegeneration =
+    jobQuery.data?.job_type === 'brand_asset_regeneration' ||
+    /regenerat/i.test(jobQuery.data?.current_step ?? '')
+
+  const steps =
+    jobQuery.data?.job_type === 'product_assets'
+      ? PRODUCT_STEPS[language]
+      : looksLikeAssetRegeneration
+      ? BRAND_ASSET_STEPS[language]
+      : BRAND_STEPS[language]
+
+  const progressSubtitle =
+    looksLikeAssetRegeneration
+      ? copyFor(language, 'Selected brand asset regenerate ho raha hai.', 'Selected brand asset is being regenerated.')
+      : jobQuery.data?.job_type === 'product_assets'
+      ? copyFor(language, 'Aapke product assets ban rahe hain.', 'Your product assets are being prepared.')
+      : copyFor(language, 'Aapka brand ban raha hai - thoda sabr karo', 'Your brand is being prepared - please wait a little')
 
   if (jobQuery.isLoading) {
     return <Card className="space-y-4 text-center">{copyFor(language, 'Progress load ho raha hai...', 'Loading progress...')}</Card>
@@ -82,11 +134,9 @@ export default function JobProgressPage() {
   if (jobQuery.data.status === 'failed') {
     return (
       <Card className="space-y-4 text-center">
-        <p className="text-2xl font-semibold text-stone-900">
-          {copyFor(language, 'Kuch gadbad ho gayi', 'Something went wrong')}
-        </p>
+        <p className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Kuch gadbad ho gayi', 'Something went wrong')}</p>
         <p className="text-stone-600">{jobQuery.data.error}</p>
-        <Button onClick={() => navigate(jobQuery.data?.job_type === 'brand_onboarding' ? '/onboarding' : '/products/add')}>
+        <Button onClick={() => navigate(jobQuery.data?.job_type === 'product_assets' ? '/products/add' : '/brand')}>
           {copyFor(language, 'Dobara try karein', 'Try again')}
         </Button>
       </Card>
@@ -104,9 +154,7 @@ export default function JobProgressPage() {
         </div>
         <div className="space-y-2">
           <p className="text-3xl font-semibold text-stone-900">{jobQuery.data.current_step}</p>
-          <p className="text-base text-stone-500">
-            {copyFor(language, 'Aapka brand ban raha hai - thoda sabr karo', 'Your brand is being prepared - please wait a little')}
-          </p>
+          <p className="text-base text-stone-500">{progressSubtitle}</p>
         </div>
         <div className="space-y-3 px-2 sm:px-8">
           <ProgressBar value={jobQuery.data.percent} />
@@ -114,12 +162,21 @@ export default function JobProgressPage() {
         </div>
         <div className="grid gap-3 px-2 sm:grid-cols-3 sm:px-8">
           {steps.map((step) => (
-            <div key={`${step.label}-${step.percent}`} className={`rounded-2xl border px-3 py-3 text-sm ${jobQuery.data.percent >= step.percent ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-stone-200 bg-stone-50 text-stone-500'}`}>
+            <div
+              key={`${step.label}-${step.percent}`}
+              className={`rounded-2xl border px-3 py-3 text-sm ${
+                jobQuery.data.percent >= step.percent
+                  ? 'border-orange-300 bg-orange-50 text-orange-700'
+                  : 'border-stone-200 bg-stone-50 text-stone-500'
+              }`}
+            >
               {step.label}
             </div>
           ))}
         </div>
-        {jobQuery.data.status === 'done' ? <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">✓</div> : null}
+        {jobQuery.data.status === 'done' ? (
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">OK</div>
+        ) : null}
       </Card>
     </div>
   )

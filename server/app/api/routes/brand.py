@@ -14,6 +14,7 @@ import zipfile
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from postgrest.exceptions import APIError
 from pydantic import BaseModel
 
 from app.agents.nodes.context_builder import context_builder_node
@@ -50,6 +51,49 @@ FEEL_BANNER_STYLE = {
 
 class RegenerateAssetRequest(BaseModel):
     asset_type: str
+    name: str | None = None
+    tagline: str | None = None
+
+
+class BrandIdentityUpdateRequest(BaseModel):
+    name: str
+    tagline: str
+
+
+def _create_targeted_job(user_id: str, brand_id: str, asset_type: str) -> tuple[str, str]:
+    """
+    Create a targeted-regeneration job.
+    Falls back to `brand_onboarding` if DB constraint has not been migrated yet.
+    Returns (job_id, created_job_type).
+    """
+    preferred_job_type = "brand_asset_regeneration"
+    payload = {
+        "user_id": user_id,
+        "job_type": preferred_job_type,
+        "ref_id": brand_id,
+        "status": "queued",
+        "current_step": f"Queued {asset_type} regeneration...",
+        "percent": 0,
+    }
+    try:
+        job_result = supabase.table("jobs").insert(payload).execute()
+        return job_result.data[0]["id"], preferred_job_type
+    except APIError as exc:
+        err_text = str(exc)
+        if "jobs_job_type_check" not in err_text:
+            raise
+        logger.warning(
+            "jobs.job_type constraint does not include %s; falling back to brand_onboarding. Error: %s",
+            preferred_job_type,
+            exc,
+        )
+        fallback_payload = {
+            **payload,
+            "job_type": "brand_onboarding",
+            "current_step": f"Regenerating {asset_type}...",
+        }
+        job_result = supabase.table("jobs").insert(fallback_payload).execute()
+        return job_result.data[0]["id"], "brand_onboarding"
 
 
 def _build_state_from_brand(job_id: str, user_id: str, brand: dict) -> BrandState:
@@ -164,7 +208,42 @@ async def _regenerate_tagline(state: BrandState) -> str:
     return str(result.get("tagline") or state.get("tagline") or "").strip()
 
 
-async def _run_targeted_regeneration(job_id: str, user_id: str, brand: dict, asset_type: str) -> None:
+async def _regenerate_name_and_tagline(state: BrandState) -> tuple[str, str]:
+    context = state.get("context_bundle", {})
+    result = await groq_json_completion(
+        system_prompt=(
+            "You are an expert Indian artisan brand strategist.\n"
+            "Output only JSON: {\"brand_name\": \"...\", \"tagline\": \"...\"}\n"
+            "Rules: brand_name should be premium 1-2 words, culturally rooted and distinct.\n"
+            "Tagline must be under 8 words and aligned with the same identity."
+        ),
+        user_prompt=(
+            f"Current brand name: {state.get('brand_name')}\n"
+            f"Current tagline: {state.get('tagline')}\n"
+            f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
+            f"Region: {context.get('region')}\n"
+            f"Brand feel: {context.get('brand_feel', 'earthy')}\n"
+            f"Target customer: {context.get('target_customer', 'local_bazaar')}\n"
+            f"Script preference: {context.get('script_preference', 'both')}\n"
+            f"Artisan story: {context.get('artisan_story', '')}\n"
+            f"RAG context: {state.get('rag_context', '')}"
+        ),
+        max_tokens=220,
+        temperature=0.8,
+    )
+    next_name = str(result.get("brand_name") or state.get("brand_name") or "").strip()
+    next_tagline = str(result.get("tagline") or state.get("tagline") or "").strip()
+    return next_name, next_tagline
+
+
+async def _run_targeted_regeneration(
+    job_id: str,
+    user_id: str,
+    brand: dict,
+    asset_type: str,
+    provided_name: str | None = None,
+    provided_tagline: str | None = None,
+) -> None:
     try:
         state = _build_state_from_brand(job_id, user_id, brand)
         supabase.table("jobs").update(
@@ -198,6 +277,45 @@ async def _run_targeted_regeneration(job_id: str, user_id: str, brand: dict, ass
             tagline = await _regenerate_tagline(state)
             updates["tagline"] = tagline
             state["tagline"] = tagline
+        elif asset_type == "name":
+            supabase.table("jobs").update(
+                {
+                    "current_step": "Regenerating brand name...",
+                    "percent": 45,
+                }
+            ).eq("id", job_id).execute()
+            next_name, next_tagline = await _regenerate_name_and_tagline(state)
+            updates["name"] = next_name
+            updates["tagline"] = next_tagline
+            state["brand_name"] = next_name
+            state["tagline"] = next_tagline
+
+            supabase.table("jobs").update(
+                {
+                    "current_step": "Refreshing logo for brand consistency...",
+                    "percent": 70,
+                }
+            ).eq("id", job_id).execute()
+            logo_url = await _regenerate_logo_or_banner(state, "logo")
+            updates["logo_url"] = logo_url
+            state["logo_url"] = logo_url
+        elif asset_type == "identity":
+            if provided_name:
+                updates["name"] = provided_name.strip()
+                state["brand_name"] = provided_name.strip()
+            if provided_tagline:
+                updates["tagline"] = provided_tagline.strip()
+                state["tagline"] = provided_tagline.strip()
+
+            supabase.table("jobs").update(
+                {
+                    "current_step": "Refreshing logo after identity edit...",
+                    "percent": 70,
+                }
+            ).eq("id", job_id).execute()
+            logo_url = await _regenerate_logo_or_banner(state, "logo")
+            updates["logo_url"] = logo_url
+            state["logo_url"] = logo_url
         else:
             raise ValueError("Unsupported asset type.")
 
@@ -401,7 +519,7 @@ async def regenerate_brand(
         supabase.table("jobs")
         .select("id")
         .eq("user_id", user_id)
-        .eq("job_type", "brand_onboarding")
+        .in_("job_type", ["brand_onboarding", "brand_asset_regeneration"])
         .eq("ref_id", brand_id)
         .in_("status", ["queued", "running"])
         .execute()
@@ -470,8 +588,8 @@ async def regenerate_brand_asset(
     user_id: str = Depends(get_current_user_id),
 ):
     asset_type = payload.asset_type.strip().lower()
-    if asset_type not in {"logo", "banner", "tagline"}:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_type must be logo, banner, or tagline.")
+    if asset_type not in {"logo", "banner", "tagline", "name", "identity"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_type must be logo, banner, tagline, name, or identity.")
 
     result = (
         supabase.table("brands")
@@ -489,7 +607,7 @@ async def regenerate_brand_asset(
         supabase.table("jobs")
         .select("id")
         .eq("user_id", user_id)
-        .eq("job_type", "brand_onboarding")
+        .in_("job_type", ["brand_onboarding", "brand_asset_regeneration"])
         .eq("ref_id", brand_id)
         .in_("status", ["queued", "running"])
         .execute()
@@ -500,23 +618,39 @@ async def regenerate_brand_asset(
             detail="A brand generation job is already in progress.",
         )
 
-    job_result = (
-        supabase.table("jobs")
-        .insert(
-            {
-                "user_id": user_id,
-                "job_type": "brand_onboarding",
-                "ref_id": brand_id,
-                "status": "queued",
-                "current_step": f"Queued {asset_type} regeneration...",
-                "percent": 0,
-            }
-        )
-        .execute()
-    )
-    job_id = job_result.data[0]["id"]
-    background_tasks.add_task(_run_targeted_regeneration, job_id, user_id, brand, asset_type)
+    job_id, created_job_type = _create_targeted_job(user_id, brand_id, asset_type)
+    background_tasks.add_task(_run_targeted_regeneration, job_id, user_id, brand, asset_type, payload.name, payload.tagline)
     return JobCreateResponse(
         job_id=job_id,
-        message=f"{asset_type.title()} regeneration started. Poll /api/v1/jobs/{job_id}/status for progress.",
+        message=f"{asset_type.title()} regeneration started ({created_job_type}). Poll /api/v1/jobs/{job_id}/status for progress.",
     )
+
+
+@router.patch(
+    "/{brand_id}/identity",
+    response_model=BrandPublic,
+    summary="Update brand name and tagline",
+    tags=["Brands"],
+)
+async def update_brand_identity(
+    brand_id: str,
+    payload: BrandIdentityUpdateRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    name = payload.name.strip()
+    tagline = payload.tagline.strip()
+    if len(name) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Brand name is too short.")
+    if len(tagline) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tagline is too short.")
+
+    updated = (
+        supabase.table("brands")
+        .update({"name": name, "tagline": tagline})
+        .eq("id", brand_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not updated.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+    return updated.data[0]
