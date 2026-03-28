@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import BrandAssetGrid from '../../components/brand/BrandAssetGrid'
 import PaletteDisplay from '../../components/brand/PaletteDisplay'
 import Button from '../../components/ui/Button'
@@ -9,14 +9,15 @@ import { useToast } from '../../components/ui/useToast'
 import { useBrandAsset } from '../../hooks/useAssets'
 import { useBrand, useRegenerateBrand, useRegenerateBrandAsset } from '../../hooks/useBrand'
 import { useJobs } from '../../hooks/useJobs'
+import { getJobStatus } from '../../api/jobs.api'
 import { downloadBlob, getErrorMessage, sanitizeHtml } from '../../lib/utils'
 import { copyFor, useLanguage } from '../../lib/i18n'
 import { Package, ImageIcon, Type, RefreshCw, Sparkles } from 'lucide-react'
 import type { RegenerableBrandAsset } from '../../api/brand.api'
 
 export default function BrandPage() {
-  const navigate = useNavigate()
   const { data: jobs } = useJobs()
+  const queryClient = useQueryClient()
   const latestBrandId = useMemo(
     () =>
       jobs?.filter((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id).map(
@@ -33,8 +34,21 @@ export default function BrandPage() {
   const [storyTab, setStoryTab] = useState<'en' | 'hi'>('en')
   const [editedName, setEditedName] = useState('')
   const [editedTagline, setEditedTagline] = useState('')
+  const [activeRegeneration, setActiveRegeneration] = useState<RegenerableBrandAsset | 'all' | null>(null)
 
   const brand = brandQuery.data
+
+  const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+  const waitForJob = async (jobId: string) => {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const job = await getJobStatus(jobId)
+      if (job.status === 'done') return
+      if (job.status === 'failed') throw new Error(job.error || 'Regeneration failed.')
+      await delay(2000)
+    }
+    throw new Error('Regeneration is taking too long. Please check Jobs.')
+  }
 
   useEffect(() => {
     if (!brand) return
@@ -45,21 +59,32 @@ export default function BrandPage() {
   const handleRegenerateAll = async () => {
     if (!brand) return
     try {
+      setActiveRegeneration('all')
       const result = await regenerateAllMutation.mutateAsync(brand.id)
-      navigate(`/jobs/${result.job_id}`)
+      await waitForJob(result.job_id)
+      await queryClient.invalidateQueries({ queryKey: ['brand', brand.id] })
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      pushToast(copyFor(language, 'Sab assets regenerate ho gaye.', 'All assets have been regenerated.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
+    } finally {
+      setActiveRegeneration(null)
     }
   }
 
   const handleRegenerateAsset = async (assetType: RegenerableBrandAsset, payload?: { name?: string; tagline?: string }) => {
     if (!brand) return
-
     try {
+      setActiveRegeneration(assetType)
       const result = await regenerateAssetMutation.mutateAsync({ brandId: brand.id, assetType, payload })
-      navigate(`/jobs/${result.job_id}`)
+      await waitForJob(result.job_id)
+      await queryClient.invalidateQueries({ queryKey: ['brand', brand.id] })
+      await queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      pushToast(copyFor(language, 'Selected asset regenerate ho gaya.', 'Selected asset has been regenerated.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
+    } finally {
+      setActiveRegeneration(null)
     }
   }
 
@@ -109,6 +134,15 @@ export default function BrandPage() {
       icon: <ImageIcon className="h-5 w-5 text-orange-500" />,
     },
   ]
+
+  const isAssetBusy = (type: 'logo' | 'banner' | 'tagline' | 'name') => {
+    if (activeRegeneration === 'all') return true
+    if (activeRegeneration === type) return true
+    if (type === 'logo' && (activeRegeneration === 'name' || activeRegeneration === 'identity')) return true
+    if (type === 'tagline' && (activeRegeneration === 'name' || activeRegeneration === 'identity')) return true
+    if (type === 'name' && activeRegeneration === 'identity') return true
+    return false
+  }
 
   const handleDownload = async (type: 'kit' | 'logo' | 'banner') => {
     if (!brand) return
@@ -165,7 +199,7 @@ export default function BrandPage() {
                     {brand.tagline}
                   </p>
                   <p className="mt-2 text-sm text-white/90">
-                    {brand.artisan_name} � {brand.region}
+                    {brand.artisan_name} · {brand.region}
                   </p>
                 </div>
               </div>
@@ -183,7 +217,7 @@ export default function BrandPage() {
             <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Brand identity', 'Brand identity')}</p>
             <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Edit name and tagline', 'Edit name and tagline')}</h2>
           </div>
-          <Button variant="secondary" onClick={() => handleRegenerateAsset('name')} loading={regenerateAssetMutation.isPending || regenerateAllMutation.isPending}>
+          <Button variant="secondary" onClick={() => handleRegenerateAsset('name')} loading={isAssetBusy('name')} disabled={Boolean(activeRegeneration)}>
             <RefreshCw className="mr-2 h-4 w-4" />
             {copyFor(language, 'Regenerate name + logo', 'Regenerate name + logo')}
           </Button>
@@ -193,13 +227,17 @@ export default function BrandPage() {
           <Input label={copyFor(language, 'Tagline', 'Tagline')} value={editedTagline} onChange={(event) => setEditedTagline(event.target.value)} />
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button onClick={handleSaveIdentity} loading={regenerateAssetMutation.isPending || regenerateAllMutation.isPending}>
+          <Button onClick={handleSaveIdentity} loading={activeRegeneration === 'identity'} disabled={Boolean(activeRegeneration)}>
             {copyFor(language, 'Save and refresh logo', 'Save and refresh logo')}
           </Button>
-          <Button variant="secondary" onClick={() => {
-            setEditedName(brand.name ?? '')
-            setEditedTagline(brand.tagline ?? '')
-          }}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setEditedName(brand.name ?? '')
+              setEditedTagline(brand.tagline ?? '')
+            }}
+            disabled={Boolean(activeRegeneration)}
+          >
             {copyFor(language, 'Reset', 'Reset')}
           </Button>
         </div>
@@ -241,7 +279,7 @@ export default function BrandPage() {
               <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Brand kit', 'Brand kit')}</h2>
             </div>
           </div>
-          <Button variant="secondary" onClick={handleRegenerateAll} loading={regenerateAllMutation.isPending || regenerateAssetMutation.isPending}>
+          <Button variant="secondary" onClick={handleRegenerateAll} loading={activeRegeneration === 'all'} disabled={Boolean(activeRegeneration)}>
             <Sparkles className="mr-2 h-4 w-4" />
             {copyFor(language, 'Regenerate all', 'Regenerate all')}
           </Button>
@@ -260,14 +298,15 @@ export default function BrandPage() {
                 <p className="text-sm text-stone-500">ZIP</p>
               </div>
             </div>
-            <Button
-              onClick={() => handleDownload('kit')}
-              loading={assetMutation.isPending}
-              disabled={!brand.kit_zip_url || regenerateAssetMutation.isPending || regenerateAllMutation.isPending}
-            >
+            <Button onClick={() => handleDownload('kit')} loading={assetMutation.isPending} disabled={!brand.kit_zip_url || Boolean(activeRegeneration)}>
               {copyFor(language, 'Download', 'Download')}
             </Button>
           </div>
+          {Boolean(activeRegeneration) ? (
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-orange-100">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-orange-500" />
+            </div>
+          ) : null}
         </div>
       </Card>
 
@@ -293,12 +332,17 @@ export default function BrandPage() {
                   {copyFor(language, 'Asset abhi available nahi hai.', 'Asset is not available yet.')}
                 </div>
               )}
+              {isAssetBusy(asset.regenerateType === 'logo' ? 'logo' : 'banner') ? (
+                <div className="h-2 w-full overflow-hidden rounded-full bg-orange-100">
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-orange-500" />
+                </div>
+              ) : null}
               <div className="flex gap-3">
                 <Button
                   className="flex-1"
                   onClick={() => handleDownload(asset.downloadType)}
                   loading={assetMutation.isPending}
-                  disabled={!asset.isAvailable || regenerateAssetMutation.isPending || regenerateAllMutation.isPending}
+                  disabled={!asset.isAvailable || Boolean(activeRegeneration)}
                 >
                   {copyFor(language, 'Download', 'Download')}
                 </Button>
@@ -306,8 +350,8 @@ export default function BrandPage() {
                   className="flex-1"
                   variant="secondary"
                   onClick={() => handleRegenerateAsset(asset.regenerateType)}
-                  loading={regenerateAssetMutation.isPending || regenerateAllMutation.isPending}
-                  disabled={assetMutation.isPending}
+                  loading={isAssetBusy(asset.regenerateType === 'logo' ? 'logo' : 'banner')}
+                  disabled={assetMutation.isPending || Boolean(activeRegeneration)}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {copyFor(language, 'Regenerate', 'Regenerate')}
@@ -323,12 +367,12 @@ export default function BrandPage() {
             <p className="text-lg font-semibold text-stone-900">{copyFor(language, 'Tagline', 'Tagline')}</p>
           </div>
           <p className="rounded-2xl bg-orange-50 px-4 py-3 text-base font-medium text-orange-800">{brand.tagline}</p>
-          <Button
-            variant="secondary"
-            onClick={() => handleRegenerateAsset('tagline')}
-            loading={regenerateAssetMutation.isPending || regenerateAllMutation.isPending}
-            disabled={assetMutation.isPending}
-          >
+          {isAssetBusy('tagline') ? (
+            <div className="h-2 w-full overflow-hidden rounded-full bg-orange-100">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-orange-500" />
+            </div>
+          ) : null}
+          <Button variant="secondary" onClick={() => handleRegenerateAsset('tagline')} loading={isAssetBusy('tagline')} disabled={assetMutation.isPending || Boolean(activeRegeneration)}>
             <RefreshCw className="mr-2 h-4 w-4" />
             {copyFor(language, 'Regenerate tagline only', 'Regenerate tagline only')}
           </Button>
