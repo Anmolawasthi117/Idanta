@@ -13,7 +13,7 @@ export default function BottomNav() {
   ]
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#1f5c5a]/10 bg-[#fbf8f2] md:hidden">
       <div className="grid grid-cols-4">
         {items.map(({ to, label, icon: Icon }) => {
           const active = location.pathname === to || location.pathname.startsWith(`${to}/`)
@@ -21,7 +21,7 @@ export default function BottomNav() {
             <Link
               key={to}
               to={to}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 text-xs font-medium ${active ? 'text-orange-600' : 'text-stone-500'}`}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 text-xs font-medium ${active ? 'text-[#1f5c5a]' : 'text-stone-500'}`}
             >
               <Icon className="h-5 w-5" />
               {label}

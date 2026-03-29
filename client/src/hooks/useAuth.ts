@@ -14,7 +14,7 @@ export const useLogin = () => {
     mutationFn: (payload: LoginPayload) => loginUser(payload),
     onSuccess: (data) => {
       setAuth(data.access_token, data.user)
-      setLanguage(data.user.language)
+      setLanguage('en')
       navigate(data.user.has_brand ? '/dashboard' : '/onboarding')
     },
   })
@@ -29,7 +29,7 @@ export const useRegister = () => {
     mutationFn: (payload: RegisterPayload) => registerUser(payload),
     onSuccess: (data) => {
       setAuth(data.access_token, data.user)
-      setLanguage(data.user.language)
+      setLanguage('en')
       navigate('/onboarding')
     },
   })

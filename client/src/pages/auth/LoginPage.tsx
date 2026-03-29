@@ -1,11 +1,10 @@
-import { Link } from 'react-router-dom'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import { useToast } from '../../components/ui/useToast'
 import { useLogin } from '../../hooks/useAuth'
-import { copyFor, useLanguage, useT } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
 
 export default function LoginPage() {
@@ -13,16 +12,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const loginMutation = useLogin()
   const { pushToast } = useToast()
-  const t = useT()
-  const language = useLanguage()
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#fff8ef] px-4 py-10">
-      <Card className="w-full max-w-md space-y-6">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(31,92,90,0.12),_transparent_28%),linear-gradient(180deg,_#f6f1e8_0%,_#fbf8f2_100%)] px-4 py-10">
+      <Card className="w-full max-w-md space-y-6 bg-white/92 p-6">
         <div className="space-y-2 text-center">
-          <p className="text-sm font-medium text-orange-600">Idanta</p>
-          <h1 className="text-3xl font-semibold text-stone-900">{t('loginTitle')}</h1>
-          <p className="text-base text-stone-500">{t('loginSubtitle')}</p>
+          <p className="text-sm font-medium text-[#1f5c5a]">Idanta</p>
+          <h1 className='font-["Iowan_Old_Style","Palatino_Linotype","Book_Antiqua",serif] text-3xl font-semibold text-stone-900'>
+            Welcome back
+          </h1>
+          <p className="text-base text-stone-500">Enter your phone number and password to continue.</p>
         </div>
         <form
           className="space-y-4"
@@ -36,25 +35,16 @@ export default function LoginPage() {
             )
           }}
         >
-          <Input
-            label={copyFor(language, 'Phone number', 'Phone number')}
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-          />
-          <Input
-            label={copyFor(language, 'Password', 'Password')}
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+          <Input label="Phone number" value={phone} onChange={(event) => setPhone(event.target.value)} />
+          <Input label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
           <Button type="submit" size="lg" className="w-full" loading={loginMutation.isPending}>
-            {t('loginButton')}
+            Log in
           </Button>
         </form>
         <p className="text-center text-sm text-stone-600">
-          {copyFor(language, 'Naya account chahiye?', 'Need a new account?')}{' '}
-          <Link to="/register" className="font-semibold text-orange-600">
-            {copyFor(language, 'Register karo', 'Register')}
+          Need a new account?{' '}
+          <Link to="/register" className="font-semibold text-[#1f5c5a]">
+            Register
           </Link>
         </p>
       </Card>

@@ -1,27 +1,41 @@
+import type { ReactElement } from 'react'
 import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import AppShell from '../components/layout/AppShell'
+import HomePage from '../pages/HomePage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
-import OnboardingChatPage from '../pages/onboarding/OnboardingChatPage'
-import DashboardPage from '../pages/dashboard/DashboardPage'
 import BrandPage from '../pages/brand/BrandPage'
-import ProductListPage from '../pages/product/ProductListPage'
+import DashboardPage from '../pages/dashboard/DashboardPage'
+import JobProgressPage from '../pages/jobs/JobProgressPage'
+import OnboardingChatPage from '../pages/onboarding/OnboardingChatPage'
 import AddProductPage from '../pages/product/AddProductPage'
 import ProductDetailPage from '../pages/product/ProductDetailPage'
-import JobProgressPage from '../pages/jobs/JobProgressPage'
-import AppShell from '../components/layout/AppShell'
+import ProductListPage from '../pages/product/ProductListPage'
 
 function ProtectedRoute() {
   const token = useAuthStore((state) => state.token)
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
+
   if (!hasHydrated) return null
-  if (!token) return <Navigate to="/login" replace />
+  if (!token) return <Navigate to="/" replace />
   return <Outlet />
 }
 
+function AuthPageRoute({ children }: { children: ReactElement }) {
+  const token = useAuthStore((state) => state.token)
+  const user = useAuthStore((state) => state.user)
+  const hasHydrated = useAuthStore((state) => state.hasHydrated)
+
+  if (!hasHydrated) return null
+  if (token) return <Navigate to={user?.has_brand ? '/dashboard' : '/onboarding'} replace />
+  return children
+}
+
 const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
-  { path: '/register', element: <RegisterPage /> },
+  { path: '/', element: <HomePage /> },
+  { path: '/login', element: <AuthPageRoute><LoginPage /></AuthPageRoute> },
+  { path: '/register', element: <AuthPageRoute><RegisterPage /></AuthPageRoute> },
   {
     path: '/',
     element: <ProtectedRoute />,
@@ -29,7 +43,6 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: 'onboarding', element: <OnboardingChatPage /> },
           { path: 'dashboard', element: <DashboardPage /> },
           { path: 'brand', element: <BrandPage /> },

@@ -1,79 +1,52 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
-import Select from '../../components/ui/Select'
 import { useToast } from '../../components/ui/useToast'
 import { useRegister } from '../../hooks/useAuth'
-import { copyFor, useLanguage, useT } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
-import { useUiStore } from '../../store/uiStore'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
-  const appLanguage = useLanguage()
-  const setAppLanguage = useUiStore((state) => state.setLanguage)
-  const [language, setLanguage] = useState<'hi' | 'en'>(appLanguage)
   const registerMutation = useRegister()
   const { pushToast } = useToast()
-  const t = useT()
-
-  useEffect(() => {
-    setAppLanguage(language)
-  }, [language, setAppLanguage])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#fff8ef] px-4 py-10">
-      <Card className="w-full max-w-md space-y-6">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(143,93,59,0.12),_transparent_24%),linear-gradient(180deg,_#f6f1e8_0%,_#fbf8f2_100%)] px-4 py-10">
+      <Card className="w-full max-w-md space-y-6 bg-white/92 p-6">
         <div className="space-y-2 text-center">
-          <p className="text-sm font-medium text-orange-600">Idanta</p>
-          <h1 className="text-3xl font-semibold text-stone-900">{t('registerTitle')}</h1>
-          <p className="text-base text-stone-500">{t('registerSubtitle')}</p>
+          <p className="text-sm font-medium text-[#8f5d3b]">Idanta</p>
+          <h1 className='font-["Iowan_Old_Style","Palatino_Linotype","Book_Antiqua",serif] text-3xl font-semibold text-stone-900'>
+            Create your account
+          </h1>
+          <p className="text-base text-stone-500">Fill in a few details and we will take you into onboarding.</p>
         </div>
         <form
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault()
             registerMutation.mutate(
-              { name, phone, password, language },
+              { name, phone, password, language: 'en' },
               {
                 onError: (error) => pushToast(getErrorMessage(error)),
               },
             )
           }}
         >
-          <Input label={copyFor(language, 'Naam', 'Name')} value={name} onChange={(event) => setName(event.target.value)} />
-          <Input
-            label={copyFor(language, 'Phone number', 'Phone number')}
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-          />
-          <Input
-            label={copyFor(language, 'Password', 'Password')}
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <Select
-            label={t('language')}
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as 'hi' | 'en')}
-            options={[
-              { label: t('hindi'), value: 'hi' },
-              { label: t('english'), value: 'en' },
-            ]}
-          />
+          <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} />
+          <Input label="Phone number" value={phone} onChange={(event) => setPhone(event.target.value)} />
+          <Input label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
           <Button type="submit" size="lg" className="w-full" loading={registerMutation.isPending}>
-            {t('registerButton')}
+            Register
           </Button>
         </form>
         <p className="text-center text-sm text-stone-600">
-          {copyFor(language, 'Pehle se account hai?', 'Already have an account?')}{' '}
-          <Link to="/login" className="font-semibold text-orange-600">
-            {copyFor(language, 'Login karo', 'Log in')}
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-[#1f5c5a]">
+            Log in
           </Link>
         </p>
       </Card>

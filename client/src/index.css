@@ -5,9 +5,9 @@
 :root {
   color: #1c1917;
   background:
-    radial-gradient(circle at top left, rgba(249, 115, 22, 0.12), transparent 30%),
-    linear-gradient(180deg, #fff9f2 0%, #fffdf9 100%);
-  font-family: "Segoe UI", "Noto Sans Devanagari", sans-serif;
+    radial-gradient(circle at top left, rgba(31, 92, 90, 0.14), transparent 30%),
+    linear-gradient(180deg, #f6f1e8 0%, #fbf8f2 100%);
+  font-family: "Segoe UI", "Noto Sans Devanagari", "Trebuchet MS", sans-serif;
 }
 
 body {
@@ -45,17 +45,17 @@ textarea {
 }
 
 .progress-bar::-webkit-progress-bar {
-  background: #fed7aa;
+  background: #dce9e5;
   border-radius: 999px;
 }
 
 .progress-bar::-webkit-progress-value {
-  background: #f97316;
+  background: #1f5c5a;
   border-radius: 999px;
   transition: width 0.5s ease;
 }
 
 .progress-bar::-moz-progress-bar {
-  background: #f97316;
+  background: #1f5c5a;
   border-radius: 999px;
 }

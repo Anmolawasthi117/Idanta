@@ -20,7 +20,7 @@ export default function Select({ label, options, error, className, id, ...props 
       <select
         id={selectId}
         className={cn(
-          'min-h-11 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-base text-stone-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100',
+          'min-h-11 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-base text-stone-900 outline-none focus:border-[#1f5c5a] focus:ring-2 focus:ring-[#dce9e5]',
           error && 'border-red-300 focus:border-red-400 focus:ring-red-100',
           className,
         )}

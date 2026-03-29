@@ -151,7 +151,6 @@ class SynthesizeSpeechRequest(BaseModel):
 @router.post("/synthesize-speech")
 async def synthesize_speech(
     payload: SynthesizeSpeechRequest,
-    _user_id: str = Depends(get_current_user_id)
 ):
     try:
         audio_base64 = await sarvam_synthesize_speech(
