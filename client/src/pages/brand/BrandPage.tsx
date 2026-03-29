@@ -251,6 +251,50 @@ export default function BrandPage() {
         <PaletteDisplay palette={brand.palette} />
       </Card>
 
+      {(brand.motif_previews?.length || brand.signature_patterns?.length) ? (
+        <Card className="space-y-5">
+          <div>
+            <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Visual system', 'Visual system')}</p>
+            <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Motif aur pattern library', 'Motif and pattern library')}</h2>
+            <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Ye wahi visual elements hain jo aapne Phase 3 me choose kiye the aur jinse logo aur banner ko direction mili.', 'These are the visual elements you selected in Phase 3 that shaped the logo and banner direction.')}</p>
+          </div>
+
+          {brand.motif_previews?.length ? (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Motifs', 'Motifs')}</p>
+              <div className="grid gap-4 md:grid-cols-3">
+                {brand.motif_previews.map((motif) => (
+                  <div key={`${motif.name}-${motif.image_url}`} className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50">
+                    <img src={motif.image_url} alt={motif.name} className="h-40 w-full object-cover" />
+                    <div className="space-y-1 p-4">
+                      <p className="font-semibold text-stone-900">{motif.name}</p>
+                      {motif.description ? <p className="text-sm text-stone-600">{motif.description}</p> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {brand.signature_patterns?.length ? (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Patterns', 'Patterns')}</p>
+              <div className="grid gap-4 md:grid-cols-3">
+                {brand.signature_patterns.map((pattern) => (
+                  <div key={`${pattern.name}-${pattern.image_url ?? pattern.description}`} className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50">
+                    {pattern.image_url ? <img src={pattern.image_url} alt={pattern.name} className="h-40 w-full object-cover" /> : <div className="h-40 w-full bg-gradient-to-br from-stone-100 to-stone-200" />}
+                    <div className="space-y-1 p-4">
+                      <p className="font-semibold text-stone-900">{pattern.name}</p>
+                      <p className="text-sm text-stone-600">{pattern.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card className="space-y-4">
         <div className="flex gap-3">
           <Button variant={storyTab === 'en' ? 'primary' : 'secondary'} onClick={() => setStoryTab('en')}>

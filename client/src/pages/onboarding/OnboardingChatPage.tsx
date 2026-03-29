@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, Mic, MicOff, Sparkles, Square, Volume2 } from 'lucide-react'
 import { brandAssistStream } from '../../api/chat.api'
 import { brandAssistChat, uploadBrandImages } from '../../api/brand.api'
@@ -135,6 +136,7 @@ const buildIdentityPayload = (data: ExtractedFormData, language: AppLanguage, us
 }
 
 export default function OnboardingChatPage() {
+  const navigate = useNavigate()
   const { pushToast } = useToast()
   const craftsQuery = useCrafts()
   const language = useLanguage()
@@ -527,7 +529,9 @@ export default function OnboardingChatPage() {
         logoUrl: selectedLogo.image_url,
         bannerUrl: selectedBanner.image_url,
       })
-      pushToast(copyFor(language, 'Phase 4 assets save ho gaye.', 'Phase 4 assets have been saved.'))
+      if (user?.id) await clearOnboardingDraft(user.id)
+      pushToast(copyFor(language, 'Phase 4 assets save ho gaye. Ab aapke final brand page par chalte hain.', 'Phase 4 assets have been saved. Taking you to your final brand page.'))
+      navigate('/brand')
     } catch (error) {
       pushToast(getErrorMessage(error))
     } finally {
@@ -956,7 +960,7 @@ export default function OnboardingChatPage() {
                 <div>
                   <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Phase 4', 'Phase 4')}</p>
                   <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Choose your logo and banner', 'Choose your logo and banner')}</h2>
-                  <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Ab hum selected palette, motifs, patterns, aur internal logo sample quality ko use karke 3 logo aur 3 banner options banayenge.', 'We will now use the selected palette, motifs, patterns, and your internal logo sample quality bar to generate 3 logo and 3 banner options.')}</p>
+                  <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Pehle 3 logo directions ko ek line me compare kijiye. Uske baad niche se 1 banner choose karke final brand page par badhiye.', 'Compare the 3 logo directions in one line first. Then choose 1 banner below and move to the final brand page.')}</p>
                 </div>
                 <Button onClick={() => void handleGeneratePhaseFourCandidates()} loading={isIdentityLoading} disabled={!draftBrandId}>
                   {copyFor(language, normalizedPhaseFourCandidates ? 'Refresh Phase 4 options' : 'Generate Phase 4 options', normalizedPhaseFourCandidates ? 'Refresh Phase 4 options' : 'Generate Phase 4 options')}
@@ -965,67 +969,77 @@ export default function OnboardingChatPage() {
 
               {normalizedPhaseFourCandidates ? (
                 <>
-                  <div className="grid gap-6 xl:grid-cols-2">
-                    <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Logo options', 'Logo options')}</p>
-                          <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Inme se ek logo choose kijiye.', 'Choose one logo option.')}</p>
-                        </div>
-                        {selectedLogoCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Logo selected', 'Logo selected')}</span> : null}
+                  <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Step 1 · Logo options', 'Step 1 · Logo options')}</p>
+                        <p className="mt-1 text-sm text-stone-600">{copyFor(language, '3 logo boxes ko side by side dekhiye aur ek choose kijiye.', 'Review the 3 logo boxes side by side and choose one.')}</p>
                       </div>
-                      <div className="space-y-4">
-                        {normalizedPhaseFourCandidates.logos.map((candidate) => {
-                          const isSelected = candidate.candidate_id === selectedLogoCandidateId
-                          return (
-                            <div key={candidate.candidate_id} className={`overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : 'ring-stone-200'}`}>
-                              <img src={candidate.image_url} alt={candidate.title} className="h-56 w-full object-cover" />
-                              <div className="space-y-2 p-4">
-                                <p className="font-semibold text-stone-900">{candidate.title}</p>
-                                <p className="text-sm text-stone-600">{candidate.rationale}</p>
-                                <Button className="w-full" variant={isSelected ? 'primary' : 'secondary'} onClick={() => setSelectedLogoCandidateId(candidate.candidate_id)}>
-                                  {isSelected ? copyFor(language, 'Selected logo', 'Selected logo') : copyFor(language, 'Choose this logo', 'Choose this logo')}
-                                </Button>
-                              </div>
+                      {selectedLogoCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Logo selected', 'Logo selected')}</span> : null}
+                    </div>
+                    <div className="flex gap-4 overflow-x-auto pb-2">
+                      {normalizedPhaseFourCandidates.logos.map((candidate) => {
+                        const isSelected = candidate.candidate_id === selectedLogoCandidateId
+                        return (
+                          <button
+                            key={candidate.candidate_id}
+                            type="button"
+                            onClick={() => setSelectedLogoCandidateId(candidate.candidate_id)}
+                            className={`min-w-[220px] flex-1 overflow-hidden rounded-3xl bg-white text-left shadow-sm ring-1 transition hover:-translate-y-0.5 ${isSelected ? 'ring-[#1f5c5a] shadow-md' : 'ring-stone-200 hover:ring-orange-200'}`}
+                          >
+                            <div className="flex h-40 items-center justify-center bg-stone-50 p-4">
+                              <img src={candidate.image_url} alt={candidate.title} className="max-h-full max-w-full object-contain" />
                             </div>
-                          )
-                        })}
-                      </div>
-                    </Card>
-
-                    <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Banner options', 'Banner options')}</p>
-                          <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Saved patterns ke base par ek banner choose kijiye.', 'Choose one banner option built from the saved patterns.')}</p>
-                        </div>
-                        {selectedBannerCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Banner selected', 'Banner selected')}</span> : null}
-                      </div>
-                      <div className="space-y-4">
-                        {normalizedPhaseFourCandidates.banners.map((candidate) => {
-                          const isSelected = candidate.candidate_id === selectedBannerCandidateId
-                          return (
-                            <div key={candidate.candidate_id} className={`overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : 'ring-stone-200'}`}>
-                              <img src={candidate.image_url} alt={candidate.title} className="h-56 w-full object-cover" />
-                              <div className="space-y-2 p-4">
+                            <div className="space-y-2 p-4">
+                              <div className="flex items-center justify-between gap-3">
                                 <p className="font-semibold text-stone-900">{candidate.title}</p>
-                                <p className="text-sm text-stone-600">{candidate.rationale}</p>
-                                <Button className="w-full" variant={isSelected ? 'primary' : 'secondary'} onClick={() => setSelectedBannerCandidateId(candidate.candidate_id)}>
-                                  {isSelected ? copyFor(language, 'Selected banner', 'Selected banner') : copyFor(language, 'Choose this banner', 'Choose this banner')}
-                                </Button>
+                                {isSelected ? <span className="rounded-full bg-[#1f5c5a]/10 px-2 py-1 text-[11px] font-semibold text-[#1f5c5a]">{copyFor(language, 'Picked', 'Picked')}</span> : null}
                               </div>
+                              <p className="text-sm text-stone-600">{candidate.rationale}</p>
                             </div>
-                          )
-                        })}
-                      </div>
-                    </Card>
-                  </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Card>
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Step 2 · Banner options', 'Step 2 · Banner options')}</p>
+                        <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Ab niche se 1 banner choose kijiye jo aapke pattern aur palette ke saath sabse achha lage.', 'Now choose 1 banner below that works best with your pattern and palette.')}</p>
+                      </div>
+                      {selectedBannerCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Banner selected', 'Banner selected')}</span> : null}
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-3">
+                      {normalizedPhaseFourCandidates.banners.map((candidate) => {
+                        const isSelected = candidate.candidate_id === selectedBannerCandidateId
+                        return (
+                          <button
+                            key={candidate.candidate_id}
+                            type="button"
+                            onClick={() => setSelectedBannerCandidateId(candidate.candidate_id)}
+                            className={`overflow-hidden rounded-3xl bg-white text-left shadow-sm ring-1 transition hover:-translate-y-0.5 ${isSelected ? 'ring-[#1f5c5a] shadow-md' : 'ring-stone-200 hover:ring-orange-200'}`}
+                          >
+                            <img src={candidate.image_url} alt={candidate.title} className="h-40 w-full object-cover" />
+                            <div className="space-y-2 p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-stone-900">{candidate.title}</p>
+                                {isSelected ? <span className="rounded-full bg-[#1f5c5a]/10 px-2 py-1 text-[11px] font-semibold text-[#1f5c5a]">{copyFor(language, 'Picked', 'Picked')}</span> : null}
+                              </div>
+                              <p className="text-sm text-stone-600">{candidate.rationale}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Card>
+
+                  <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-dashed border-orange-200 bg-orange-50 px-4 py-4">
                     <Button onClick={() => void handleSelectPhaseFourAssets()} loading={isIdentityLoading} disabled={!selectedLogoCandidate || !selectedBannerCandidate}>
-                      {copyFor(language, 'Save my Phase 4 choices', 'Save my Phase 4 choices')}
+                      {copyFor(language, 'Continue to brand page', 'Continue to brand page')}
                     </Button>
-                    <p className="text-sm text-stone-600">{copyFor(language, 'Best results ke liye ek logo aur ek banner choose karke save kijiye.', 'Choose one logo and one banner, then save them as your final Phase 4 selection.')}</p>
+                    <p className="text-sm text-stone-600">{copyFor(language, 'Ek logo aur ek banner choose karte hi hum aapko final brand page par le jayenge jahan story Hindi aur English dono me milegi.', 'Once you choose one logo and one banner, we will take you to the final brand page with the story in both Hindi and English.')}</p>
                   </div>
                 </>
               ) : (
