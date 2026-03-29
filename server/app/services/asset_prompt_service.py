@@ -90,6 +90,9 @@ Brand:
 - Script preference: {context.get("script_preference", "both")}
 - Palette: {_json(state.get("palette", {}))}
 - Visual context from user images: {state.get("visual_context", "")}
+- Saved visual summary: {state.get("visual_summary", "")}
+- Saved visual motifs: {_json(state.get("visual_motifs", []))}
+- Saved signature patterns: {_json(state.get("signature_patterns", []))}
 - Illustration language: {_json(state.get("illustration_language", {}))}
 - Artisan story: {context.get("artisan_story", "")}
 - Generated brand story EN: {state.get("story_en", "")}
@@ -195,6 +198,9 @@ Brand identity:
 - Artisan story: {context.get("artisan_story", "")}
 - Palette: {_json(palette)}
 - Visual context from uploaded images: {state.get("visual_context", "")}
+- Saved visual summary: {state.get("visual_summary", "")}
+- Saved visual motifs: {_json(state.get("visual_motifs", []))}
+- Saved signature patterns: {_json(state.get("signature_patterns", []))}
 - Illustration language: {_json(state.get("illustration_language", {}))}
 - Design rationale: {state.get("design_rationale", "")}
 - RAG heritage context: {state.get("rag_context", "")}

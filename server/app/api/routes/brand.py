@@ -105,6 +105,20 @@ class SaveBrandIdentityDraftResponse(BaseModel):
     tagline: str
 
 
+class BrandPatternPayload(BaseModel):
+    name: str
+    description: str
+
+
+class BrandVisualFoundationResponse(BaseModel):
+    brand_id: str
+    reference_images: list[str]
+    visual_summary: str
+    visual_motifs: list[str]
+    signature_patterns: list[BrandPatternPayload]
+    palette: dict
+
+
 def _create_targeted_job(user_id: str, brand_id: str, asset_type: str) -> tuple[str, str]:
     """
     Create a targeted-regeneration job.
@@ -158,6 +172,9 @@ def _build_state_from_brand(job_id: str, user_id: str, brand: dict) -> BrandStat
         "artisan_story": brand.get("artisan_story"),
         "preferred_language": brand.get("preferred_language", "hi") or "hi",
         "reference_images": brand.get("reference_images", []),
+        "visual_summary": brand.get("visual_summary", "") or "",
+        "visual_motifs": brand.get("visual_motifs", []) or [],
+        "signature_patterns": brand.get("signature_patterns", []) or [],
         "brand_name": brand.get("name", "") or "",
         "tagline": brand.get("tagline", "") or "",
         "palette": brand.get("palette", {}) or {},
@@ -280,6 +297,118 @@ async def _build_identity_preview_state(payload: BrandCreateRequest) -> BrandSta
         "reference_images": payload.reference_images,
     }
     return await context_builder_node(state)
+
+
+async def _extract_visual_summary_from_images(image_urls: list[str]) -> str:
+    if not image_urls:
+        return "No visual reference images provided."
+    try:
+        return await groq_vision_completion(
+            system_prompt=(
+                "You are a senior craft visual researcher. Analyze the uploaded artisan product and workstation images and extract a dense visual summary. "
+                "Focus on dominant colors, recurring motifs, line quality, textures, materials, shapes, pattern rhythm, handcrafted irregularities, and overall mood. "
+                "Keep it factual, specific, and useful for brand design."
+            ),
+            user_prompt="Study these images and describe the visual design language that should inform the brand identity.",
+            image_urls=image_urls[:6],
+            max_tokens=700,
+            temperature=0.4,
+        )
+    except Exception as exc:
+        logger.warning("Visual summary extraction failed; using fallback summary. Error: %s", exc)
+        return "Uploaded images suggest an artisan-made visual world with handcrafted texture, repeatable motifs, and a palette that should stay rooted, premium, and usable for brand design."
+
+
+def _fallback_visual_foundation(state: BrandState, visual_summary: str) -> BrandVisualFoundationResponse:
+    craft_data = state.get("craft_data", {})
+    traditional_colors = craft_data.get("traditional_colors", {})
+    motif_data = craft_data.get("motifs", {})
+    primary_motifs = [str(item).strip() for item in motif_data.get("primary", []) if str(item).strip()]
+    secondary_motifs = [str(item).strip() for item in motif_data.get("secondary", []) if str(item).strip()]
+    motifs = (primary_motifs + secondary_motifs)[:5] or ["artisan linework", "handcrafted geometry", "material texture"]
+    hex_values = [str(item).strip() for item in traditional_colors.get("hex", []) if str(item).strip()]
+    palette = {
+        "primary": hex_values[0] if len(hex_values) > 0 else "#8B2635",
+        "secondary": hex_values[1] if len(hex_values) > 1 else "#4A7C59",
+        "accent": hex_values[2] if len(hex_values) > 2 else "#C4963B",
+        "background": "#F5E6C8",
+    }
+    patterns = [
+        BrandPatternPayload(
+            name="Signature Border Repeat",
+            description=f"A repeat system built from {motifs[0]} accents and restrained spacing, using the brand palette for packaging edges and banner framing.",
+        ),
+        BrandPatternPayload(
+            name="Motif Scatter Rhythm",
+            description=f"A light premium pattern combining {motifs[min(1, len(motifs)-1)]} with subtle color contrast for backgrounds, story cards, and brand textures.",
+        ),
+    ]
+    return BrandVisualFoundationResponse(
+        brand_id="",
+        reference_images=[],
+        visual_summary=visual_summary,
+        visual_motifs=motifs,
+        signature_patterns=patterns,
+        palette=palette,
+    )
+
+
+async def _build_visual_foundation(state: BrandState, visual_summary: str) -> BrandVisualFoundationResponse:
+    context = state.get("context_bundle", {})
+    craft_data = state.get("craft_data", {})
+    try:
+        result = await groq_json_completion(
+            system_prompt=(
+                "You are a senior brand art director building the visual foundation for an artisan brand.\n"
+                "Return only JSON with this shape: "
+                "{\"visual_motifs\": [\"motif1\", \"motif2\", \"motif3\"], "
+                "\"signature_patterns\": [{\"name\": \"...\", \"description\": \"...\"}], "
+                "\"palette\": {\"primary\": \"#000000\", \"secondary\": \"#111111\", \"accent\": \"#222222\", \"background\": \"#f5f1e8\"}}\n"
+                "Rules:\n"
+                "- visual_motifs must be concise and design-usable.\n"
+                "- signature_patterns must be created by combining motifs with color logic from the images.\n"
+                "- palette colors must be valid hex codes.\n"
+                "- Keep the output premium, craft-specific, and visually coherent.\n"
+                "- Avoid generic motifs like flower if you can be more specific.\n"
+            ),
+            user_prompt=(
+                f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
+                f"Region: {context.get('region', 'India')}\n"
+                f"Artisan story: {context.get('artisan_story', '')}\n"
+                f"Craft motifs from library: {json.dumps(craft_data.get('motifs', {}), ensure_ascii=False)}\n"
+                f"Traditional colors from library: {json.dumps(craft_data.get('traditional_colors', {}), ensure_ascii=False)}\n"
+                f"Materials: {json.dumps(craft_data.get('materials', {}), ensure_ascii=False)}\n"
+                f"Visual summary from uploaded images:\n{visual_summary}\n"
+            ),
+            max_tokens=1200,
+            temperature=0.6,
+        )
+        patterns = [
+            BrandPatternPayload(
+                name=str(item.get("name", "")).strip(),
+                description=str(item.get("description", "")).strip(),
+            )
+            for item in result.get("signature_patterns", [])
+            if str(item.get("name", "")).strip() and str(item.get("description", "")).strip()
+        ]
+        motifs = [str(item).strip() for item in result.get("visual_motifs", []) if str(item).strip()]
+        palette = result.get("palette", {}) or {}
+        return BrandVisualFoundationResponse(
+            brand_id="",
+            reference_images=[],
+            visual_summary=visual_summary,
+            visual_motifs=motifs[:5] or _fallback_visual_foundation(state, visual_summary).visual_motifs,
+            signature_patterns=patterns[:4] or _fallback_visual_foundation(state, visual_summary).signature_patterns,
+            palette={
+                "primary": str(palette.get("primary", "#8B2635")),
+                "secondary": str(palette.get("secondary", "#4A7C59")),
+                "accent": str(palette.get("accent", "#C4963B")),
+                "background": str(palette.get("background", "#F5E6C8")),
+            },
+        )
+    except Exception as exc:
+        logger.warning("Visual foundation LLM generation failed; using fallback foundation. Error: %s", exc)
+        return _fallback_visual_foundation(state, visual_summary)
 
 
 def _build_identity_generation_prompt(
@@ -737,6 +866,66 @@ async def save_brand_identity_draft(
 
 
 @router.post(
+    "/visual-foundation",
+    response_model=BrandVisualFoundationResponse,
+    summary="Analyze uploaded brand images into motifs, palette, and signature patterns",
+    tags=["Brands"],
+)
+async def build_brand_visual_foundation(
+    payload: BrandCreateRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    if not payload.brand_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="brand_id is required for visual foundation.")
+    existing = (
+        supabase.table("brands")
+        .select("id")
+        .eq("id", payload.brand_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand draft not found.")
+
+    try:
+        state = await _build_identity_preview_state(payload)
+        visual_summary = await _extract_visual_summary_from_images(payload.reference_images)
+        foundation = await _build_visual_foundation(state, visual_summary)
+
+        updates = {
+            "reference_images": payload.reference_images,
+            "visual_summary": foundation.visual_summary,
+            "visual_motifs": foundation.visual_motifs,
+            "signature_patterns": [pattern.model_dump() for pattern in foundation.signature_patterns],
+            "palette": foundation.palette,
+        }
+        try:
+            supabase.table("brands").update(updates).eq("id", payload.brand_id).eq("user_id", user_id).execute()
+        except APIError as exc:
+            logger.warning("Could not persist full visual foundation for brand=%s: %s", payload.brand_id, exc)
+            try:
+                supabase.table("brands").update({"palette": foundation.palette}).eq("id", payload.brand_id).eq("user_id", user_id).execute()
+            except APIError as palette_exc:
+                logger.warning("Could not persist fallback palette for brand=%s: %s", payload.brand_id, palette_exc)
+
+        return BrandVisualFoundationResponse(
+            brand_id=payload.brand_id,
+            reference_images=payload.reference_images,
+            visual_summary=foundation.visual_summary,
+            visual_motifs=foundation.visual_motifs,
+            signature_patterns=foundation.signature_patterns,
+            palette=foundation.palette,
+        )
+    except Exception as exc:
+        logger.exception("Visual foundation generation failed for brand=%s", payload.brand_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not generate visual foundation right now. {exc}",
+        ) from exc
+
+
+@router.post(
     "/",
     response_model=JobCreateResponse,
     status_code=status.HTTP_202_ACCEPTED,
@@ -778,10 +967,11 @@ async def create_brand(
     job_id = job_result.data[0]["id"]
 
     existing_brand_id = None
+    existing_brand = None
     if payload.brand_id:
         existing = (
             supabase.table("brands")
-            .select("id")
+            .select("*")
             .eq("id", payload.brand_id)
             .eq("user_id", user_id)
             .single()
@@ -790,6 +980,7 @@ async def create_brand(
         if not existing.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand draft not found.")
         existing_brand_id = payload.brand_id
+        existing_brand = existing.data
 
     initial_state: BrandState = {
         "job_id": job_id,
@@ -806,10 +997,14 @@ async def create_brand(
         "script_preference": payload.script_preference.value,
         "artisan_story": payload.artisan_story,
         "preferred_language": payload.preferred_language,
-        "reference_images": payload.reference_images,
+        "reference_images": payload.reference_images or (existing_brand.get("reference_images", []) if existing_brand else []),
         "brand_name": payload.name or "",
         "tagline": payload.tagline or "",
         "identity_locked": bool(payload.name and payload.tagline),
+        "palette": existing_brand.get("palette", {}) if existing_brand else {},
+        "visual_summary": existing_brand.get("visual_summary", "") if existing_brand else "",
+        "visual_motifs": existing_brand.get("visual_motifs", []) if existing_brand else [],
+        "signature_patterns": existing_brand.get("signature_patterns", []) if existing_brand else [],
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)

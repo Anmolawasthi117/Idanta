@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
+  analyzeBrandVisualFoundation,
   createBrand,
   generateBrandIdentityCandidates,
   getBrand,
@@ -46,6 +47,11 @@ export const useRankBrandIdentityCandidates = () =>
 export const useSaveBrandIdentityDraft = () =>
   useMutation({
     mutationFn: (payload: BrandCreatePayload & { name: string; tagline: string }) => saveBrandIdentityDraft(payload),
+  })
+
+export const useAnalyzeBrandVisualFoundation = () =>
+  useMutation({
+    mutationFn: (payload: BrandCreatePayload & { brand_id: string; reference_images: string[] }) => analyzeBrandVisualFoundation(payload),
   })
 
 export const useRegenerateBrand = () =>

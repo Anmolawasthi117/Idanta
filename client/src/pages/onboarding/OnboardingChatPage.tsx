@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CheckCircle2, Mic, MicOff, Sparkles, Square, Volume2 } from 'lucide-react'
 import { brandAssistStream } from '../../api/chat.api'
-import { brandAssistChat } from '../../api/brand.api'
+import { brandAssistChat, uploadBrandImages } from '../../api/brand.api'
 import ChatInput from '../../components/chat/ChatInput'
 import ChatMessage from '../../components/chat/ChatMessage'
 import ChatWindow from '../../components/chat/ChatWindow'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useToast } from '../../components/ui/useToast'
-import { useCrafts, useGenerateBrandIdentityCandidates, useRankBrandIdentityCandidates, useSaveBrandIdentityDraft } from '../../hooks/useBrand'
+import { useAnalyzeBrandVisualFoundation, useCrafts, useGenerateBrandIdentityCandidates, useRankBrandIdentityCandidates, useSaveBrandIdentityDraft } from '../../hooks/useBrand'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { normalizeBrandExtracted } from '../../lib/chatNormalization'
 import { clearOnboardingDraft, loadOnboardingDraft, saveOnboardingDraft, type OnboardingDraftMessage } from '../../lib/onboardingDraft'
@@ -16,7 +16,7 @@ import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
 import type { AppLanguage } from '../../store/uiStore'
-import type { BrandCreatePayload, BrandIdentityPair, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
+import type { BrandCreatePayload, BrandIdentityPair, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
 
 interface Message {
   id: string
@@ -100,6 +100,7 @@ export default function OnboardingChatPage() {
   const generateIdentityMutation = useGenerateBrandIdentityCandidates()
   const rankIdentityMutation = useRankBrandIdentityCandidates()
   const saveIdentityDraftMutation = useSaveBrandIdentityDraft()
+  const analyzeVisualFoundationMutation = useAnalyzeBrandVisualFoundation()
   const [messages, setMessages] = useState<Message[]>([])
   const [extractedData, setExtractedData] = useState<ExtractedFormData>(buildPhaseDefaults(language, user?.name))
   const [currentPhase, setCurrentPhase] = useState<OnboardingPhase>(1)
@@ -118,6 +119,8 @@ export default function OnboardingChatPage() {
   const [rankingPrompt, setRankingPrompt] = useState('')
   const [isIdentityLoading, setIsIdentityLoading] = useState(false)
   const [hasIdentityBootstrapFailed, setHasIdentityBootstrapFailed] = useState(false)
+  const [selectedVisualFiles, setSelectedVisualFiles] = useState<File[]>([])
+  const [visualFoundation, setVisualFoundation] = useState<BrandVisualFoundation | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const { isRecording, isPlaying, isProcessingTranscription, startRecording, stopRecording, playSynthesizedSpeech, enqueueSynthesizedSpeech, stopAudio } = useVoiceChat({
@@ -153,6 +156,7 @@ export default function OnboardingChatPage() {
           setRecommendedPairId(savedDraft.recommendedPairId)
           setFinalSelectedPair(savedDraft.finalSelectedPair ?? null)
           setRankingPrompt(savedDraft.rankingPrompt ?? '')
+          setVisualFoundation(savedDraft.visualFoundation ?? null)
         } else {
           setMessages(buildInitialMessages(language, craftsQuery.data))
         }
@@ -187,9 +191,10 @@ export default function OnboardingChatPage() {
       recommendedPairId,
       finalSelectedPair,
       rankingPrompt,
+      visualFoundation,
       updatedAt: new Date().toISOString(),
     })
-  }, [completedPhases, currentIdentitySetIndex, currentPhase, draftBrandId, extractedData, finalSelectedPair, identitySets, isComplete, isDraftReady, messages, rankedPairs, rankingPrompt, recommendedPairId, shortlistedPairs, user?.id])
+  }, [completedPhases, currentIdentitySetIndex, currentPhase, draftBrandId, extractedData, finalSelectedPair, identitySets, isComplete, isDraftReady, messages, rankedPairs, rankingPrompt, recommendedPairId, shortlistedPairs, user?.id, visualFoundation])
 
   const moveToPhaseTwo = () => {
     setCompletedPhases((current) => (current.includes(1) ? current : [...current, 1]))
@@ -373,6 +378,28 @@ export default function OnboardingChatPage() {
     }
   }
 
+  const handleAnalyzeVisualFoundation = async () => {
+    if (!user?.name || !draftBrandId || selectedVisualFiles.length === 0) return
+    setIsIdentityLoading(true)
+    try {
+      const formData = new FormData()
+      selectedVisualFiles.forEach((file) => formData.append('photos', file))
+      const uploadedUrls = await uploadBrandImages(formData)
+      const response = await analyzeVisualFoundationMutation.mutateAsync({
+        ...buildIdentityPayload(extractedData, language, user.name, draftBrandId),
+        brand_id: draftBrandId,
+        reference_images: uploadedUrls,
+      })
+      setVisualFoundation(response)
+      setExtractedData((current) => ({ ...current, reference_images: uploadedUrls }))
+      pushToast(copyFor(language, 'Motifs aur color palette ready ho gaye.', 'Motifs and color palette are ready.'))
+    } catch (error) {
+      pushToast(getErrorMessage(error))
+    } finally {
+      setIsIdentityLoading(false)
+    }
+  }
+
   const resetOnboarding = () => {
     if (!user?.id || !craftsQuery.data?.length) return
     void clearOnboardingDraft(user.id)
@@ -390,6 +417,8 @@ export default function OnboardingChatPage() {
     setFinalSelectedPair(null)
     setRankingPrompt('')
     setHasIdentityBootstrapFailed(false)
+    setSelectedVisualFiles([])
+    setVisualFoundation(null)
     stopAudio()
     stopRecording()
   }
@@ -564,6 +593,68 @@ export default function OnboardingChatPage() {
               <p className="text-2xl font-semibold text-stone-900">{finalSelectedPair.name}</p>
               <p className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-stone-700">{finalSelectedPair.tagline}</p>
               <p className="text-sm text-stone-600">{copyFor(language, 'Ye pair DB me pending brand draft ke roop me save ho gaya hai. Phase 3 me isi identity ke saath aage badhenge.', 'This pair has been saved in the database as a pending brand draft. Phase 3 can continue with this identity.')}</p>
+            </Card>
+          ) : null}
+
+          {finalSelectedPair ? (
+            <Card className="space-y-4 border-orange-200">
+              <div>
+                <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Phase 3', 'Phase 3')}</p>
+                <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Product aur workstation images upload karein', 'Upload product and workstation images')}</h2>
+                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Random achhi images upload kijiye. Hum unse motifs, color palette aur signature patterns nikaal kar next phase ke liye save karenge.', 'Upload a good mix of product and workstation images. We will extract motifs, a color palette, and signature patterns and save them for the next phase.')}</p>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => setSelectedVisualFiles(Array.from(event.target.files ?? []))}
+                className="block w-full rounded-2xl border border-dashed border-[#1f5c5a]/20 bg-[#f7faf8] px-4 py-5 text-sm text-stone-600"
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">{copyFor(language, `${selectedVisualFiles.length} files selected`, `${selectedVisualFiles.length} files selected`)}</span>
+                <Button onClick={() => void handleAnalyzeVisualFoundation()} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
+                  {copyFor(language, 'Generate motifs and palette', 'Generate motifs and palette')}
+                </Button>
+              </div>
+
+              {visualFoundation ? (
+                <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                  <div>
+                    <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Visual foundation ready', 'Visual foundation ready')}</p>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">{visualFoundation.visual_summary}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Extracted motifs', 'Extracted motifs')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {visualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Generated color palette', 'Generated color palette')}</p>
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      {Object.entries(visualFoundation.palette).map(([label, value]) => (
+                        <div key={label} className="space-y-2 rounded-2xl bg-white p-3 shadow-sm">
+                          <div className="h-14 rounded-xl border border-stone-200" style={{ backgroundColor: String(value) }} />
+                          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{label}</p>
+                          <p className="text-sm text-stone-700">{String(value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Signature patterns', 'Signature patterns')}</p>
+                    <div className="space-y-2">
+                      {visualFoundation.signature_patterns.map((pattern) => (
+                        <div key={pattern.name} className="rounded-2xl bg-white p-4 shadow-sm">
+                          <p className="font-semibold text-stone-900">{pattern.name}</p>
+                          <p className="mt-1 text-sm text-stone-600">{pattern.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, 'Phase 3 complete. Ab hum phase 4 me logo aur banner direction ki taraf badh sakte hain.', 'Phase 3 is complete. We can now move to phase 4 for logo and banner direction.')}</p>
+                </Card>
+              ) : null}
             </Card>
           ) : null}
         </div>

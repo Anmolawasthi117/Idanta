@@ -156,6 +156,10 @@ class BrandResponse(BaseModel):
     artisan_story: Optional[str] = None
     script_preference: ScriptPreference = ScriptPreference.both
     preferred_language: Optional[str] = None
+    reference_images: Optional[list[str]] = None
+    visual_summary: Optional[str] = None
+    visual_motifs: Optional[list[str]] = None
+    signature_patterns: Optional[list[Dict]] = None
     name: Optional[str]
     tagline: Optional[str]
     palette: Optional[Dict]

@@ -6,6 +6,7 @@ import type {
   BrandIdentityPair,
   BrandIdentityRankResponse,
   BrandIdentitySetResponse,
+  BrandVisualFoundation,
   CraftItem,
 } from '../types/brand.types'
 import type { AppLanguage } from '../store/uiStore'
@@ -89,6 +90,16 @@ export const saveBrandIdentityDraft = async (
   },
 ): Promise<{ brand_id: string; name: string; tagline: string }> => {
   const { data } = await apiClient.post<{ brand_id: string; name: string; tagline: string }>('/brands/identity-draft', payload)
+  return data
+}
+
+export const analyzeBrandVisualFoundation = async (
+  payload: BrandCreatePayload & {
+    brand_id: string
+    reference_images: string[]
+  },
+): Promise<BrandVisualFoundation> => {
+  const { data } = await apiClient.post<BrandVisualFoundation>('/brands/visual-foundation', payload)
   return data
 }
 

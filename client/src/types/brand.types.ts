@@ -29,6 +29,21 @@ export interface BrandCreatePayload {
   preferred_language: string
   name?: string
   tagline?: string
+  reference_images?: string[]
+}
+
+export interface BrandPattern {
+  name: string
+  description: string
+}
+
+export interface BrandVisualFoundation {
+  brand_id: string
+  reference_images: string[]
+  visual_summary: string
+  visual_motifs: string[]
+  signature_patterns: BrandPattern[]
+  palette: BrandPalette
 }
 
 export interface BrandIdentityPair {
@@ -87,6 +102,10 @@ export interface Brand {
   brand_vision?: string
   brand_mission?: string
   preferred_language?: string
+  reference_images?: string[]
+  visual_summary?: string
+  visual_motifs?: string[]
+  signature_patterns?: BrandPattern[]
 }
 
 export interface CraftItem {
