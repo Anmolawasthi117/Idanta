@@ -10,6 +10,7 @@ from app.agents.state import BrandState
 from app.core.database import supabase
 from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
 from app.services.gemini_image_service import generate_image
+from app.services.logo_reference_service import get_logo_reference_library_summary
 from app.services.storage_service import upload_bytes
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,11 @@ async def visual_identity_node(state: BrandState) -> BrandState:
     ).eq("id", job_id).execute()
 
     visual_dna = await build_brand_visual_dna(state)
+    logo_reference_library_summary = await get_logo_reference_library_summary()
+    enriched_state: BrandState = {
+        **state,
+        "logo_reference_library_summary": logo_reference_library_summary,
+    }
 
     supabase.table("jobs").update(
         {
@@ -67,8 +73,8 @@ async def visual_identity_node(state: BrandState) -> BrandState:
     ).eq("id", job_id).execute()
 
     (logo_bytes, logo_mime), (banner_bytes, banner_mime) = await asyncio.gather(
-        _generate_logo(state, visual_dna),
-        _generate_banner(state, visual_dna),
+        _generate_logo(enriched_state, visual_dna),
+        _generate_banner(enriched_state, visual_dna),
     )
 
     logo_url = await upload_bytes(

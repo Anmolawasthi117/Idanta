@@ -21,6 +21,7 @@ from app.agents.nodes.context_builder import context_builder_node
 from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
 from app.services.asset_example_pool import build_example_context, format_examples_for_prompt
 from app.services.gemini_image_service import generate_image
+from app.services.logo_reference_service import get_logo_reference_library_summary
 from app.services.groq_client import groq_json_completion, groq_vision_completion
 
 from app.agents.graphs.brand_graph import run_brand_graph
@@ -264,9 +265,13 @@ async def _rebuild_brand_kit(brand_id: str, state: BrandState) -> str:
 
 async def _regenerate_logo_or_banner(state: BrandState, asset_type: str) -> str:
     visual_dna = await build_brand_visual_dna(state)
+    enriched_state: BrandState = {
+        **state,
+        "logo_reference_library_summary": await get_logo_reference_library_summary(),
+    }
     if asset_type == "logo":
         prompt = (
-            build_brand_asset_prompt(state, visual_dna, "logo")
+            build_brand_asset_prompt(enriched_state, visual_dna, "logo")
             + f"\nStyle modifier: {FEEL_LOGO_STYLE.get(state.get('brand_feel', 'earthy'), FEEL_LOGO_STYLE['earthy'])}."
         )
         image_bytes, mime = await generate_image(prompt, width_hint=1024, height_hint=1024)
@@ -276,7 +281,7 @@ async def _regenerate_logo_or_banner(state: BrandState, asset_type: str) -> str:
             content_type=mime,
         )
     prompt = (
-        build_brand_asset_prompt(state, visual_dna, "banner")
+        build_brand_asset_prompt(enriched_state, visual_dna, "banner")
         + f"\nStyle modifier: {FEEL_BANNER_STYLE.get(state.get('brand_feel', 'earthy'), FEEL_BANNER_STYLE['earthy'])}."
     )
     image_bytes, mime = await generate_image(prompt, width_hint=1536, height_hint=768)

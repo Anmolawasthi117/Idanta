@@ -45,6 +45,7 @@ class BrandState(TypedDict, total=False):
     design_rationale: str
     verbal_examples: List[Dict[str, Any]]
     visual_examples: List[Dict[str, Any]]
+    logo_reference_library_summary: Dict[str, Any]
 
     # Visual identity output
     logo_url: str

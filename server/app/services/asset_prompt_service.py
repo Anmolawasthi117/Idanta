@@ -12,6 +12,7 @@ from typing import Any, Dict
 from app.agents.state import BrandState, ProductState
 from app.services.asset_example_pool import format_examples_for_prompt, retrieve_brand_examples
 from app.services.groq_client import groq_json_completion
+from app.services.logo_reference_service import get_logo_reference_library_summary
 
 BRAND_VISUAL_DNA_PROMPT = """You are a senior brand art director for premium Indian craft brands.
 Build a visual design DNA that will be reused across multiple generated assets.
@@ -77,6 +78,7 @@ async def build_brand_visual_dna(state: BrandState) -> Dict[str, Any]:
     craft_data = state.get("craft_data", {})
     logo_examples = retrieve_brand_examples(state, "logo", limit=2)
     banner_examples = retrieve_brand_examples(state, "banner", limit=2)
+    logo_library = await get_logo_reference_library_summary()
     user_prompt = f"""
 Brand:
 - Name: {state.get("brand_name", "")}
@@ -115,13 +117,27 @@ Retrieved logo references:
 
 Retrieved banner references:
 {format_examples_for_prompt(banner_examples, include_text=False)}
+
+Internal curated logo sample library:
+- Sample count: {logo_library.get("sample_count", 0)}
+- Summary: {logo_library.get("summary", "")}
+- Style principles: {_join_lines(logo_library.get("style_principles", []))}
+- Composition cues: {_join_lines(logo_library.get("composition_cues", []))}
+- Typography cues: {_join_lines(logo_library.get("typography_cues", []))}
+- Ornament cues: {_join_lines(logo_library.get("ornament_cues", []))}
+- Banner translation cues: {_join_lines(logo_library.get("banner_translation_cues", []))}
+- Avoid: {_join_lines(logo_library.get("negative_cues", []))}
 """
-    return await groq_json_completion(
+    result = await groq_json_completion(
         system_prompt=BRAND_VISUAL_DNA_PROMPT,
         user_prompt=user_prompt,
         max_tokens=800,
         temperature=0.7,
     )
+    visual_dna = result.get("visual_dna", "") or ""
+    injected_summary = logo_library.get("summary", "")
+    result["visual_dna"] = f"{visual_dna}\nInternal logo-library direction: {injected_summary}".strip()
+    return result
 
 
 async def build_product_visual_dna(state: ProductState) -> Dict[str, Any]:
@@ -170,6 +186,7 @@ def build_brand_asset_prompt(state: BrandState, visual_dna: Dict[str, Any], asse
     context = state.get("context_bundle", {})
     palette = state.get("palette", {})
     example_context = _resolve_brand_examples(state, asset_type)
+    logo_library_summary = state.get("logo_reference_library_summary", {})
     asset_specs = {
         "logo": (
             "Create a premium artisan brand logo image. "
@@ -216,6 +233,15 @@ Shared visual DNA:
 
 Retrieved example references for this asset:
 {format_examples_for_prompt(example_context, include_text=False)}
+
+Internal curated logo sample library:
+- Summary: {logo_library_summary.get("summary", "")}
+- Style principles: {_join_lines(logo_library_summary.get("style_principles", []))}
+- Composition cues: {_join_lines(logo_library_summary.get("composition_cues", []))}
+- Typography cues: {_join_lines(logo_library_summary.get("typography_cues", []))}
+- Ornament cues: {_join_lines(logo_library_summary.get("ornament_cues", []))}
+- Banner translation cues: {_join_lines(logo_library_summary.get("banner_translation_cues", []))}
+- Avoid from internal sample library: {_join_lines(logo_library_summary.get("negative_cues", []))}
 
 Asset-specific art direction:
 {asset_specs[asset_type]}
