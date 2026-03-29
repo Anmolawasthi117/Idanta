@@ -413,7 +413,7 @@ export default function OnboardingChatPage() {
     }
   }
 
-  const handleAnalyzeVisualFoundation = async (mode: 'fresh' | 'regenerate' = 'fresh') => {
+  const handleAnalyzeVisualFoundation = async () => {
     if (!user?.name || !draftBrandId) return
     setIsIdentityLoading(true)
     try {
@@ -422,8 +422,6 @@ export default function OnboardingChatPage() {
         const formData = new FormData()
         selectedVisualFiles.forEach((file) => formData.append('photos', file))
         uploadedUrls = await uploadBrandImages(formData)
-      } else if (mode === 'regenerate') {
-        uploadedUrls = getSavedReferenceImages(visualFoundation, extractedData)
       }
 
       if (uploadedUrls.length === 0) {
@@ -439,7 +437,7 @@ export default function OnboardingChatPage() {
       })
       setVisualFoundation(normalizeVisualFoundation(response))
       setExtractedData((current) => ({ ...current, reference_images: uploadedUrls }))
-      pushToast(copyFor(language, mode === 'regenerate' ? 'Palette options dubara generate ho gaye.' : 'Palette options ready ho gaye.', mode === 'regenerate' ? 'Palette options regenerated.' : 'Palette options are ready.'))
+      pushToast(copyFor(language, 'Palette options ready ho gaye.', 'Palette options are ready.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
     } finally {
@@ -529,25 +527,66 @@ export default function OnboardingChatPage() {
   const hasPaletteOptions = (normalizedVisualFoundation?.palette_options.length ?? 0) > 0
   const hasSelectedPalette = Boolean(normalizedVisualFoundation?.selected_palette_id)
   const hasGeneratedVisualAssets = Boolean(normalizedVisualFoundation && ((normalizedVisualFoundation.motif_previews.length > 0) || (normalizedVisualFoundation.signature_patterns.length > 0)))
+  const stepItems = [
+    {
+      id: 'phase1',
+      label: 'Phase 1',
+      title: copyFor(language, 'Craft basics', 'Craft basics'),
+      active: !isIdentityStage && currentPhase === 1,
+      done: completedPhases.includes(1) || isIdentityStage,
+    },
+    {
+      id: 'phase2',
+      label: 'Phase 2',
+      title: copyFor(language, 'Brand story', 'Brand story'),
+      active: !isIdentityStage && currentPhase === 2,
+      done: completedPhases.includes(2) || isIdentityStage,
+    },
+    {
+      id: 'identity',
+      label: copyFor(language, 'Identity', 'Identity'),
+      title: finalSelectedPair ? copyFor(language, 'Name locked', 'Name locked') : copyFor(language, 'Choose name', 'Choose name'),
+      active: isIdentityStage && !finalSelectedPair,
+      done: Boolean(finalSelectedPair),
+    },
+    {
+      id: 'phase3',
+      label: 'Phase 3',
+      title: hasGeneratedVisualAssets
+        ? copyFor(language, 'Visuals ready', 'Visuals ready')
+        : hasPaletteOptions
+          ? copyFor(language, 'Choose palette', 'Choose palette')
+          : copyFor(language, 'Visual direction', 'Visual direction'),
+      active: Boolean(finalSelectedPair),
+      done: hasGeneratedVisualAssets,
+    },
+  ]
 
   return (
     <div className="space-y-6">
-      <Card className="space-y-3 bg-orange-50">
-        <p className="text-sm font-semibold text-orange-700">{isIdentityStage ? copyFor(language, 'Brand identity selection', 'Brand identity selection') : copyFor(language, `Phase ${currentPhase}`, `Phase ${currentPhase}`)}</p>
-        <p className="text-base text-stone-700">
-          {isIdentityStage
-            ? copyFor(language, 'Ab aapke context, craft RAG aur example pool ke base par 6-6 brand name aur tagline pairs milenge. Aap dono sets me se max 3 shortlist kar sakte ho.', 'Now you will see 6-by-6 brand name and tagline pairs based on your context, craft RAG, and example pool. You can shortlist up to 3 across both sets.')
-            : currentPhase === 1
-              ? copyFor(language, 'Hum phase 1 me aapke craft aur business context samajh rahe hain. Progress local draft me save hota rahega.', 'In phase 1, we are collecting your craft and business context. Progress is being saved locally.')
-              : copyFor(language, 'Ab phase 2 me hum aapki kahani ko indirect sawaalon se samajh rahe hain, taki brand ke assets aur copy aur gehre ho sakein.', 'In phase 2, we are understanding your story through indirect questions so the brand assets and copy can become richer.')}
-        </p>
+      <Card className="space-y-4 bg-orange-50">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-orange-700">{copyFor(language, 'Brand onboarding', 'Brand onboarding')}</p>
+            <h1 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Ek step par focus kijiye', 'Focus on one step at a time')}</h1>
+          </div>
+          <p className="text-sm text-stone-600">{copyFor(language, 'Progress save hota rahega.', 'Progress is saved as you go.')}</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-4">
+          {stepItems.map((step) => (
+            <div key={step.id} className={`rounded-2xl border px-4 py-3 ${step.done ? 'border-[#1f5c5a]/20 bg-white' : step.active ? 'border-orange-300 bg-white' : 'border-transparent bg-white/60'}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${step.done ? 'text-[#1f5c5a]' : step.active ? 'text-orange-700' : 'text-stone-500'}`}>{step.label}</p>
+              <p className="mt-1 text-sm font-medium text-stone-800">{step.title}</p>
+            </div>
+          ))}
+        </div>
       </Card>
 
       {!isIdentityStage ? (
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex flex-col items-start gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
-              <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">{copyFor(language, `Phase ${currentPhase}: Baat karke brand banao`, `Phase ${currentPhase}: Create your brand by chatting`)}</h1>
+              <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">{copyFor(language, currentPhase === 1 ? 'Phase 1: Basic details' : 'Phase 2: Brand story', currentPhase === 1 ? 'Phase 1: Basic details' : 'Phase 2: Brand story')}</h1>
               <Button
                 variant={isVoiceMode ? 'primary' : 'secondary'}
                 onClick={() => {
@@ -568,8 +607,8 @@ export default function OnboardingChatPage() {
             </div>
             <p className="text-sm text-stone-600 sm:text-base">
               {currentPhase === 1
-                ? copyFor(language, 'Naam, kahani aur tone hum agle phases me lenge. Abhi phase 1 ka zaroori context jama karte hain.', 'Name, story, and tone will come in later phases. Right now we are collecting phase 1 essentials.')
-                : copyFor(language, 'Ab hum values, vision aur mission ko natural tareeke se samajh rahe hain.', 'Now we are understanding your values, vision, and mission in a natural way.')}
+                ? copyFor(language, 'Sirf zaroori craft aur business details.', 'Only the essential craft and business details.')
+                : copyFor(language, 'Ab aapke brand ki soch aur kahani samajhte hain.', 'Now we capture the thinking and story behind your brand.')}
             </p>
           </div>
 
@@ -610,26 +649,28 @@ export default function OnboardingChatPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          <Card className="space-y-4 border-orange-200">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Identity step', 'Identity step')}</p>
-                <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">{copyFor(language, 'Apne brand ke naam aur tagline chuniye', 'Choose your brand name and tagline')}</h1>
+          {!finalSelectedPair ? (
+            <Card className="space-y-4 border-orange-200">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Identity step', 'Identity step')}</p>
+                  <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">{copyFor(language, 'Apne brand ke naam aur tagline chuniye', 'Choose your brand name and tagline')}</h1>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant={currentIdentitySetIndex === 0 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(0)} disabled={!identitySets[0]}>{copyFor(language, 'Set 1', 'Set 1')}</Button>
+                  {identitySets[1] ? <Button variant={currentIdentitySetIndex === 1 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(1)}>{copyFor(language, 'Set 2', 'Set 2')}</Button> : null}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant={currentIdentitySetIndex === 0 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(0)} disabled={!identitySets[0]}>{copyFor(language, 'Set 1', 'Set 1')}</Button>
-                {identitySets[1] ? <Button variant={currentIdentitySetIndex === 1 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(1)}>{copyFor(language, 'Set 2', 'Set 2')}</Button> : null}
+              <p className="text-sm text-stone-600">{copyFor(language, 'Pehle jo pasand aaye unme se max 3 shortlist karo, phir hum best option suggest karenge.', 'Shortlist up to 3 options you like, then we will suggest the best one.')}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-sm font-medium text-[#1f5c5a]">{copyFor(language, `${shortlistedPairs.length}/3 shortlisted`, `${shortlistedPairs.length}/3 shortlisted`)}</span>
+                {!identitySets[1] ? <Button variant="secondary" onClick={() => void requestIdentitySet(2)} loading={isIdentityLoading}><Sparkles className="mr-2 h-4 w-4" />{copyFor(language, 'Doosra set dikhao', 'Show second set')}</Button> : null}
+                <Button onClick={() => void handleRankShortlist()} loading={isIdentityLoading} disabled={shortlistedPairs.length === 0}><ArrowRight className="mr-2 h-4 w-4" />{copyFor(language, 'Rank my picks', 'Rank my picks')}</Button>
               </div>
-            </div>
-            <p className="text-sm text-stone-600">{copyFor(language, 'Agar pehla set pasand na aaye to doosra aur final set mangwa sakte ho. Dono sets mila kar max 3 pairs shortlist karo.', 'If you do not like the first set, you can request the second and final set. Shortlist up to 3 pairs across both sets.')}</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-sm font-medium text-[#1f5c5a]">{copyFor(language, `${shortlistedPairs.length}/3 shortlisted`, `${shortlistedPairs.length}/3 shortlisted`)}</span>
-              {!identitySets[1] ? <Button variant="secondary" onClick={() => void requestIdentitySet(2)} loading={isIdentityLoading}><Sparkles className="mr-2 h-4 w-4" />{copyFor(language, 'Doosra set dikhao', 'Show second set')}</Button> : null}
-              <Button onClick={() => void handleRankShortlist()} loading={isIdentityLoading} disabled={shortlistedPairs.length === 0}><ArrowRight className="mr-2 h-4 w-4" />{copyFor(language, 'Next: rank my picks', 'Next: rank my picks')}</Button>
-            </div>
-          </Card>
+            </Card>
+          ) : null}
 
-          {activeIdentitySet.length === 0 ? (
+          {!finalSelectedPair && activeIdentitySet.length === 0 ? (
             <Card className="space-y-3">
               <p>{copyFor(language, 'Identity suggestions load ho rahe hain...', 'Identity suggestions are loading...')}</p>
               {hasIdentityBootstrapFailed ? (
@@ -639,7 +680,7 @@ export default function OnboardingChatPage() {
                 </Button>
               ) : null}
             </Card>
-          ) : (
+          ) : !finalSelectedPair ? (
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
               {activeIdentitySet.map((pair) => {
                 const isSelected = shortlistedPairs.some((item) => pairKey(item) === pairKey(pair))
@@ -655,9 +696,9 @@ export default function OnboardingChatPage() {
                 )
               })}
             </div>
-          )}
+          ) : null}
 
-          {rankedPairs.length > 0 ? (
+          {!finalSelectedPair && rankedPairs.length > 0 ? (
             <Card className="space-y-4 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50">
               <div>
                 <p className="text-sm font-semibold text-orange-700">{copyFor(language, 'AI ranking', 'AI ranking')}</p>
@@ -692,9 +733,13 @@ export default function OnboardingChatPage() {
           {finalSelectedPair ? (
             <Card className="space-y-3 border-[#1f5c5a]/20 bg-[#1f5c5a]/5">
               <div className="flex items-center gap-2 text-[#1f5c5a]"><CheckCircle2 className="h-5 w-5" /><p className="font-semibold">{copyFor(language, 'Identity saved', 'Identity saved')}</p></div>
-              <p className="text-2xl font-semibold text-stone-900">{finalSelectedPair.name}</p>
-              <p className="rounded-2xl bg-white px-4 py-3 text-sm font-medium text-stone-700">{finalSelectedPair.tagline}</p>
-              <p className="text-sm text-stone-600">{copyFor(language, 'Ye pair DB me pending brand draft ke roop me save ho gaya hai. Phase 3 me isi identity ke saath aage badhenge.', 'This pair has been saved in the database as a pending brand draft. Phase 3 can continue with this identity.')}</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-2xl font-semibold text-stone-900">{finalSelectedPair.name}</p>
+                  <p className="mt-2 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-stone-700">{finalSelectedPair.tagline}</p>
+                </div>
+                <p className="max-w-sm text-sm text-stone-600">{copyFor(language, 'Identity lock ho gayi. Ab seedha Phase 3 par focus karte hain.', 'Your identity is locked. Now we can focus directly on Phase 3.')}</p>
+              </div>
             </Card>
           ) : null}
 
@@ -702,97 +747,94 @@ export default function OnboardingChatPage() {
             <Card className="space-y-4 border-orange-200">
               <div>
                 <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Phase 3', 'Phase 3')}</p>
-                <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Phase 3: pehle palette chuniye, phir visuals banaiye', 'Phase 3: choose palette first, then generate visuals')}</h2>
-                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Step 1 me images se 3 color palette options aayenge. Step 2 me aap jo palette choose karoge, uske hisaab se motif aur pattern visuals generate honge.', 'In step 1 we generate 3 color palette options from your images. In step 2 we generate motif and pattern visuals based on the palette you choose.')}</p>
+                <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Visual direction', 'Visual direction')}</h2>
+                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Bas do steps: palette choose karo, phir ussi palette ke saath visuals banao.', 'Just two steps: choose a palette, then generate visuals with it.')}</p>
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(event) => setSelectedVisualFiles(Array.from(event.target.files ?? []))}
-                className="block w-full rounded-2xl border border-dashed border-[#1f5c5a]/20 bg-[#f7faf8] px-4 py-5 text-sm text-stone-600"
-              />
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">{copyFor(language, `${selectedVisualFiles.length} files selected`, `${selectedVisualFiles.length} files selected`)}</span>
-                <Button onClick={() => void handleAnalyzeVisualFoundation('fresh')} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
-                  {copyFor(language, 'Step 1: Generate palette options', 'Step 1: Generate palette options')}
-                </Button>
-                {hasPaletteOptions ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => void handleAnalyzeVisualFoundation('regenerate')}
-                    loading={isIdentityLoading}
-                    disabled={!draftBrandId}
-                  >
-                    {copyFor(language, 'Regenerate palette options (testing)', 'Regenerate palette options (testing)')}
-                  </Button>
-                ) : null}
-                {hasPaletteOptions ? (
+              <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                  <div>
+                    <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Step 1', 'Step 1')}</p>
+                    <h3 className="text-xl font-semibold text-stone-900">{copyFor(language, 'Upload images and choose palette', 'Upload images and choose palette')}</h3>
+                    <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Aapke images se 3 palette options aayenge.', 'We will create 3 palette options from your images.')}</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(event) => setSelectedVisualFiles(Array.from(event.target.files ?? []))}
+                    className="block w-full rounded-2xl border border-dashed border-[#1f5c5a]/20 bg-white px-4 py-5 text-sm text-stone-600"
+                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="rounded-full bg-white px-3 py-1 text-sm text-stone-700">{copyFor(language, `${selectedVisualFiles.length} files selected`, `${selectedVisualFiles.length} files selected`)}</span>
+                    <Button onClick={() => void handleAnalyzeVisualFoundation()} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
+                      {copyFor(language, 'Generate palette options', 'Generate palette options')}
+                    </Button>
+                  </div>
+                  {hasPaletteOptions ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Choose one palette', 'Choose one palette')}</p>
+                        {normalizedVisualFoundation?.selected_palette_id ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Palette selected', 'Palette selected')}</span> : <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">{copyFor(language, 'Select one to continue', 'Select one to continue')}</span>}
+                      </div>
+                      <div className="space-y-3">
+                        {normalizedVisualFoundation?.palette_options.map((option) => {
+                          const isRecommended = option.option_id === normalizedVisualFoundation.recommended_palette_id
+                          const isSelected = option.option_id === normalizedVisualFoundation.selected_palette_id
+                          return (
+                            <div key={option.option_id} className={`rounded-3xl bg-white p-4 shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : isRecommended ? 'ring-orange-300' : 'ring-stone-200'}`}>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {isRecommended ? <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">{copyFor(language, 'Recommended', 'Recommended')}</span> : null}
+                                {isSelected ? <span className="rounded-full bg-[#1f5c5a] px-3 py-1 text-xs font-semibold text-white">{copyFor(language, 'Selected', 'Selected')}</span> : null}
+                              </div>
+                              <p className="mt-3 text-lg font-semibold text-stone-900">{option.name}</p>
+                              <p className="mt-1 text-sm leading-6 text-stone-600">{option.rationale}</p>
+                              <div className="mt-4 grid grid-cols-4 gap-2">
+                                {paletteSwatches(option).map(([label, value]) => (
+                                  <div key={`${option.option_id}-${label}`} className="space-y-2">
+                                    <div className="h-14 rounded-2xl border border-stone-200" style={{ backgroundColor: String(value) }} />
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{label}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              <Button
+                                className="mt-4 w-full"
+                                variant={isSelected ? 'primary' : 'secondary'}
+                                onClick={() => void handleSelectPaletteOption(option.option_id)}
+                                loading={selectPaletteMutation.isPending && isSelected}
+                                disabled={selectPaletteMutation.isPending}
+                              >
+                                {isSelected ? copyFor(language, 'Palette selected', 'Palette selected') : copyFor(language, 'Choose this palette', 'Choose this palette')}
+                              </Button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </Card>
+
+                <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                  <div>
+                    <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Step 2', 'Step 2')}</p>
+                    <h3 className="text-xl font-semibold text-stone-900">{copyFor(language, 'Generate motif and pattern visuals', 'Generate motif and pattern visuals')}</h3>
+                    <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Selected palette ke saath final visual direction banegi.', 'The final visual direction will be generated using the selected palette.')}</p>
+                  </div>
                   <Button
                     onClick={() => void handleGenerateMotifsAndPatterns()}
                     loading={isIdentityLoading}
                     disabled={!draftBrandId || !hasSelectedPalette || savedReferenceImages.length === 0}
                   >
-                    {copyFor(language, hasGeneratedVisualAssets ? 'Regenerate motif aur pattern visuals' : 'Step 2: Generate motif and pattern visuals', hasGeneratedVisualAssets ? 'Regenerate motif and pattern visuals' : 'Step 2: Generate motif and pattern visuals')}
+                    {copyFor(language, hasGeneratedVisualAssets ? 'Refresh visuals' : 'Generate visuals', hasGeneratedVisualAssets ? 'Refresh visuals' : 'Generate visuals')}
                   </Button>
-                ) : null}
-              </div>
-              {hasPaletteOptions ? <p className="text-xs text-stone-500">{copyFor(language, 'Testing ke liye temporary regenerate button rakha gaya hai. Final build me ise hata denge.', 'The regenerate button is temporary for testing and can be removed later.')}</p> : null}
-
-              {normalizedVisualFoundation ? (
-                <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
-                  <div>
-                    <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Visual foundation ready', 'Visual foundation ready')}</p>
-                    <p className="mt-2 text-sm leading-6 text-stone-600">{normalizedVisualFoundation.visual_summary}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Step 1: choose your color palette', 'Step 1: choose your color palette')}</p>
-                      {normalizedVisualFoundation.selected_palette_id ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Palette selected', 'Palette selected')}</span> : <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">{copyFor(language, 'Select one to continue', 'Select one to continue')}</span>}
-                    </div>
-                    <div className="grid gap-4 xl:grid-cols-3">
-                      {normalizedVisualFoundation.palette_options.map((option) => {
-                        const isRecommended = option.option_id === normalizedVisualFoundation.recommended_palette_id
-                        const isSelected = option.option_id === normalizedVisualFoundation.selected_palette_id
-                        return (
-                          <div key={option.option_id} className={`rounded-3xl bg-white p-4 shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : isRecommended ? 'ring-orange-300' : 'ring-stone-200'}`}>
-                            <div className="flex flex-wrap items-center gap-2">
-                              {isRecommended ? <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">{copyFor(language, 'Recommended', 'Recommended')}</span> : null}
-                              {isSelected ? <span className="rounded-full bg-[#1f5c5a] px-3 py-1 text-xs font-semibold text-white">{copyFor(language, 'Selected', 'Selected')}</span> : null}
-                            </div>
-                            <p className="mt-3 text-lg font-semibold text-stone-900">{option.name}</p>
-                            <p className="mt-1 text-sm leading-6 text-stone-600">{option.rationale}</p>
-                            <div className="mt-4 grid grid-cols-4 gap-2">
-                              {paletteSwatches(option).map(([label, value]) => (
-                                <div key={`${option.option_id}-${label}`} className="space-y-2">
-                                  <div className="h-16 rounded-2xl border border-stone-200" style={{ backgroundColor: String(value) }} />
-                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{label}</p>
-                                  <p className="text-xs text-stone-700">{String(value)}</p>
-                                </div>
-                              ))}
-                            </div>
-                            <Button
-                              className="mt-4 w-full"
-                              variant={isSelected ? 'primary' : 'secondary'}
-                              onClick={() => void handleSelectPaletteOption(option.option_id)}
-                              loading={selectPaletteMutation.isPending && isSelected}
-                              disabled={selectPaletteMutation.isPending}
-                            >
-                              {isSelected ? copyFor(language, 'Palette selected', 'Palette selected') : copyFor(language, 'Choose this palette', 'Choose this palette')}
-                            </Button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  {normalizedVisualFoundation ? <p className="text-sm leading-6 text-stone-600">{normalizedVisualFoundation.visual_summary}</p> : null}
                   {hasGeneratedVisualAssets ? (
                     <>
                       <div className="space-y-2">
-                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Step 2 result: motif directions', 'Step 2 result: motif directions')}</p>
+                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Motif directions', 'Motif directions')}</p>
                         <div className="flex flex-wrap gap-2">
                           {normalizedVisualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
                         </div>
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        <div className="grid gap-4 md:grid-cols-2">
                           {normalizedVisualFoundation.motif_previews.map((motif) => (
                             <div key={motif.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
                               <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-48 w-full object-cover" />
@@ -805,8 +847,8 @@ export default function OnboardingChatPage() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Step 2 result: pattern previews', 'Step 2 result: pattern previews')}</p>
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Pattern previews', 'Pattern previews')}</p>
+                        <div className="grid gap-4 md:grid-cols-2">
                           {normalizedVisualFoundation.signature_patterns.map((pattern) => (
                             <div key={pattern.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
                               {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-48 w-full object-cover" /> : null}
@@ -821,10 +863,10 @@ export default function OnboardingChatPage() {
                       <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, 'Phase 3 complete. Ab hum phase 4 me logo aur banner direction ki taraf badh sakte hain.', 'Phase 3 is complete. We can now move to phase 4 for logo and banner direction.')}</p>
                     </>
                   ) : (
-                    <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, 'Palette choose karne ke baad Step 2 button dabaiye. Tab motif aur pattern visuals selected colors ke hisaab se banenge.', 'After choosing a palette, click the Step 2 button. Motif and pattern visuals will then be generated according to the selected colors.')}</p>
+                    <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, hasSelectedPalette ? 'Palette select ho gayi hai. Ab visuals generate kijiye.' : 'Pehle left side me ek palette choose kijiye.', hasSelectedPalette ? 'Your palette is selected. Now generate the visuals.' : 'Choose a palette on the left first.')}</p>
                   )}
                 </Card>
-              ) : null}
+              </div>
             </Card>
           ) : null}
         </div>
