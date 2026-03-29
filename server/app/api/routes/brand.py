@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 import io
 import zipfile
+import asyncio
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
@@ -156,6 +157,24 @@ class BrandVisualFoundationResponse(BaseModel):
     palette_options: list[BrandPaletteOptionPayload]
     recommended_palette_id: str | None = None
     selected_palette_id: str | None = None
+
+
+class BrandAssetCandidatePayload(BaseModel):
+    candidate_id: str
+    image_url: str
+    title: str
+    rationale: str
+
+
+class BrandPhaseFourCandidatesResponse(BaseModel):
+    brand_id: str
+    logos: list[BrandAssetCandidatePayload]
+    banners: list[BrandAssetCandidatePayload]
+
+
+class BrandPhaseFourSelectionRequest(BaseModel):
+    logo_url: str
+    banner_url: str
 
 
 def _create_targeted_job(user_id: str, brand_id: str, asset_type: str) -> tuple[str, str]:
@@ -515,6 +534,272 @@ async def _generate_preview_image(
         data=image_bytes,
         path=f"brands/{brand_id}/phase3/{category}_{index}.png",
         content_type=mime,
+    )
+
+
+LOGO_CANDIDATE_VARIANTS = [
+    {
+        "candidate_id": "logo_candidate_1",
+        "title": "Signature Emblem",
+        "rationale": "A premium emblem-first identity that feels crafted, memorable, and rooted in heritage.",
+        "direction": "Create a refined emblem-led logo with strong brand recall, premium negative space, and one hero symbol derived from the selected motif system.",
+    },
+    {
+        "candidate_id": "logo_candidate_2",
+        "title": "Elegant Wordmark",
+        "rationale": "A typography-led direction designed to feel boutique, polished, and contemporary.",
+        "direction": "Create a wordmark-first logo with elegant lettering, subtle motif integration, and restrained ornamentation inspired by the internal logo sample library.",
+    },
+    {
+        "candidate_id": "logo_candidate_3",
+        "title": "Heritage Seal",
+        "rationale": "A seal-like artisan direction that feels collectible and rich without becoming cluttered.",
+        "direction": "Create a heritage seal or stamp-inspired logo with controlled ornament, balanced geometry, and a premium handcrafted authority.",
+    },
+]
+
+
+BANNER_CANDIDATE_VARIANTS = [
+    {
+        "candidate_id": "banner_candidate_1",
+        "title": "Editorial Hero",
+        "rationale": "A spacious luxury banner that highlights the brand with premium hierarchy.",
+        "direction": "Create an editorial homepage hero banner with generous breathing room, elegant hierarchy, and subtle integration of the saved pattern system as background structure.",
+    },
+    {
+        "candidate_id": "banner_candidate_2",
+        "title": "Pattern-Led Heritage",
+        "rationale": "A richer banner direction that lets the saved pattern language become part of the brand world.",
+        "direction": "Create a heritage-rich banner where the saved pattern system plays a visible but controlled role in the layout, framing the brand without overpowering it.",
+    },
+    {
+        "candidate_id": "banner_candidate_3",
+        "title": "Boutique Craft Story",
+        "rationale": "A commerce-ready banner that balances premium storytelling with strong motif recall.",
+        "direction": "Create a boutique craft banner with clear logo placement, sophisticated tagline hierarchy, and selected motif-pattern continuity that feels premium and ecommerce-ready.",
+    },
+]
+
+
+async def _generate_phase_four_briefs(
+    *,
+    state: BrandState,
+    visual_dna: dict,
+    logo_library_summary: dict,
+) -> tuple[list[dict], list[dict]]:
+    motifs = [str(item).strip() for item in state.get("visual_motifs", []) if str(item).strip()]
+    patterns = state.get("signature_patterns", []) or []
+    pattern_names = [str(item.get("name", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("name", "")).strip()]
+    pattern_descriptions = [str(item.get("description", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("description", "")).strip()]
+    context = state.get("context_bundle", {})
+    try:
+        result = await groq_json_completion(
+            system_prompt=(
+                "You are a premium identity art director creating Phase 4 candidate briefs for one artisan brand.\n"
+                "Return only JSON with this shape: "
+                "{\"logo_candidates\": [{\"candidate_id\": \"logo_candidate_1\", \"title\": \"...\", \"rationale\": \"...\", \"direction\": \"...\", \"difference_focus\": \"...\"}], "
+                "\"banner_candidates\": [{\"candidate_id\": \"banner_candidate_1\", \"title\": \"...\", \"rationale\": \"...\", \"direction\": \"...\", \"difference_focus\": \"...\"}]}\n"
+                "Rules:\n"
+                "- Generate exactly 3 logo candidates and 3 banner candidates.\n"
+                "- All 3 logo candidates must feel clearly different in structure, not small variations.\n"
+                "- logo_candidate_1 must be emblem-led or icon-led.\n"
+                "- logo_candidate_2 must be wordmark-led with typography doing most of the work.\n"
+                "- logo_candidate_3 must be seal, crest, badge, or stamp-led.\n"
+                "- All 3 banner candidates must feel clearly different in layout and pattern usage.\n"
+                "- banner_candidate_1 must be editorial and spacious.\n"
+                "- banner_candidate_2 must be pattern-led with framing or border logic.\n"
+                "- banner_candidate_3 must be boutique storytelling with a stronger craft atmosphere.\n"
+                "- Use the internal logo sample library as a quality bar.\n"
+                "- Use the saved motifs, saved patterns, and selected palette as hard anchors.\n"
+                "- Keep directions concrete enough for image generation.\n"
+                "- difference_focus must explain what makes this candidate visibly distinct from the others.\n"
+                "- Never make the 3 options just minor ornament or color changes.\n"
+            ),
+            user_prompt=(
+                f"Brand name: {state.get('brand_name', '')}\n"
+                f"Tagline: {state.get('tagline', '')}\n"
+                f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
+                f"Region: {context.get('region', '')}\n"
+                f"Brand feel: {state.get('brand_feel', 'earthy')}\n"
+                f"Palette: {json.dumps(state.get('palette', {}), ensure_ascii=False)}\n"
+                f"Saved motifs: {json.dumps(motifs, ensure_ascii=False)}\n"
+                f"Saved pattern names: {json.dumps(pattern_names, ensure_ascii=False)}\n"
+                f"Saved pattern descriptions: {json.dumps(pattern_descriptions, ensure_ascii=False)}\n"
+                f"Visual DNA: {json.dumps(visual_dna, ensure_ascii=False)}\n"
+                f"Internal logo sample summary: {json.dumps(logo_library_summary, ensure_ascii=False)}\n"
+            ),
+            max_tokens=1400,
+            temperature=0.75,
+        )
+        logo_candidates = result.get("logo_candidates", [])
+        banner_candidates = result.get("banner_candidates", [])
+        if len(logo_candidates) == 3 and len(banner_candidates) == 3:
+            return logo_candidates, banner_candidates
+    except Exception as exc:
+        logger.warning("Could not generate dynamic Phase 4 briefs; using fallback briefs. Error: %s", exc)
+    return LOGO_CANDIDATE_VARIANTS, BANNER_CANDIDATE_VARIANTS
+
+
+def _join_non_empty(values: list[str]) -> str:
+    return ", ".join(value for value in values if value).strip() or "none"
+
+
+def _compact_text(value: str, limit: int = 180) -> str:
+    text = " ".join(str(value or "").split()).strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - 3, 0)].rstrip(" ,.;:") + "..."
+
+
+def _compact_list(values: list[str], *, limit: int = 3, item_limit: int = 40) -> str:
+    cleaned = [_compact_text(value, item_limit) for value in values if str(value).strip()]
+    return ", ".join(cleaned[:limit]) if cleaned else "none"
+
+
+def _fit_prompt_lines(lines: list[str], max_length: int = 1200) -> str:
+    selected = [line for line in lines if line.strip()]
+    prompt = "\n".join(selected)
+    if len(prompt) <= max_length:
+        return prompt
+    optional_prefixes = (
+        "Sample quality bar:",
+        "Sample cues:",
+        "Premium cues:",
+        "Pattern behavior:",
+        "Craft and region:",
+        "Tagline:",
+    )
+    for prefix in optional_prefixes:
+        if len(prompt) <= max_length:
+            break
+        selected = [line for line in selected if not line.startswith(prefix)]
+        prompt = "\n".join(selected)
+    if len(prompt) <= max_length:
+        return prompt
+    trimmed: list[str] = []
+    current_length = 0
+    for line in selected:
+        available = max_length - current_length - (1 if trimmed else 0)
+        if available <= 0:
+            break
+        clipped = _compact_text(line, available)
+        line_length = len(clipped) + (1 if trimmed else 0)
+        if line_length > available and not clipped:
+            break
+        trimmed.append(clipped)
+        current_length += line_length
+    return "\n".join(trimmed)
+
+
+def _build_phase_four_prompt(
+    *,
+    state: BrandState,
+    visual_dna: dict,
+    asset_type: str,
+    direction: str,
+    logo_library_summary: dict,
+) -> str:
+    context = state.get("context_bundle", {})
+    motifs = [str(item).strip() for item in state.get("visual_motifs", []) if str(item).strip()]
+    patterns = state.get("signature_patterns", []) or []
+    pattern_names = [str(item.get("name", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("name", "")).strip()]
+    pattern_descriptions = [str(item.get("description", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("description", "")).strip()]
+    palette = state.get("palette", {}) or {}
+    palette_text = ", ".join(f"{key}:{value}" for key, value in palette.items() if value) or "use selected palette only"
+    visual_world = _compact_text(str(visual_dna.get("visual_dna", "")).strip(), 180)
+    composition_cues = _compact_list([str(item).strip() for item in visual_dna.get("composition_cues", []) if str(item).strip()], limit=2, item_limit=36)
+    luxury_markers = _compact_list([str(item).strip() for item in visual_dna.get("luxury_markers", []) if str(item).strip()], limit=2, item_limit=36)
+    library_summary = _compact_text(str(logo_library_summary.get("summary", "")).strip(), 150)
+    library_typography = _compact_list([str(item).strip() for item in logo_library_summary.get("typography_cues", []) if str(item).strip()], limit=2, item_limit=32)
+    library_composition = _compact_list([str(item).strip() for item in logo_library_summary.get("composition_cues", []) if str(item).strip()], limit=2, item_limit=32)
+    library_ornament = _compact_list([str(item).strip() for item in logo_library_summary.get("ornament_cues", []) if str(item).strip()], limit=2, item_limit=32)
+    negative_cues = _compact_list([str(item).strip() for item in logo_library_summary.get("negative_cues", []) if str(item).strip()], limit=3, item_limit=28)
+    prompt_lines = [
+        "Premium artisan brand identity generation.",
+        "Create one final polished option only. Do not show alternatives, moodboards, mockups, or extra objects.",
+        f"Candidate direction: {_compact_text(direction, 220)}",
+        f"Brand name: {state.get('brand_name', '')}",
+        f"Tagline: {state.get('tagline', '')}",
+        f"Craft and region: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}, {context.get('region', '')}",
+        f"Brand feel: {state.get('brand_feel', 'earthy')}",
+        f"Selected palette only: {palette_text}",
+        f"Motif anchors: {_compact_list(motifs, limit=3, item_limit=28)}",
+        f"Pattern anchors: {_compact_list(pattern_names, limit=2, item_limit=28)}",
+        f"Pattern behavior: {_compact_list(pattern_descriptions, limit=2, item_limit=44)}",
+        f"Visual world: {visual_world}",
+        f"Premium cues: {composition_cues}; {luxury_markers}",
+        f"Sample quality bar: {library_summary}",
+        f"Sample cues: typography {library_typography}; composition {library_composition}; ornament {library_ornament}",
+    ]
+    if asset_type == "logo":
+        prompt_lines.extend(
+            [
+                "Output: a high-end logo presentation on a clean solid or subtle paper background.",
+                "The mark must feel ownable, sharp, balanced, and immediately brandable.",
+                "Prioritize silhouette, typography quality, spacing, and premium restraint.",
+            ]
+        )
+    else:
+        prompt_lines.extend(
+            [
+                "Output: a premium wide ecommerce hero banner.",
+                "Use the saved pattern language as an intentional layout device, not generic wallpaper.",
+                "Keep a strong focal area for logo and tagline, elegant spacing, and premium hierarchy.",
+            ]
+        )
+    prompt_lines.append(f"Avoid: {negative_cues}, generic AI look, stock clipart, crowded folk-art clutter, weak typography, muddy composition.")
+    prompt_lines.append("Original work only. Make this candidate visibly distinct in structure, not a small variation.")
+    return _fit_prompt_lines(prompt_lines)
+
+
+async def _generate_phase_four_asset_candidates(
+    *,
+    brand_id: str,
+    state: BrandState,
+) -> BrandPhaseFourCandidatesResponse:
+    visual_dna = await build_brand_visual_dna(state)
+    logo_library_summary = await get_logo_reference_library_summary()
+    logo_briefs, banner_briefs = await _generate_phase_four_briefs(
+        state=state,
+        visual_dna=visual_dna,
+        logo_library_summary=logo_library_summary,
+    )
+
+    async def _generate_candidate(asset_type: str, variant: dict, index: int) -> BrandAssetCandidatePayload:
+        direction = str(variant.get("direction", "")).strip()
+        difference_focus = str(variant.get("difference_focus", "")).strip()
+        prompt = _build_phase_four_prompt(
+            state=state,
+            visual_dna=visual_dna,
+            asset_type=asset_type,
+            direction=f"{direction}\nWhat must make this option distinct: {difference_focus}".strip(),
+            logo_library_summary=logo_library_summary,
+        )
+        style_modifier = FEEL_LOGO_STYLE.get(state.get("brand_feel", "earthy"), FEEL_LOGO_STYLE["earthy"]) if asset_type == "logo" else FEEL_BANNER_STYLE.get(state.get("brand_feel", "earthy"), FEEL_BANNER_STYLE["earthy"])
+        image_bytes, mime = await generate_image(
+            prompt + f"\nStyle modifier: {style_modifier}.",
+            width_hint=1024 if asset_type == "logo" else 1536,
+            height_hint=1024 if asset_type == "logo" else 768,
+        )
+        image_url = await upload_bytes(
+            data=image_bytes,
+            path=f"brands/{brand_id}/phase4/{asset_type}_{index}.png",
+            content_type=mime,
+        )
+        return BrandAssetCandidatePayload(
+            candidate_id=str(variant.get("candidate_id") or f"{asset_type}_candidate_{index}"),
+            image_url=image_url,
+            title=str(variant.get("title") or f"{asset_type.title()} Candidate {index}"),
+            rationale=str(variant.get("rationale") or difference_focus or "A distinct premium direction for this brand."),
+        )
+
+    logo_tasks = [_generate_candidate("logo", variant, index + 1) for index, variant in enumerate(logo_briefs)]
+    banner_tasks = [_generate_candidate("banner", variant, index + 1) for index, variant in enumerate(banner_briefs)]
+    logos, banners = await asyncio.gather(asyncio.gather(*logo_tasks), asyncio.gather(*banner_tasks))
+    return BrandPhaseFourCandidatesResponse(
+        brand_id=brand_id,
+        logos=list(logos),
+        banners=list(banners),
     )
 
 async def _extract_visual_summary_from_images(image_urls: list[str]) -> str:
@@ -1454,6 +1739,71 @@ async def select_brand_palette_option(
         selected_palette_id=payload.option_id.strip(),
         palette=palette,
     )
+
+
+@router.post(
+    "/{brand_id}/phase4-candidates",
+    response_model=BrandPhaseFourCandidatesResponse,
+    summary="Generate three logo and three banner candidates for Phase 4",
+    tags=["Brands"],
+)
+async def generate_brand_phase_four_candidates(
+    brand_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    result = (
+        supabase.table("brands")
+        .select("*")
+        .eq("id", brand_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+
+    brand = result.data
+    if not brand.get("name") or not brand.get("tagline"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Finalize brand name and tagline before Phase 4.")
+    if not brand.get("selected_palette_id") or not brand.get("palette"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Select a palette before generating Phase 4 assets.")
+    if not brand.get("signature_patterns"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Generate Phase 3 motif and pattern visuals before Phase 4.")
+
+    state = await context_builder_node(_build_state_from_brand(str(uuid.uuid4()), user_id, brand))
+    phase_four_candidates = await _generate_phase_four_asset_candidates(
+        brand_id=brand_id,
+        state=state,
+    )
+    return phase_four_candidates
+
+
+@router.patch(
+    "/{brand_id}/phase4-selection",
+    response_model=BrandPublic,
+    summary="Save the chosen Phase 4 logo and banner",
+    tags=["Brands"],
+)
+async def select_brand_phase_four_assets(
+    brand_id: str,
+    payload: BrandPhaseFourSelectionRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    updated = (
+        supabase.table("brands")
+        .update(
+            {
+                "logo_url": payload.logo_url.strip(),
+                "banner_url": payload.banner_url.strip(),
+            }
+        )
+        .eq("id", brand_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not updated.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+    return updated.data[0]
 
 
 @router.get(

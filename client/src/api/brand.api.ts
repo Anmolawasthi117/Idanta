@@ -7,6 +7,7 @@ import type {
   BrandIdentityRankResponse,
   BrandIdentitySetResponse,
   BrandPalette,
+  BrandPhaseFourCandidates,
   BrandVisualFoundation,
   CraftItem,
 } from '../types/brand.types'
@@ -112,6 +113,19 @@ export const selectBrandPaletteOption = async (
   const { data } = await apiClient.patch<{ selected_palette_id: string; palette: BrandPalette }>(`/brands/${brandId}/palette-selection`, {
     option_id: optionId,
   })
+  return data
+}
+
+export const generateBrandPhaseFourCandidates = async (brandId: string): Promise<BrandPhaseFourCandidates> => {
+  const { data } = await apiClient.post<BrandPhaseFourCandidates>(`/brands/${brandId}/phase4-candidates`)
+  return data
+}
+
+export const selectBrandPhaseFourAssets = async (
+  brandId: string,
+  payload: { logo_url: string; banner_url: string },
+): Promise<Brand> => {
+  const { data } = await apiClient.patch<Brand>(`/brands/${brandId}/phase4-selection`, payload)
   return data
 }
 

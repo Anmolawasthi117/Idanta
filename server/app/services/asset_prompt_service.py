@@ -189,16 +189,17 @@ def build_brand_asset_prompt(state: BrandState, visual_dna: Dict[str, Any], asse
     logo_library_summary = state.get("logo_reference_library_summary", {})
     asset_specs = {
         "logo": (
-            "Create a premium artisan brand logo image. "
-            "Focus on emblem quality, symbolic clarity, and memorable brand authorship. "
-            "No mockup, no packaging, no long text, no watermark. "
-            "The mark should feel like a true identity asset, not clipart."
+            "Create a premium artisan brand logo presentation. "
+            "Show one clear centered logo direction on a clean plain background or subtle luxury paper surface. "
+            "Focus on emblem quality, symbol clarity, memorable authorship, and premium typography. "
+            "No packaging mockup, no product photo, no scene-building, no watermark, no extra decorative objects. "
+            "The result must feel like a curated identity design sample, not clipart and not a generic AI poster."
         ),
         "banner": (
             "Create a premium ecommerce hero banner for the brand. "
-            "Use cinematic layering, decorative restraint, and luxury craft atmosphere. "
+            "Use premium hierarchy, refined pattern integration, decorative restraint, and luxury craft atmosphere. "
             "It should feel like a homepage hero visual designed by an expert creative director. "
-            "No watermark, no random text blocks, no generic collage chaos."
+            "No watermark, no random text blocks, no generic collage chaos, no cheap marketplace styling."
         ),
     }
 
@@ -251,6 +252,9 @@ Output goal:
 - It must clearly belong to the same family as the brand's other assets
 - It must feel premium, realistic, polished, and commercially usable
 - Learn from the reference qualities but do not produce a derivative copy of any one example
+- Strongly prefer design clarity over visual noise
+- If generating a logo, present one polished logo direction with a calm background and strong silhouette separation
+- If generating a banner, let the saved pattern language structure the composition instead of using random generic backgrounds
 """
 
 

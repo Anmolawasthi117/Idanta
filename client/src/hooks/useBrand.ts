@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   analyzeBrandVisualFoundation,
   createBrand,
+  generateBrandPhaseFourCandidates,
   generateBrandIdentityCandidates,
   getBrand,
   getCrafts,
@@ -9,6 +10,7 @@ import {
   regenerateBrand,
   regenerateBrandAsset,
   saveBrandIdentityDraft,
+  selectBrandPhaseFourAssets,
   selectBrandPaletteOption,
   type RegenerableBrandAsset,
   updateBrandIdentity,
@@ -58,6 +60,17 @@ export const useAnalyzeBrandVisualFoundation = () =>
 export const useSelectBrandPaletteOption = () =>
   useMutation({
     mutationFn: ({ brandId, optionId }: { brandId: string; optionId: string }) => selectBrandPaletteOption(brandId, optionId),
+  })
+
+export const useGenerateBrandPhaseFourCandidates = () =>
+  useMutation({
+    mutationFn: (brandId: string) => generateBrandPhaseFourCandidates(brandId),
+  })
+
+export const useSelectBrandPhaseFourAssets = () =>
+  useMutation({
+    mutationFn: ({ brandId, logoUrl, bannerUrl }: { brandId: string; logoUrl: string; bannerUrl: string }) =>
+      selectBrandPhaseFourAssets(brandId, { logo_url: logoUrl, banner_url: bannerUrl }),
   })
 
 export const useRegenerateBrand = () =>

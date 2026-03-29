@@ -58,6 +58,19 @@ export interface BrandPaletteOption {
   palette: BrandPalette
 }
 
+export interface BrandAssetCandidate {
+  candidate_id: string
+  image_url: string
+  title: string
+  rationale: string
+}
+
+export interface BrandPhaseFourCandidates {
+  brand_id: string
+  logos: BrandAssetCandidate[]
+  banners: BrandAssetCandidate[]
+}
+
 export interface BrandVisualFoundation {
   brand_id: string
   reference_images: string[]

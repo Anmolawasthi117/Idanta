@@ -62,6 +62,13 @@ class BrandPaletteOptionSchema(BaseModel):
     palette: PaletteSchema
 
 
+class BrandAssetCandidateSchema(BaseModel):
+    candidate_id: str
+    image_url: str
+    title: str
+    rationale: str
+
+
 class BrandCreate(BaseModel):
     brand_id: Optional[str] = None
     craft_id: str = Field(..., examples=["block_print_jaipur"])

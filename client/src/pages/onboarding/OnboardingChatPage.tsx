@@ -8,7 +8,7 @@ import ChatWindow from '../../components/chat/ChatWindow'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useToast } from '../../components/ui/useToast'
-import { useAnalyzeBrandVisualFoundation, useCrafts, useGenerateBrandIdentityCandidates, useRankBrandIdentityCandidates, useSaveBrandIdentityDraft, useSelectBrandPaletteOption } from '../../hooks/useBrand'
+import { useAnalyzeBrandVisualFoundation, useCrafts, useGenerateBrandIdentityCandidates, useGenerateBrandPhaseFourCandidates, useRankBrandIdentityCandidates, useSaveBrandIdentityDraft, useSelectBrandPhaseFourAssets, useSelectBrandPaletteOption } from '../../hooks/useBrand'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { normalizeBrandExtracted } from '../../lib/chatNormalization'
 import { clearOnboardingDraft, loadOnboardingDraft, saveOnboardingDraft, type OnboardingDraftMessage } from '../../lib/onboardingDraft'
@@ -16,7 +16,7 @@ import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
 import type { AppLanguage } from '../../store/uiStore'
-import type { BrandCreatePayload, BrandIdentityPair, BrandPaletteOption, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
+import type { BrandAssetCandidate, BrandCreatePayload, BrandIdentityPair, BrandPaletteOption, BrandPhaseFourCandidates, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
 
 interface Message {
   id: string
@@ -71,6 +71,14 @@ const getSavedReferenceImages = (foundation: BrandVisualFoundation | null | unde
     : Array.isArray(extractedData.reference_images)
       ? extractedData.reference_images
       : []
+const normalizePhaseFourCandidates = (candidates: BrandPhaseFourCandidates | null | undefined): BrandPhaseFourCandidates | null => {
+  if (!candidates) return null
+  return {
+    brand_id: candidates.brand_id,
+    logos: Array.isArray(candidates.logos) ? candidates.logos : [],
+    banners: Array.isArray(candidates.banners) ? candidates.banners : [],
+  }
+}
 
 const buildPhaseOnePrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: CraftItem[]) => {
   const craftChoices = crafts.map((craft) => `"${craft.display_name}" => "${craft.craft_id}"`).join(', ')
@@ -136,6 +144,8 @@ export default function OnboardingChatPage() {
   const saveIdentityDraftMutation = useSaveBrandIdentityDraft()
   const analyzeVisualFoundationMutation = useAnalyzeBrandVisualFoundation()
   const selectPaletteMutation = useSelectBrandPaletteOption()
+  const generatePhaseFourCandidatesMutation = useGenerateBrandPhaseFourCandidates()
+  const selectPhaseFourAssetsMutation = useSelectBrandPhaseFourAssets()
   const [messages, setMessages] = useState<Message[]>([])
   const [extractedData, setExtractedData] = useState<ExtractedFormData>(buildPhaseDefaults(language, user?.name))
   const [currentPhase, setCurrentPhase] = useState<OnboardingPhase>(1)
@@ -156,6 +166,9 @@ export default function OnboardingChatPage() {
   const [hasIdentityBootstrapFailed, setHasIdentityBootstrapFailed] = useState(false)
   const [selectedVisualFiles, setSelectedVisualFiles] = useState<File[]>([])
   const [visualFoundation, setVisualFoundation] = useState<BrandVisualFoundation | null>(null)
+  const [phaseFourCandidates, setPhaseFourCandidates] = useState<BrandPhaseFourCandidates | null>(null)
+  const [selectedLogoCandidateId, setSelectedLogoCandidateId] = useState<string>()
+  const [selectedBannerCandidateId, setSelectedBannerCandidateId] = useState<string>()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const { isRecording, isPlaying, isProcessingTranscription, startRecording, stopRecording, playSynthesizedSpeech, enqueueSynthesizedSpeech, stopAudio } = useVoiceChat({
@@ -192,6 +205,9 @@ export default function OnboardingChatPage() {
           setFinalSelectedPair(savedDraft.finalSelectedPair ?? null)
           setRankingPrompt(savedDraft.rankingPrompt ?? '')
           setVisualFoundation(normalizeVisualFoundation(savedDraft.visualFoundation))
+          setPhaseFourCandidates(normalizePhaseFourCandidates(savedDraft.phaseFourCandidates))
+          setSelectedLogoCandidateId(savedDraft.selectedLogoCandidateId)
+          setSelectedBannerCandidateId(savedDraft.selectedBannerCandidateId)
         } else {
           setMessages(buildInitialMessages(language, craftsQuery.data))
         }
@@ -227,9 +243,12 @@ export default function OnboardingChatPage() {
       finalSelectedPair,
       rankingPrompt,
       visualFoundation,
+      phaseFourCandidates,
+      selectedLogoCandidateId,
+      selectedBannerCandidateId,
       updatedAt: new Date().toISOString(),
     })
-  }, [completedPhases, currentIdentitySetIndex, currentPhase, draftBrandId, extractedData, finalSelectedPair, identitySets, isComplete, isDraftReady, messages, rankedPairs, rankingPrompt, recommendedPairId, shortlistedPairs, user?.id, visualFoundation])
+  }, [completedPhases, currentIdentitySetIndex, currentPhase, draftBrandId, extractedData, finalSelectedPair, identitySets, isComplete, isDraftReady, messages, phaseFourCandidates, rankedPairs, rankingPrompt, recommendedPairId, selectedBannerCandidateId, selectedLogoCandidateId, shortlistedPairs, user?.id, visualFoundation])
 
   const moveToPhaseTwo = () => {
     setCompletedPhases((current) => (current.includes(1) ? current : [...current, 1]))
@@ -404,6 +423,9 @@ export default function OnboardingChatPage() {
       })
       setDraftBrandId(response.brand_id)
       setFinalSelectedPair(pair)
+      setPhaseFourCandidates(null)
+      setSelectedLogoCandidateId(undefined)
+      setSelectedBannerCandidateId(undefined)
       setExtractedData((current) => ({ ...current, name: pair.name, tagline: pair.tagline }))
       pushToast(copyFor(language, 'Ye identity next phase ke liye save ho gayi.', 'This identity has been saved for the next phase.'))
     } catch (error) {
@@ -466,7 +488,46 @@ export default function OnboardingChatPage() {
       })
       setVisualFoundation(normalizeVisualFoundation(response))
       setExtractedData((current) => ({ ...current, reference_images: referenceImages }))
+      setPhaseFourCandidates(null)
+      setSelectedLogoCandidateId(undefined)
+      setSelectedBannerCandidateId(undefined)
       pushToast(copyFor(language, 'Selected palette ke saath motif aur pattern visuals ready hain.', 'Motif and pattern visuals are ready for the selected palette.'))
+    } catch (error) {
+      pushToast(getErrorMessage(error))
+    } finally {
+      setIsIdentityLoading(false)
+    }
+  }
+
+  const handleGeneratePhaseFourCandidates = async () => {
+    if (!draftBrandId) return
+    setIsIdentityLoading(true)
+    try {
+      const response = await generatePhaseFourCandidatesMutation.mutateAsync(draftBrandId)
+      setPhaseFourCandidates(normalizePhaseFourCandidates(response))
+      setSelectedLogoCandidateId(undefined)
+      setSelectedBannerCandidateId(undefined)
+      pushToast(copyFor(language, 'Logo aur banner options ready hain.', 'Logo and banner options are ready.'))
+    } catch (error) {
+      pushToast(getErrorMessage(error))
+    } finally {
+      setIsIdentityLoading(false)
+    }
+  }
+
+  const handleSelectPhaseFourAssets = async () => {
+    if (!draftBrandId || !phaseFourCandidates || !selectedLogoCandidateId || !selectedBannerCandidateId) return
+    const selectedLogo = phaseFourCandidates.logos.find((item) => item.candidate_id === selectedLogoCandidateId)
+    const selectedBanner = phaseFourCandidates.banners.find((item) => item.candidate_id === selectedBannerCandidateId)
+    if (!selectedLogo || !selectedBanner) return
+    setIsIdentityLoading(true)
+    try {
+      await selectPhaseFourAssetsMutation.mutateAsync({
+        brandId: draftBrandId,
+        logoUrl: selectedLogo.image_url,
+        bannerUrl: selectedBanner.image_url,
+      })
+      pushToast(copyFor(language, 'Phase 4 assets save ho gaye.', 'Phase 4 assets have been saved.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
     } finally {
@@ -489,6 +550,9 @@ export default function OnboardingChatPage() {
           signature_patterns: [],
         })
       })
+      setPhaseFourCandidates(null)
+      setSelectedLogoCandidateId(undefined)
+      setSelectedBannerCandidateId(undefined)
       pushToast(copyFor(language, 'Color palette save ho gayi.', 'Color palette saved.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
@@ -514,6 +578,9 @@ export default function OnboardingChatPage() {
     setHasIdentityBootstrapFailed(false)
     setSelectedVisualFiles([])
     setVisualFoundation(null)
+    setPhaseFourCandidates(null)
+    setSelectedLogoCandidateId(undefined)
+    setSelectedBannerCandidateId(undefined)
     stopAudio()
     stopRecording()
   }
@@ -527,6 +594,10 @@ export default function OnboardingChatPage() {
   const hasPaletteOptions = (normalizedVisualFoundation?.palette_options.length ?? 0) > 0
   const hasSelectedPalette = Boolean(normalizedVisualFoundation?.selected_palette_id)
   const hasGeneratedVisualAssets = Boolean(normalizedVisualFoundation && ((normalizedVisualFoundation.motif_previews.length > 0) || (normalizedVisualFoundation.signature_patterns.length > 0)))
+  const normalizedPhaseFourCandidates = normalizePhaseFourCandidates(phaseFourCandidates)
+  const canEnterPhaseFour = Boolean(finalSelectedPair && hasGeneratedVisualAssets)
+  const selectedLogoCandidate = normalizedPhaseFourCandidates?.logos.find((item) => item.candidate_id === selectedLogoCandidateId)
+  const selectedBannerCandidate = normalizedPhaseFourCandidates?.banners.find((item) => item.candidate_id === selectedBannerCandidateId)
   const stepItems = [
     {
       id: 'phase1',
@@ -559,6 +630,15 @@ export default function OnboardingChatPage() {
           : copyFor(language, 'Visual direction', 'Visual direction'),
       active: Boolean(finalSelectedPair),
       done: hasGeneratedVisualAssets,
+    },
+    {
+      id: 'phase4',
+      label: 'Phase 4',
+      title: normalizedPhaseFourCandidates
+        ? copyFor(language, 'Choose logo/banner', 'Choose logo/banner')
+        : copyFor(language, 'Logo and banner', 'Logo and banner'),
+      active: canEnterPhaseFour,
+      done: Boolean(selectedLogoCandidateId && selectedBannerCandidateId),
     },
   ]
 
@@ -867,6 +947,92 @@ export default function OnboardingChatPage() {
                   )}
                 </Card>
               </div>
+            </Card>
+          ) : null}
+
+          {canEnterPhaseFour ? (
+            <Card className="space-y-5 border-orange-200">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Phase 4', 'Phase 4')}</p>
+                  <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Choose your logo and banner', 'Choose your logo and banner')}</h2>
+                  <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Ab hum selected palette, motifs, patterns, aur internal logo sample quality ko use karke 3 logo aur 3 banner options banayenge.', 'We will now use the selected palette, motifs, patterns, and your internal logo sample quality bar to generate 3 logo and 3 banner options.')}</p>
+                </div>
+                <Button onClick={() => void handleGeneratePhaseFourCandidates()} loading={isIdentityLoading} disabled={!draftBrandId}>
+                  {copyFor(language, normalizedPhaseFourCandidates ? 'Refresh Phase 4 options' : 'Generate Phase 4 options', normalizedPhaseFourCandidates ? 'Refresh Phase 4 options' : 'Generate Phase 4 options')}
+                </Button>
+              </div>
+
+              {normalizedPhaseFourCandidates ? (
+                <>
+                  <div className="grid gap-6 xl:grid-cols-2">
+                    <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Logo options', 'Logo options')}</p>
+                          <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Inme se ek logo choose kijiye.', 'Choose one logo option.')}</p>
+                        </div>
+                        {selectedLogoCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Logo selected', 'Logo selected')}</span> : null}
+                      </div>
+                      <div className="space-y-4">
+                        {normalizedPhaseFourCandidates.logos.map((candidate) => {
+                          const isSelected = candidate.candidate_id === selectedLogoCandidateId
+                          return (
+                            <div key={candidate.candidate_id} className={`overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : 'ring-stone-200'}`}>
+                              <img src={candidate.image_url} alt={candidate.title} className="h-56 w-full object-cover" />
+                              <div className="space-y-2 p-4">
+                                <p className="font-semibold text-stone-900">{candidate.title}</p>
+                                <p className="text-sm text-stone-600">{candidate.rationale}</p>
+                                <Button className="w-full" variant={isSelected ? 'primary' : 'secondary'} onClick={() => setSelectedLogoCandidateId(candidate.candidate_id)}>
+                                  {isSelected ? copyFor(language, 'Selected logo', 'Selected logo') : copyFor(language, 'Choose this logo', 'Choose this logo')}
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </Card>
+
+                    <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Banner options', 'Banner options')}</p>
+                          <p className="mt-1 text-sm text-stone-600">{copyFor(language, 'Saved patterns ke base par ek banner choose kijiye.', 'Choose one banner option built from the saved patterns.')}</p>
+                        </div>
+                        {selectedBannerCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Banner selected', 'Banner selected')}</span> : null}
+                      </div>
+                      <div className="space-y-4">
+                        {normalizedPhaseFourCandidates.banners.map((candidate) => {
+                          const isSelected = candidate.candidate_id === selectedBannerCandidateId
+                          return (
+                            <div key={candidate.candidate_id} className={`overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : 'ring-stone-200'}`}>
+                              <img src={candidate.image_url} alt={candidate.title} className="h-56 w-full object-cover" />
+                              <div className="space-y-2 p-4">
+                                <p className="font-semibold text-stone-900">{candidate.title}</p>
+                                <p className="text-sm text-stone-600">{candidate.rationale}</p>
+                                <Button className="w-full" variant={isSelected ? 'primary' : 'secondary'} onClick={() => setSelectedBannerCandidateId(candidate.candidate_id)}>
+                                  {isSelected ? copyFor(language, 'Selected banner', 'Selected banner') : copyFor(language, 'Choose this banner', 'Choose this banner')}
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </Card>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button onClick={() => void handleSelectPhaseFourAssets()} loading={isIdentityLoading} disabled={!selectedLogoCandidate || !selectedBannerCandidate}>
+                      {copyFor(language, 'Save my Phase 4 choices', 'Save my Phase 4 choices')}
+                    </Button>
+                    <p className="text-sm text-stone-600">{copyFor(language, 'Best results ke liye ek logo aur ek banner choose karke save kijiye.', 'Choose one logo and one banner, then save them as your final Phase 4 selection.')}</p>
+                  </div>
+                </>
+              ) : (
+                <Card className="border-[#1f5c5a]/15 bg-[#f7faf8]">
+                  <p className="text-sm text-stone-600">{copyFor(language, 'Phase 4 options dekhne ke liye button dabaiye. Hum 3 premium logo aur 3 banner choices banayenge.', 'Click the button to generate Phase 4 options. We will create 3 premium logo and 3 banner choices.')}</p>
+                </Card>
+              )}
             </Card>
           ) : null}
         </div>
