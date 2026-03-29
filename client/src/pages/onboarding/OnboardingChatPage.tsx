@@ -53,7 +53,7 @@ const normalizeVisualFoundation = (foundation: BrandVisualFoundation | null | un
   }
   const paletteOptions = Array.isArray(foundation.palette_options) ? foundation.palette_options : []
   const recommendedPaletteId = foundation.recommended_palette_id ?? paletteOptions[0]?.option_id ?? null
-  const selectedPaletteId = foundation.selected_palette_id ?? recommendedPaletteId
+  const selectedPaletteId = foundation.selected_palette_id ?? null
   return {
     ...foundation,
     visual_motifs: Array.isArray(foundation.visual_motifs) ? foundation.visual_motifs : [],
@@ -435,10 +435,40 @@ export default function OnboardingChatPage() {
         ...buildIdentityPayload(extractedData, language, user.name, draftBrandId),
         brand_id: draftBrandId,
         reference_images: uploadedUrls,
+        generate_visual_assets: false,
       })
       setVisualFoundation(normalizeVisualFoundation(response))
       setExtractedData((current) => ({ ...current, reference_images: uploadedUrls }))
-      pushToast(copyFor(language, mode === 'regenerate' ? 'Phase 3 visuals dubara generate ho gaye.' : 'Motifs aur color palette ready ho gaye.', mode === 'regenerate' ? 'Phase 3 visuals regenerated.' : 'Motifs and color palette are ready.'))
+      pushToast(copyFor(language, mode === 'regenerate' ? 'Palette options dubara generate ho gaye.' : 'Palette options ready ho gaye.', mode === 'regenerate' ? 'Palette options regenerated.' : 'Palette options are ready.'))
+    } catch (error) {
+      pushToast(getErrorMessage(error))
+    } finally {
+      setIsIdentityLoading(false)
+    }
+  }
+
+  const handleGenerateMotifsAndPatterns = async () => {
+    if (!user?.name || !draftBrandId) return
+    const referenceImages = getSavedReferenceImages(visualFoundation, extractedData)
+    if (referenceImages.length === 0) {
+      pushToast(copyFor(language, 'Motif aur pattern visuals ke liye pehle Phase 3 images chahiye.', 'Phase 3 images are required before generating motif and pattern visuals.'))
+      return
+    }
+    if (!visualFoundation?.selected_palette_id) {
+      pushToast(copyFor(language, 'Pehle ek color palette choose kijiye.', 'Please choose a color palette first.'))
+      return
+    }
+    setIsIdentityLoading(true)
+    try {
+      const response = await analyzeVisualFoundationMutation.mutateAsync({
+        ...buildIdentityPayload(extractedData, language, user.name, draftBrandId),
+        brand_id: draftBrandId,
+        reference_images: referenceImages,
+        generate_visual_assets: true,
+      })
+      setVisualFoundation(normalizeVisualFoundation(response))
+      setExtractedData((current) => ({ ...current, reference_images: referenceImages }))
+      pushToast(copyFor(language, 'Selected palette ke saath motif aur pattern visuals ready hain.', 'Motif and pattern visuals are ready for the selected palette.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
     } finally {
@@ -456,6 +486,9 @@ export default function OnboardingChatPage() {
           ...current,
           palette: response.palette,
           selected_palette_id: response.selected_palette_id,
+          visual_motifs: [],
+          motif_previews: [],
+          signature_patterns: [],
         })
       })
       pushToast(copyFor(language, 'Color palette save ho gayi.', 'Color palette saved.'))
@@ -492,6 +525,10 @@ export default function OnboardingChatPage() {
   const activeIdentitySet = identitySets[currentIdentitySetIndex] ?? []
   const isIdentityStage = isComplete
   const normalizedVisualFoundation = normalizeVisualFoundation(visualFoundation)
+  const savedReferenceImages = getSavedReferenceImages(normalizedVisualFoundation, extractedData)
+  const hasPaletteOptions = (normalizedVisualFoundation?.palette_options.length ?? 0) > 0
+  const hasSelectedPalette = Boolean(normalizedVisualFoundation?.selected_palette_id)
+  const hasGeneratedVisualAssets = Boolean(normalizedVisualFoundation && ((normalizedVisualFoundation.motif_previews.length > 0) || (normalizedVisualFoundation.signature_patterns.length > 0)))
 
   return (
     <div className="space-y-6">
@@ -665,8 +702,8 @@ export default function OnboardingChatPage() {
             <Card className="space-y-4 border-orange-200">
               <div>
                 <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Phase 3', 'Phase 3')}</p>
-                <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Product aur workstation images upload karein', 'Upload product and workstation images')}</h2>
-                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Achhi product aur workstation images upload kijiye. Hum motif visuals, 3 palette options with recommendation, aur pattern previews bana kar dikhayenge, jisme se aap palette choose kar sakte ho.', 'Upload a good mix of product and workstation images. We will create motif visuals, 3 palette options with a recommendation, and pattern previews so you can choose the palette you want.')}</p>
+                <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Phase 3: pehle palette chuniye, phir visuals banaiye', 'Phase 3: choose palette first, then generate visuals')}</h2>
+                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Step 1 me images se 3 color palette options aayenge. Step 2 me aap jo palette choose karoge, uske hisaab se motif aur pattern visuals generate honge.', 'In step 1 we generate 3 color palette options from your images. In step 2 we generate motif and pattern visuals based on the palette you choose.')}</p>
               </div>
               <input
                 type="file"
@@ -678,20 +715,29 @@ export default function OnboardingChatPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">{copyFor(language, `${selectedVisualFiles.length} files selected`, `${selectedVisualFiles.length} files selected`)}</span>
                 <Button onClick={() => void handleAnalyzeVisualFoundation('fresh')} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
-                  {copyFor(language, 'Generate Phase 3 visuals', 'Generate Phase 3 visuals')}
+                  {copyFor(language, 'Step 1: Generate palette options', 'Step 1: Generate palette options')}
                 </Button>
-                {normalizedVisualFoundation ? (
+                {hasPaletteOptions ? (
                   <Button
                     variant="secondary"
                     onClick={() => void handleAnalyzeVisualFoundation('regenerate')}
                     loading={isIdentityLoading}
                     disabled={!draftBrandId}
                   >
-                    {copyFor(language, 'Regenerate Phase 3 visuals (testing)', 'Regenerate Phase 3 visuals (testing)')}
+                    {copyFor(language, 'Regenerate palette options (testing)', 'Regenerate palette options (testing)')}
+                  </Button>
+                ) : null}
+                {hasPaletteOptions ? (
+                  <Button
+                    onClick={() => void handleGenerateMotifsAndPatterns()}
+                    loading={isIdentityLoading}
+                    disabled={!draftBrandId || !hasSelectedPalette || savedReferenceImages.length === 0}
+                  >
+                    {copyFor(language, hasGeneratedVisualAssets ? 'Regenerate motif aur pattern visuals' : 'Step 2: Generate motif and pattern visuals', hasGeneratedVisualAssets ? 'Regenerate motif and pattern visuals' : 'Step 2: Generate motif and pattern visuals')}
                   </Button>
                 ) : null}
               </div>
-              {normalizedVisualFoundation ? <p className="text-xs text-stone-500">{copyFor(language, 'Ye testing button hai. Ye same Phase 3 ko dubara run karta hai aur baad me hata denge.', 'This is a temporary testing button. It reruns Phase 3 using the current images and can be removed later.')}</p> : null}
+              {hasPaletteOptions ? <p className="text-xs text-stone-500">{copyFor(language, 'Testing ke liye temporary regenerate button rakha gaya hai. Final build me ise hata denge.', 'The regenerate button is temporary for testing and can be removed later.')}</p> : null}
 
               {normalizedVisualFoundation ? (
                 <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
@@ -700,26 +746,9 @@ export default function OnboardingChatPage() {
                     <p className="mt-2 text-sm leading-6 text-stone-600">{normalizedVisualFoundation.visual_summary}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Motif directions', 'Motif directions')}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {normalizedVisualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {normalizedVisualFoundation.motif_previews.map((motif) => (
-                        <div key={motif.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
-                          <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-48 w-full object-cover" />
-                          <div className="space-y-2 p-4">
-                            <p className="font-semibold text-stone-900">{motif.name}</p>
-                            {motif.description ? <p className="text-sm text-stone-600">{motif.description}</p> : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Choose your color palette', 'Choose your color palette')}</p>
-                      {normalizedVisualFoundation.selected_palette_id ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Selected palette saved', 'Selected palette saved')}</span> : null}
+                      <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Step 1: choose your color palette', 'Step 1: choose your color palette')}</p>
+                      {normalizedVisualFoundation.selected_palette_id ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Palette selected', 'Palette selected')}</span> : <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">{copyFor(language, 'Select one to continue', 'Select one to continue')}</span>}
                     </div>
                     <div className="grid gap-4 xl:grid-cols-3">
                       {normalizedVisualFoundation.palette_options.map((option) => {
@@ -756,21 +785,44 @@ export default function OnboardingChatPage() {
                       })}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Pattern previews', 'Pattern previews')}</p>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {normalizedVisualFoundation.signature_patterns.map((pattern) => (
-                        <div key={pattern.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
-                          {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-48 w-full object-cover" /> : null}
-                          <div className="p-4">
-                            <p className="font-semibold text-stone-900">{pattern.name}</p>
-                            <p className="mt-1 text-sm text-stone-600">{pattern.description}</p>
-                          </div>
+                  {hasGeneratedVisualAssets ? (
+                    <>
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Step 2 result: motif directions', 'Step 2 result: motif directions')}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {normalizedVisualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, 'Phase 3 complete. Ab hum phase 4 me logo aur banner direction ki taraf badh sakte hain.', 'Phase 3 is complete. We can now move to phase 4 for logo and banner direction.')}</p>
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          {normalizedVisualFoundation.motif_previews.map((motif) => (
+                            <div key={motif.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
+                              <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-48 w-full object-cover" />
+                              <div className="space-y-2 p-4">
+                                <p className="font-semibold text-stone-900">{motif.name}</p>
+                                {motif.description ? <p className="text-sm text-stone-600">{motif.description}</p> : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Step 2 result: pattern previews', 'Step 2 result: pattern previews')}</p>
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          {normalizedVisualFoundation.signature_patterns.map((pattern) => (
+                            <div key={pattern.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
+                              {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-48 w-full object-cover" /> : null}
+                              <div className="p-4">
+                                <p className="font-semibold text-stone-900">{pattern.name}</p>
+                                <p className="mt-1 text-sm text-stone-600">{pattern.description}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, 'Phase 3 complete. Ab hum phase 4 me logo aur banner direction ki taraf badh sakte hain.', 'Phase 3 is complete. We can now move to phase 4 for logo and banner direction.')}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm font-medium text-[#1f5c5a]">{copyFor(language, 'Palette choose karne ke baad Step 2 button dabaiye. Tab motif aur pattern visuals selected colors ke hisaab se banenge.', 'After choosing a palette, click the Step 2 button. Motif and pattern visuals will then be generated according to the selected colors.')}</p>
+                  )}
                 </Card>
               ) : null}
             </Card>

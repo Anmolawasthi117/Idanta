@@ -98,6 +98,7 @@ export const analyzeBrandVisualFoundation = async (
   payload: BrandCreatePayload & {
     brand_id: string
     reference_images: string[]
+    generate_visual_assets?: boolean
   },
 ): Promise<BrandVisualFoundation> => {
   const { data } = await apiClient.post<BrandVisualFoundation>('/brands/visual-foundation', payload)

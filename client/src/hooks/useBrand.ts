@@ -52,7 +52,7 @@ export const useSaveBrandIdentityDraft = () =>
 
 export const useAnalyzeBrandVisualFoundation = () =>
   useMutation({
-    mutationFn: (payload: BrandCreatePayload & { brand_id: string; reference_images: string[] }) => analyzeBrandVisualFoundation(payload),
+    mutationFn: (payload: BrandCreatePayload & { brand_id: string; reference_images: string[]; generate_visual_assets?: boolean }) => analyzeBrandVisualFoundation(payload),
   })
 
 export const useSelectBrandPaletteOption = () =>

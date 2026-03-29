@@ -105,6 +105,10 @@ class SaveBrandIdentityDraftResponse(BaseModel):
     tagline: str
 
 
+class BrandVisualFoundationRequest(BrandCreateRequest):
+    generate_visual_assets: bool = False
+
+
 class BrandPatternPayload(BaseModel):
     name: str
     description: str
@@ -317,7 +321,7 @@ async def _prepare_state_for_text_regeneration(state: BrandState) -> BrandState:
     }
 
 
-async def _build_identity_preview_state(payload: BrandCreateRequest) -> BrandState:
+async def _build_identity_preview_state(payload: BrandCreateRequest, selected_palette: dict | None = None) -> BrandState:
     state: BrandState = {
         "job_id": str(uuid.uuid4()),
         "user_id": "",
@@ -333,7 +337,7 @@ async def _build_identity_preview_state(payload: BrandCreateRequest) -> BrandSta
         "artisan_story": payload.artisan_story,
         "preferred_language": payload.preferred_language,
         "reference_images": payload.reference_images,
-        "palette": {},
+        "palette": selected_palette or {},
     }
     return await context_builder_node(state)
 
@@ -628,6 +632,28 @@ async def _build_visual_foundation(state: BrandState, visual_summary: str) -> Br
     except Exception as exc:
         logger.warning("Visual foundation LLM generation failed; using fallback foundation. Error: %s", exc)
         return fallback_foundation
+
+
+async def _build_palette_only_foundation(state: BrandState, visual_summary: str, selected_palette_id: str | None = None) -> BrandVisualFoundationResponse:
+    fallback_foundation = _fallback_visual_foundation(state, visual_summary)
+    palette_options, recommended_palette_id = await _build_palette_options(state, visual_summary)
+    effective_selected_palette_id = selected_palette_id if selected_palette_id in {option.option_id for option in palette_options} else None
+    effective_palette = next(
+        (option.palette for option in palette_options if option.option_id == effective_selected_palette_id),
+        next((option.palette for option in palette_options if option.option_id == recommended_palette_id), fallback_foundation.palette),
+    )
+    return BrandVisualFoundationResponse(
+        brand_id="",
+        reference_images=[],
+        visual_summary=visual_summary,
+        visual_motifs=[],
+        motif_previews=[],
+        signature_patterns=[],
+        palette=effective_palette.model_dump() if hasattr(effective_palette, "model_dump") else effective_palette,
+        palette_options=palette_options,
+        recommended_palette_id=recommended_palette_id,
+        selected_palette_id=effective_selected_palette_id,
+    )
 
 
 async def _attach_visual_previews(
@@ -1161,14 +1187,14 @@ async def save_brand_identity_draft(
     tags=["Brands"],
 )
 async def build_brand_visual_foundation(
-    payload: BrandCreateRequest,
+    payload: BrandVisualFoundationRequest,
     user_id: str = Depends(get_current_user_id),
 ):
     if not payload.brand_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="brand_id is required for visual foundation.")
     existing = (
         supabase.table("brands")
-        .select("id")
+        .select("id, palette, selected_palette_id")
         .eq("id", payload.brand_id)
         .eq("user_id", user_id)
         .single()
@@ -1178,25 +1204,51 @@ async def build_brand_visual_foundation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand draft not found.")
 
     try:
-        state = await _build_identity_preview_state(payload)
+        existing_brand = existing.data or {}
+        selected_palette = existing_brand.get("palette") if existing_brand.get("selected_palette_id") else None
+        state = await _build_identity_preview_state(payload, selected_palette=selected_palette)
         visual_summary = await _extract_visual_summary_from_images(payload.reference_images)
-        foundation = await _build_visual_foundation(state, visual_summary)
-        foundation = await _attach_visual_previews(
-            foundation=BrandVisualFoundationResponse(
+        if payload.generate_visual_assets:
+            if not existing_brand.get("selected_palette_id") or not selected_palette:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please select a color palette before generating motif and pattern visuals.",
+                )
+            foundation = await _build_visual_foundation(state, visual_summary)
+            foundation = await _attach_visual_previews(
+                foundation=BrandVisualFoundationResponse(
+                    brand_id=payload.brand_id,
+                    reference_images=payload.reference_images,
+                    visual_summary=foundation.visual_summary,
+                    visual_motifs=foundation.visual_motifs,
+                    motif_previews=foundation.motif_previews,
+                    signature_patterns=foundation.signature_patterns,
+                    palette=selected_palette,
+                    palette_options=foundation.palette_options,
+                    recommended_palette_id=foundation.recommended_palette_id,
+                    selected_palette_id=existing_brand.get("selected_palette_id"),
+                ),
+                state={**state, "palette": selected_palette},
+                brand_id=payload.brand_id,
+            )
+        else:
+            foundation = await _build_palette_only_foundation(
+                state,
+                visual_summary,
+                selected_palette_id=existing_brand.get("selected_palette_id"),
+            )
+            foundation = BrandVisualFoundationResponse(
                 brand_id=payload.brand_id,
                 reference_images=payload.reference_images,
                 visual_summary=foundation.visual_summary,
-                visual_motifs=foundation.visual_motifs,
-                motif_previews=foundation.motif_previews,
-                signature_patterns=foundation.signature_patterns,
+                visual_motifs=[],
+                motif_previews=[],
+                signature_patterns=[],
                 palette=foundation.palette,
                 palette_options=foundation.palette_options,
                 recommended_palette_id=foundation.recommended_palette_id,
                 selected_palette_id=foundation.selected_palette_id,
-            ),
-            state=state,
-            brand_id=payload.brand_id,
-        )
+            )
 
         updates = {
             "reference_images": payload.reference_images,
@@ -1387,6 +1439,9 @@ async def select_brand_palette_option(
         {
             "palette": palette,
             "selected_palette_id": payload.option_id.strip(),
+            "visual_motifs": [],
+            "motif_previews": [],
+            "signature_patterns": [],
         }
     ).eq("id", brand_id).eq("user_id", user_id).execute()
 
