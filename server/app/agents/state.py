@@ -19,6 +19,7 @@ class BrandState(TypedDict, total=False):
     script_preference: str
     preferred_language: str
     reference_images: List[str]
+    identity_locked: bool
 
     # Context builder output
     craft_data: Dict[str, Any]

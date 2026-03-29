@@ -15,7 +15,7 @@ import zipfile
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from postgrest.exceptions import APIError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.agents.nodes.context_builder import context_builder_node
 from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
@@ -57,6 +57,50 @@ class RegenerateAssetRequest(BaseModel):
 
 
 class BrandIdentityUpdateRequest(BaseModel):
+    name: str
+    tagline: str
+
+
+class BrandIdentityPairPayload(BaseModel):
+    pair_id: str
+    name: str
+    tagline: str
+    why_it_fits: str | None = None
+
+
+class RankedBrandIdentityPairPayload(BrandIdentityPairPayload):
+    rank: int
+    explanation: str
+
+
+class BrandIdentityGenerateRequest(BrandCreateRequest):
+    excluded_pairs: list[BrandIdentityPairPayload] = Field(default_factory=list)
+    set_number: int = Field(default=1, ge=1, le=2)
+
+
+class BrandIdentityGenerateResponse(BaseModel):
+    set_number: int
+    pairs: list[BrandIdentityPairPayload]
+    has_more: bool
+
+
+class BrandIdentityRankRequest(BrandCreateRequest):
+    selected_pairs: list[BrandIdentityPairPayload] = Field(min_length=1, max_length=3)
+
+
+class BrandIdentityRankResponse(BaseModel):
+    ranked_pairs: list[RankedBrandIdentityPairPayload]
+    recommended_pair_id: str | None = None
+    next_prompt: str
+
+
+class SaveBrandIdentityDraftRequest(BrandCreateRequest):
+    name: str
+    tagline: str
+
+
+class SaveBrandIdentityDraftResponse(BaseModel):
+    brand_id: str
     name: str
     tagline: str
 
@@ -216,6 +260,136 @@ async def _prepare_state_for_text_regeneration(state: BrandState) -> BrandState:
         "verbal_examples": example_context["brand_name"] + example_context["tagline"],
         "visual_examples": example_context["logo"] + example_context["banner"],
     }
+
+
+async def _build_identity_preview_state(payload: BrandCreateRequest) -> BrandState:
+    state: BrandState = {
+        "job_id": str(uuid.uuid4()),
+        "user_id": "",
+        "craft_id": payload.craft_id,
+        "artisan_name": payload.artisan_name,
+        "region": payload.region,
+        "years_of_experience": payload.years_of_experience,
+        "generations_in_craft": payload.generations_in_craft,
+        "primary_occasion": payload.primary_occasion.value,
+        "target_customer": payload.target_customer.value,
+        "brand_feel": payload.brand_feel.value,
+        "script_preference": payload.script_preference.value,
+        "artisan_story": payload.artisan_story,
+        "preferred_language": payload.preferred_language,
+        "reference_images": payload.reference_images,
+    }
+    return await context_builder_node(state)
+
+
+def _build_identity_generation_prompt(
+    state: BrandState,
+    *,
+    set_number: int,
+    excluded_pairs: list[BrandIdentityPairPayload],
+) -> str:
+    context = state.get("context_bundle", {})
+    craft_data = state.get("craft_data", {})
+    example_context = build_example_context(state)
+    excluded_text = "\n".join(
+        f"- {pair.name} :: {pair.tagline}" for pair in excluded_pairs
+    ) or "- none"
+    variation_note = (
+        "This is the first set. Focus on the strongest, most ownable, premium directions with emotional depth."
+        if set_number == 1
+        else "This is the second and final set. Explore clearly different directions from the first set while staying premium, rooted, and memorable."
+    )
+
+    return (
+        f"Artisan name: {context.get('artisan_name', '')}\n"
+        f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
+        f"Region: {context.get('region', 'India')}\n"
+        f"Years of experience: {context.get('years_of_experience', 0)}\n"
+        f"Generations in craft: {context.get('generations_in_craft', 1)}\n"
+        f"Primary occasion: {context.get('primary_occasion', 'general')}\n"
+        f"Target customer: {context.get('target_customer', 'local_bazaar')}\n"
+        f"Preferred language: {state.get('preferred_language', 'en')}\n"
+        f"Script preference: {context.get('script_preference', 'english')}\n"
+        f"Artisan story core: {context.get('artisan_story', '')}\n"
+        f"Craft tone keywords: {', '.join(craft_data.get('brand_tone_keywords', []))}\n"
+        f"Craft selling points: {json.dumps(craft_data.get('selling_points', []), ensure_ascii=False)}\n"
+        f"Craft materials: {json.dumps(craft_data.get('materials', {}), ensure_ascii=False)}\n"
+        f"Craft motifs: {json.dumps(craft_data.get('motifs', {}), ensure_ascii=False)}\n"
+        f"RAG context:\n{state.get('rag_context', '')}\n\n"
+        f"Retrieved brand name references:\n{format_examples_for_prompt(example_context['brand_name'])}\n\n"
+        f"Retrieved tagline references:\n{format_examples_for_prompt(example_context['tagline'])}\n\n"
+        f"Already shown pairs that must not be repeated:\n{excluded_text}\n\n"
+        f"{variation_note}\n\n"
+        "Creative direction:\n"
+        "- Prefer names that feel ownable, sharp, and emotionally resonant.\n"
+        "- Draw from regional/craft meaning, materiality, motif, memory, rhythm, lineage, or maker philosophy.\n"
+        "- Avoid names that sound generic, corporate, templated, or like placeholder Sanskrit words.\n"
+        "- Avoid weak fillers like Craft, Handmade, Studio, India Art, Heritage Crafts unless absolutely necessary.\n"
+        "- Each pair should feel like a distinct brand world, not six variations of the same naming formula.\n"
+        "- Taglines should complement the name, not repeat it.\n"
+        "- Prioritize names a premium customer would remember after hearing once."
+    )
+
+
+async def _generate_identity_pairs(
+    state: BrandState,
+    *,
+    set_number: int,
+    excluded_pairs: list[BrandIdentityPairPayload],
+) -> list[BrandIdentityPairPayload]:
+    result = await groq_json_completion(
+        system_prompt=(
+            "You are an expert Indian artisan brand strategist.\n"
+            "Return only JSON with this shape: {\"pairs\": [{\"pair_id\": \"pair_1\", \"name\": \"...\", \"tagline\": \"...\", \"why_it_fits\": \"...\"}]}\n"
+            "Rules:\n"
+            "- Generate exactly 6 unique name and tagline pairs.\n"
+            "- Each brand name must be 1-2 words and feel premium, rooted, memorable, and ownable.\n"
+            "- Prefer names with emotional pull, sonic elegance, and clear distinctiveness.\n"
+            "- Avoid generic filler like Craft, Handmade, India Art, Studio, Heritage, Creations unless truly essential.\n"
+            "- Avoid bland names that could fit any artisan from any craft.\n"
+            "- At least 4 of the 6 names should come from clearly different naming angles, for example material-led, motif-led, lineage-led, region-led, or feeling-led.\n"
+            "- Each tagline must stay under 8 words.\n"
+            "- Use the craft context, artisan context, RAG context, and retrieved examples as guidance only.\n"
+            "- Never copy the retrieved examples verbatim.\n"
+            "- The second set must feel meaningfully different from the first set if exclusions are provided.\n"
+            "- Keep taglines aligned with the requested script preference.\n"
+            "- why_it_fits should be specific and useful, not generic praise.\n"
+        ),
+        user_prompt=_build_identity_generation_prompt(state, set_number=set_number, excluded_pairs=excluded_pairs),
+        max_tokens=1800,
+        temperature=0.9 if set_number == 2 else 0.75,
+    )
+
+    raw_pairs = result.get("pairs", [])
+    pairs: list[BrandIdentityPairPayload] = []
+    seen: set[tuple[str, str]] = set()
+    for index, raw_pair in enumerate(raw_pairs, start=1):
+        name = str(raw_pair.get("name", "")).strip()
+        tagline = str(raw_pair.get("tagline", "")).strip()
+        if not name or not tagline:
+            continue
+        key = (name.lower(), tagline.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append(
+            BrandIdentityPairPayload(
+                pair_id=f"set_{set_number}_{str(raw_pair.get('pair_id') or f'pair_{index}').strip().replace(' ', '_').lower()}",
+                name=name,
+                tagline=tagline,
+                why_it_fits=str(raw_pair.get("why_it_fits", "")).strip() or None,
+            )
+        )
+        if len(pairs) == 6:
+            break
+
+    if len(pairs) != 6:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not generate a full identity set right now. Please try again.",
+        )
+
+    return pairs
 
 
 async def _regenerate_tagline(state: BrandState) -> str:
@@ -424,6 +598,145 @@ async def get_crafts():
 
 
 @router.post(
+    "/identity-candidates",
+    response_model=BrandIdentityGenerateResponse,
+    summary="Generate brand name and tagline candidate pairs",
+    tags=["Brands"],
+)
+async def generate_brand_identity_candidates(
+    payload: BrandIdentityGenerateRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    del user_id
+    state = await _build_identity_preview_state(payload)
+    pairs = await _generate_identity_pairs(
+        state,
+        set_number=payload.set_number,
+        excluded_pairs=payload.excluded_pairs,
+    )
+    return BrandIdentityGenerateResponse(
+        set_number=payload.set_number,
+        pairs=pairs,
+        has_more=payload.set_number < 2,
+    )
+
+
+@router.post(
+    "/identity-rank",
+    response_model=BrandIdentityRankResponse,
+    summary="Rank shortlisted brand identity pairs",
+    tags=["Brands"],
+)
+async def rank_brand_identity_candidates(
+    payload: BrandIdentityRankRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    del user_id
+    state = await _build_identity_preview_state(payload)
+    selected_json = json.dumps([pair.model_dump() for pair in payload.selected_pairs], ensure_ascii=False, indent=2)
+    result = await groq_json_completion(
+        system_prompt=(
+            "You are an expert Indian artisan brand strategist.\n"
+            "Return only JSON with this shape: "
+            "{\"ranked_pairs\": [{\"pair_id\": \"...\", \"rank\": 1, \"name\": \"...\", \"tagline\": \"...\", \"explanation\": \"...\"}], "
+            "\"recommended_pair_id\": \"...\", \"next_prompt\": \"...\"}\n"
+            "Rules:\n"
+            "- Rank all shortlisted pairs from strongest to weakest.\n"
+            "- Keep explanations specific to the artisan context, craft context, and market context.\n"
+            "- next_prompt should ask the user to choose the final identity in a warm conversational tone.\n"
+        ),
+        user_prompt=(
+            f"Craft context:\n{state.get('rag_context', '')}\n\n"
+            f"Context bundle:\n{json.dumps(state.get('context_bundle', {}), ensure_ascii=False, indent=2)}\n\n"
+            f"Shortlisted pairs:\n{selected_json}"
+        ),
+        max_tokens=1400,
+        temperature=0.5,
+    )
+
+    ranked_pairs = [
+        RankedBrandIdentityPairPayload(
+            pair_id=str(item.get("pair_id", "")),
+            rank=int(item.get("rank", index + 1)),
+            name=str(item.get("name", "")).strip(),
+            tagline=str(item.get("tagline", "")).strip(),
+            explanation=str(item.get("explanation", "")).strip(),
+        )
+        for index, item in enumerate(result.get("ranked_pairs", []))
+        if str(item.get("pair_id", "")).strip()
+    ]
+    if not ranked_pairs:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not rank the shortlisted identity pairs right now. Please try again.",
+        )
+
+    return BrandIdentityRankResponse(
+        ranked_pairs=ranked_pairs,
+        recommended_pair_id=result.get("recommended_pair_id"),
+        next_prompt=str(result.get("next_prompt") or "Inme se kaunsa pair aap final karna chahoge?"),
+    )
+
+
+@router.post(
+    "/identity-draft",
+    response_model=SaveBrandIdentityDraftResponse,
+    summary="Save the selected brand identity as a pending draft",
+    tags=["Brands"],
+)
+async def save_brand_identity_draft(
+    payload: SaveBrandIdentityDraftRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    brand_record = {
+        "user_id": user_id,
+        "craft_id": payload.craft_id,
+        "artisan_name": payload.artisan_name,
+        "region": payload.region,
+        "preferred_language": payload.preferred_language,
+        "generations_in_craft": payload.generations_in_craft,
+        "years_of_experience": payload.years_of_experience,
+        "primary_occasion": payload.primary_occasion.value,
+        "target_customer": payload.target_customer.value,
+        "brand_feel": payload.brand_feel.value,
+        "artisan_story": payload.artisan_story,
+        "script_preference": payload.script_preference.value,
+        "name": payload.name.strip(),
+        "tagline": payload.tagline.strip(),
+        "status": "pending",
+    }
+
+    if payload.brand_id:
+        existing = (
+            supabase.table("brands")
+            .select("id")
+            .eq("id", payload.brand_id)
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand draft not found.")
+        updated = (
+            supabase.table("brands")
+            .update(brand_record)
+            .eq("id", payload.brand_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        brand_id = updated.data[0]["id"]
+    else:
+        inserted = supabase.table("brands").insert(brand_record).execute()
+        brand_id = inserted.data[0]["id"]
+
+    return SaveBrandIdentityDraftResponse(
+        brand_id=brand_id,
+        name=brand_record["name"],
+        tagline=brand_record["tagline"],
+    )
+
+
+@router.post(
     "/",
     response_model=JobCreateResponse,
     status_code=status.HTTP_202_ACCEPTED,
@@ -464,8 +777,23 @@ async def create_brand(
     )
     job_id = job_result.data[0]["id"]
 
+    existing_brand_id = None
+    if payload.brand_id:
+        existing = (
+            supabase.table("brands")
+            .select("id")
+            .eq("id", payload.brand_id)
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand draft not found.")
+        existing_brand_id = payload.brand_id
+
     initial_state: BrandState = {
         "job_id": job_id,
+        "brand_id": existing_brand_id,
         "user_id": user_id,
         "craft_id": payload.craft_id,
         "artisan_name": payload.artisan_name,
@@ -479,6 +807,9 @@ async def create_brand(
         "artisan_story": payload.artisan_story,
         "preferred_language": payload.preferred_language,
         "reference_images": payload.reference_images,
+        "brand_name": payload.name or "",
+        "tagline": payload.tagline or "",
+        "identity_locked": bool(payload.name and payload.tagline),
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)

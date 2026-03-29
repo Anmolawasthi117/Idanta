@@ -1,5 +1,13 @@
 import apiClient from './client'
-import type { Brand, BrandCreatePayload, BrandChatMessage, CraftItem } from '../types/brand.types'
+import type {
+  Brand,
+  BrandChatMessage,
+  BrandCreatePayload,
+  BrandIdentityPair,
+  BrandIdentityRankResponse,
+  BrandIdentitySetResponse,
+  CraftItem,
+} from '../types/brand.types'
 import type { AppLanguage } from '../store/uiStore'
 
 export interface BrandCreateResponse {
@@ -52,6 +60,35 @@ export const updateBrandIdentity = async (
   payload: { name: string; tagline: string },
 ): Promise<Brand> => {
   const { data } = await apiClient.patch<Brand>(`/brands/${brandId}/identity`, payload)
+  return data
+}
+
+export const generateBrandIdentityCandidates = async (
+  payload: BrandCreatePayload & {
+    set_number: 1 | 2
+    excluded_pairs?: BrandIdentityPair[]
+  },
+): Promise<BrandIdentitySetResponse> => {
+  const { data } = await apiClient.post<BrandIdentitySetResponse>('/brands/identity-candidates', payload)
+  return data
+}
+
+export const rankBrandIdentityCandidates = async (
+  payload: BrandCreatePayload & {
+    selected_pairs: BrandIdentityPair[]
+  },
+): Promise<BrandIdentityRankResponse> => {
+  const { data } = await apiClient.post<BrandIdentityRankResponse>('/brands/identity-rank', payload)
+  return data
+}
+
+export const saveBrandIdentityDraft = async (
+  payload: BrandCreatePayload & {
+    name: string
+    tagline: string
+  },
+): Promise<{ brand_id: string; name: string; tagline: string }> => {
+  const { data } = await apiClient.post<{ brand_id: string; name: string; tagline: string }>('/brands/identity-draft', payload)
   return data
 }
 

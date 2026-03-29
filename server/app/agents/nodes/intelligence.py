@@ -44,6 +44,23 @@ Rules:
 - Tagline must be authentic, specific, and never cliche marketing copy.
 """
 
+LOCKED_IDENTITY_SYSTEM_PROMPT = """You are an expert brand strategist specializing in Indian artisan crafts.
+The artisan has already finalized the brand name and tagline. Do not rename or rewrite them.
+
+Output ONLY a valid JSON object with this exact schema:
+{
+  "palette_id": "the exact ID string from the provided design pool",
+  "illustration_language_id": "the exact ID string from the provided design pool",
+  "design_rationale": "1-2 sentence explanation of why this palette and illustration direction fit the locked identity."
+}
+
+Rules:
+- Keep the provided brand name and tagline exactly as they are.
+- Select the palette and illustration language that best amplify the already chosen identity.
+- The palette_id must exactly match one of the provided palettes.
+- The illustration_language_id must exactly match one of the provided languages.
+"""
+
 
 async def intelligence_node(state: BrandState) -> BrandState:
     """Generate brand identity: names, tagline, and select design aesthetics using Groq."""
@@ -136,12 +153,25 @@ Available Design Pool:
 Generate a premium brand identity for this artisan by formulating names and a tagline, and selecting the optimal aesthetic from the Design Pool.
 """
 
-    result = await groq_json_completion(
-        system_prompt=SYSTEM_PROMPT,
-        user_prompt=user_prompt,
-        max_tokens=2048,
-        temperature=0.7,
-    )
+    if state.get("identity_locked") and state.get("brand_name") and state.get("tagline"):
+        result = await groq_json_completion(
+            system_prompt=LOCKED_IDENTITY_SYSTEM_PROMPT,
+            user_prompt=(
+                user_prompt
+                + f"\nLocked brand name: {state.get('brand_name')}\n"
+                + f"Locked tagline: {state.get('tagline')}\n"
+                + "Choose only the design direction for this already approved identity."
+            ),
+            max_tokens=1024,
+            temperature=0.4,
+        )
+    else:
+        result = await groq_json_completion(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            max_tokens=2048,
+            temperature=0.7,
+        )
 
     logger.info(
         "Brand intelligence complete for job=%s: name='%s', visual context extracted: %s",
@@ -182,9 +212,9 @@ Generate a premium brand identity for this artisan by formulating names and a ta
     return {
         **state,
         "visual_context": visual_context,
-        "brand_names": result.get("brand_names", []),
-        "brand_name": result.get("selected_name", state.get("artisan_name", "Artisan Brand")),
-        "tagline": result.get("tagline", "Crafted with quiet pride"),
+        "brand_names": result.get("brand_names", [state.get("brand_name")]) if state.get("identity_locked") else result.get("brand_names", []),
+        "brand_name": state.get("brand_name") if state.get("identity_locked") else result.get("selected_name", state.get("artisan_name", "Artisan Brand")),
+        "tagline": state.get("tagline") if state.get("identity_locked") else result.get("tagline", "Crafted with quiet pride"),
         "palette": final_palette,
         "illustration_language": illustration_language,
         "design_rationale": result.get("design_rationale", ""),

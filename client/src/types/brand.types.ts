@@ -12,6 +12,7 @@ export type BrandFeel = 'earthy' | 'royal' | 'vibrant' | 'minimal'
 export type ScriptPreference = 'hindi' | 'english' | 'both'
 
 export interface BrandCreatePayload {
+  brand_id?: string
   craft_id: string
   artisan_name: string
   region: string
@@ -26,6 +27,32 @@ export interface BrandCreatePayload {
   brand_vision?: string
   brand_mission?: string
   preferred_language: string
+  name?: string
+  tagline?: string
+}
+
+export interface BrandIdentityPair {
+  pair_id: string
+  name: string
+  tagline: string
+  why_it_fits?: string | null
+}
+
+export interface RankedBrandIdentityPair extends BrandIdentityPair {
+  rank: number
+  explanation: string
+}
+
+export interface BrandIdentitySetResponse {
+  set_number: number
+  pairs: BrandIdentityPair[]
+  has_more: boolean
+}
+
+export interface BrandIdentityRankResponse {
+  ranked_pairs: RankedBrandIdentityPair[]
+  recommended_pair_id?: string | null
+  next_prompt: string
 }
 
 export interface BrandPalette {
