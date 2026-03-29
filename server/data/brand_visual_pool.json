@@ -1,0 +1,93 @@
+[
+  {
+    "id": "logo_batik_royal_01",
+    "asset_type": "logo",
+    "craft_tags": ["batik", "textiles"],
+    "feel_tags": ["royal", "heritage", "premium"],
+    "audience_tags": ["urban_premium", "wedding"],
+    "region_tags": ["madhya_pradesh", "india"],
+    "motif_tags": ["floral", "resist-dye", "medallion"],
+    "palette_tags": ["indigo", "gold", "cream"],
+    "caption": "Circular emblem with restrained floral wax-resist geometry, fine line detailing, and a deep indigo-gold luxury mood.",
+    "style_notes": "Strong for premium textile marks where heritage needs to feel polished instead of rustic.",
+    "why_it_works": "Memorable silhouette, controlled ornament, and clear premium positioning."
+  },
+  {
+    "id": "logo_block_print_earthy_01",
+    "asset_type": "logo",
+    "craft_tags": ["block_print", "textiles"],
+    "feel_tags": ["earthy", "grounded", "artisan"],
+    "audience_tags": ["slow_living", "boutique"],
+    "region_tags": ["rajasthan", "india"],
+    "motif_tags": ["stamp", "botanical", "repeat-pattern"],
+    "palette_tags": ["terracotta", "sand", "mud"],
+    "caption": "Bold stamp-like emblem with imperfect carved edges, terracotta warmth, and simple botanical geometry.",
+    "style_notes": "Useful when the brand should feel handmade and ownable without becoming rough or amateur.",
+    "why_it_works": "The silhouette reads well while the imperfections preserve artisan credibility."
+  },
+  {
+    "id": "logo_minimal_handloom_01",
+    "asset_type": "logo",
+    "craft_tags": ["maheshwari", "handloom", "textiles"],
+    "feel_tags": ["minimal", "editorial", "premium"],
+    "audience_tags": ["urban_premium", "contemporary"],
+    "region_tags": ["maheshwar", "madhya_pradesh"],
+    "motif_tags": ["border", "stripe", "loom-grid"],
+    "palette_tags": ["sand", "charcoal", "brass"],
+    "caption": "Minimal linear mark inspired by woven borders, using airy spacing and a sharp editorial silhouette.",
+    "style_notes": "Good for brands that need a luxury-fashion feel more than a folk-art feel.",
+    "why_it_works": "Uses weaving logic subtly, which keeps the design distinct and commercially flexible."
+  },
+  {
+    "id": "banner_heritage_editorial_01",
+    "asset_type": "banner",
+    "craft_tags": ["textiles", "painting", "home_decor"],
+    "feel_tags": ["royal", "premium", "heritage"],
+    "audience_tags": ["urban_premium", "boutique"],
+    "region_tags": ["india"],
+    "motif_tags": ["arched-frame", "motif-fragments", "texture-layering"],
+    "palette_tags": ["indigo", "deep-red", "gold"],
+    "caption": "Editorial hero banner with layered textile textures, negative space, heritage framing, and controlled ornamentation.",
+    "style_notes": "Works when the homepage needs cinematic richness without feeling crowded.",
+    "why_it_works": "The composition creates luxury atmosphere while keeping the focal hierarchy clean."
+  },
+  {
+    "id": "banner_earthy_material_01",
+    "asset_type": "banner",
+    "craft_tags": ["pottery", "textiles", "home_decor"],
+    "feel_tags": ["earthy", "slow", "artisan"],
+    "audience_tags": ["slow_living", "boutique"],
+    "region_tags": ["india"],
+    "motif_tags": ["material-closeup", "soft-shadow", "natural-surface"],
+    "palette_tags": ["terracotta", "ochre", "linen"],
+    "caption": "Warm hero banner built from close-up material textures, handmade surfaces, and calm layered light.",
+    "style_notes": "Strong when the brand should feel tactile, warm, and rooted in making.",
+    "why_it_works": "Lets materials become the hero instead of relying on generic decorative collage."
+  },
+  {
+    "id": "banner_festive_rhythm_01",
+    "asset_type": "banner",
+    "craft_tags": ["folk_art", "textiles", "painting"],
+    "feel_tags": ["vibrant", "celebratory", "folk"],
+    "audience_tags": ["festival", "gifting"],
+    "region_tags": ["india"],
+    "motif_tags": ["procession", "repeat-rhythm", "high-contrast-panels"],
+    "palette_tags": ["saffron", "vermillion", "teal"],
+    "caption": "High-energy hero banner with rhythmic motif bands, celebratory contrast, and controlled folk-art motion.",
+    "style_notes": "For festive brands that need movement and joy without looking chaotic.",
+    "why_it_works": "Keeps vibrancy structured through rhythm and panel composition."
+  },
+  {
+    "id": "banner_minimal_luxury_01",
+    "asset_type": "banner",
+    "craft_tags": ["handloom", "jewelry", "home_decor"],
+    "feel_tags": ["minimal", "editorial", "luxury"],
+    "audience_tags": ["urban_premium", "contemporary"],
+    "region_tags": ["india"],
+    "motif_tags": ["single-motif", "open-space", "material-highlight"],
+    "palette_tags": ["sand", "bone", "charcoal"],
+    "caption": "Minimal luxury banner with one focused motif, large quiet space, and subtle tactile background.",
+    "style_notes": "Useful when the brand should feel premium, modern, and gallery-like.",
+    "why_it_works": "Negative space creates distinction and makes the craft feel more elevated."
+  }
+]

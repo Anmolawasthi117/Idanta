@@ -10,6 +10,7 @@ import json
 from typing import Any, Dict
 
 from app.agents.state import BrandState, ProductState
+from app.services.asset_example_pool import format_examples_for_prompt, retrieve_brand_examples
 from app.services.groq_client import groq_json_completion
 
 BRAND_VISUAL_DNA_PROMPT = """You are a senior brand art director for premium Indian craft brands.
@@ -63,9 +64,19 @@ def _join_lines(items: list[str]) -> str:
     return ", ".join(item for item in items if item) or "none"
 
 
+def _resolve_brand_examples(state: BrandState, asset_type: str) -> list[Dict[str, Any]]:
+    examples = state.get("visual_examples", [])
+    filtered = [example for example in examples if example.get("asset_type") == asset_type]
+    if filtered:
+        return filtered
+    return retrieve_brand_examples(state, asset_type, limit=3)
+
+
 async def build_brand_visual_dna(state: BrandState) -> Dict[str, Any]:
     context = state.get("context_bundle", {})
     craft_data = state.get("craft_data", {})
+    logo_examples = retrieve_brand_examples(state, "logo", limit=2)
+    banner_examples = retrieve_brand_examples(state, "banner", limit=2)
     user_prompt = f"""
 Brand:
 - Name: {state.get("brand_name", "")}
@@ -78,6 +89,8 @@ Brand:
 - Primary occasion: {context.get("primary_occasion", "general")}
 - Script preference: {context.get("script_preference", "both")}
 - Palette: {_json(state.get("palette", {}))}
+- Visual context from user images: {state.get("visual_context", "")}
+- Illustration language: {_json(state.get("illustration_language", {}))}
 - Artisan story: {context.get("artisan_story", "")}
 - Generated brand story EN: {state.get("story_en", "")}
 - Generated brand story HI: {state.get("story_hi", "")}
@@ -93,6 +106,12 @@ Craft knowledge:
 
 RAG context:
 {state.get("rag_context", "")}
+
+Retrieved logo references:
+{format_examples_for_prompt(logo_examples, include_text=False)}
+
+Retrieved banner references:
+{format_examples_for_prompt(banner_examples, include_text=False)}
 """
     return await groq_json_completion(
         system_prompt=BRAND_VISUAL_DNA_PROMPT,
@@ -147,6 +166,7 @@ RAG context:
 def build_brand_asset_prompt(state: BrandState, visual_dna: Dict[str, Any], asset_type: str) -> str:
     context = state.get("context_bundle", {})
     palette = state.get("palette", {})
+    example_context = _resolve_brand_examples(state, asset_type)
     asset_specs = {
         "logo": (
             "Create a premium artisan brand logo image. "
@@ -174,6 +194,9 @@ Brand identity:
 - Target customer: {context.get("target_customer", "local_bazaar")}
 - Artisan story: {context.get("artisan_story", "")}
 - Palette: {_json(palette)}
+- Visual context from uploaded images: {state.get("visual_context", "")}
+- Illustration language: {_json(state.get("illustration_language", {}))}
+- Design rationale: {state.get("design_rationale", "")}
 - RAG heritage context: {state.get("rag_context", "")}
 
 Shared visual DNA:
@@ -185,6 +208,9 @@ Shared visual DNA:
 - Consistency anchor: {visual_dna.get("consistency_anchor", "")}
 - Avoid: {_join_lines(visual_dna.get("negative_cues", []))}
 
+Retrieved example references for this asset:
+{format_examples_for_prompt(example_context, include_text=False)}
+
 Asset-specific art direction:
 {asset_specs[asset_type]}
 
@@ -192,6 +218,7 @@ Output goal:
 - This single asset must feel unique to this brand
 - It must clearly belong to the same family as the brand's other assets
 - It must feel premium, realistic, polished, and commercially usable
+- Learn from the reference qualities but do not produce a derivative copy of any one example
 """
 
 

@@ -26,12 +26,17 @@ class BrandState(TypedDict, total=False):
     rag_context: str
     motifs: List[str]
     palette_suggestions: Dict[str, Any]
+    visual_context: str
 
     # Intelligence output
     brand_names: List[str]
     brand_name: str
     tagline: str
     palette: Dict[str, str]
+    illustration_language: Dict[str, Any]
+    design_rationale: str
+    verbal_examples: List[Dict[str, Any]]
+    visual_examples: List[Dict[str, Any]]
 
     # Visual identity output
     logo_url: str

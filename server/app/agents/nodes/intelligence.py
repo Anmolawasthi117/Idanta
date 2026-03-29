@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.agents.state import BrandState
 from app.core.database import supabase
+from app.services.asset_example_pool import build_example_context, format_examples_for_prompt
 from app.services.groq_client import groq_json_completion, groq_vision_completion
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,8 @@ DESIGN_POOL_PATH = Path("data/design_pool.json")
 SYSTEM_PROMPT = """You are an expert brand strategist specializing in Indian artisan crafts.
 Your task is to create authentic, premium brand identities that honor the craft's heritage.
 
-You have been provided a "Design Pool" with predefined color palettes and illustration languages.
+You have been provided a "Design Pool" with predefined color palettes and illustration languages,
+plus curated verbal and visual examples retrieved for this exact artisan brief.
 Output ONLY a valid JSON object with this exact schema:
 {
   "brand_names": ["Name1", "Name2", "Name3"],
@@ -34,6 +36,8 @@ Rules:
 - Brand names must feel premium, 1-2 words, and avoid generic filler like "Craft" or "Handmade"
 - Names should feel rooted in the craft's region, motifs, and buyer context
 - The tagline language must follow the requested script preference exactly: Hindi, English, or bilingual
+- Use the retrieved naming and tagline examples as quality references, not as strings to copy
+- Distinctiveness matters more than safety; avoid bland names that could fit any artisan
 - The palette_id must exactly match one of the available palettes provided below.
 - The illustration_language_id must exactly match one of the provided languages.
 - You must consider both the text context and the Visual Context (if available) to pick the perfect design template.
@@ -75,6 +79,12 @@ async def intelligence_node(state: BrandState) -> BrandState:
         }
     ).eq("id", job_id).execute()
 
+    enriched_state: BrandState = {
+        **state,
+        "visual_context": visual_context,
+    }
+    example_context = build_example_context(enriched_state)
+
     # Load design pool
     design_pool = {}
     if DESIGN_POOL_PATH.exists():
@@ -108,6 +118,18 @@ Craft Heritage Context:
 Visual Context (from uploaded artisan photos):
 {visual_context}
 
+Retrieved Brand Name References:
+{format_examples_for_prompt(example_context["brand_name"])}
+
+Retrieved Tagline References:
+{format_examples_for_prompt(example_context["tagline"])}
+
+Retrieved Logo Direction References:
+{format_examples_for_prompt(example_context["logo"], include_text=False)}
+
+Retrieved Banner Direction References:
+{format_examples_for_prompt(example_context["banner"], include_text=False)}
+
 Available Design Pool:
 {json.dumps(design_pool, indent=2)}
 
@@ -134,6 +156,11 @@ Generate a premium brand identity for this artisan by formulating names and a ta
         (p for p in design_pool.get("palettes", []) if p.get("id") == chosen_palette_id),
         None
     )
+    chosen_illustration_id = result.get("illustration_language_id")
+    chosen_illustration_data = next(
+        (p for p in design_pool.get("illustration_languages", []) if p.get("id") == chosen_illustration_id),
+        None
+    )
     
     if chosen_palette_data:
         final_palette = {
@@ -146,10 +173,21 @@ Generate a premium brand identity for this artisan by formulating names and a ta
         # Fallback if LLM halluciantes an ID
         final_palette = {"primary": "#8B2635", "secondary": "#4A7C59", "accent": "#C4963B"}
 
+    illustration_language = chosen_illustration_data or {
+        "id": "modern_minimal_vector",
+        "name": "Modern Minimal Vector",
+        "description": "Clean, premium, restrained contemporary visual language.",
+    }
+
     return {
         **state,
+        "visual_context": visual_context,
         "brand_names": result.get("brand_names", []),
         "brand_name": result.get("selected_name", state.get("artisan_name", "Artisan Brand")),
         "tagline": result.get("tagline", "Crafted with quiet pride"),
         "palette": final_palette,
+        "illustration_language": illustration_language,
+        "design_rationale": result.get("design_rationale", ""),
+        "verbal_examples": example_context["brand_name"] + example_context["tagline"],
+        "visual_examples": example_context["logo"] + example_context["banner"],
     }

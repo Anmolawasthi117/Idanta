@@ -19,8 +19,9 @@ from pydantic import BaseModel
 
 from app.agents.nodes.context_builder import context_builder_node
 from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
+from app.services.asset_example_pool import build_example_context, format_examples_for_prompt
 from app.services.gemini_image_service import generate_image
-from app.services.groq_client import groq_json_completion
+from app.services.groq_client import groq_json_completion, groq_vision_completion
 
 from app.agents.graphs.brand_graph import run_brand_graph
 from app.agents.state import BrandState
@@ -183,13 +184,49 @@ async def _regenerate_logo_or_banner(state: BrandState, asset_type: str) -> str:
     )
 
 
+async def _extract_visual_context_for_regeneration(state: BrandState) -> str:
+    reference_images = state.get("reference_images", [])
+    if not reference_images:
+        return state.get("visual_context", "") or "No visual reference images provided."
+
+    try:
+        return await groq_vision_completion(
+            system_prompt=(
+                "You are an expert design analyst. Look at the attached artisan product/workplace images "
+                "and extract a dense visual summary focusing on: dominant colors, textures, organic vs geometric "
+                "shapes, traditional vs modern feel, and overall mood. Format as a 3-4 sentence paragraph."
+            ),
+            user_prompt="Analyze these images to establish the visual aesthetic for the artisan's brand.",
+            image_urls=reference_images[:3],
+        )
+    except Exception as exc:
+        logger.warning("Vision API failed during targeted regeneration: %s", exc)
+        return state.get("visual_context", "") or f"Vision analysis failed: {exc}"
+
+
+async def _prepare_state_for_text_regeneration(state: BrandState) -> BrandState:
+    visual_context = await _extract_visual_context_for_regeneration(state)
+    enriched_state: BrandState = {
+        **state,
+        "visual_context": visual_context,
+    }
+    example_context = build_example_context(enriched_state)
+    return {
+        **enriched_state,
+        "verbal_examples": example_context["brand_name"] + example_context["tagline"],
+        "visual_examples": example_context["logo"] + example_context["banner"],
+    }
+
+
 async def _regenerate_tagline(state: BrandState) -> str:
     context = state.get("context_bundle", {})
+    example_context = build_example_context(state)
     result = await groq_json_completion(
         system_prompt=(
             "You are an expert Indian artisan brand copywriter.\n"
             "Output only JSON: {\"tagline\": \"...\"}\n"
-            "Rules: keep it under 8 words, premium tone, specific to craft, non-generic."
+            "Rules: keep it under 8 words, premium tone, specific to craft, non-generic.\n"
+            "Use the retrieved tagline examples as quality references only. Do not copy them."
         ),
         user_prompt=(
             f"Brand name: {state.get('brand_name')}\n"
@@ -200,7 +237,9 @@ async def _regenerate_tagline(state: BrandState) -> str:
             f"Script preference: {context.get('script_preference', 'both')}\n"
             f"Artisan story: {context.get('artisan_story', '')}\n"
             f"Current tagline: {state.get('tagline', '')}\n"
-            f"RAG context: {state.get('rag_context', '')}"
+            f"Visual context: {state.get('visual_context', '')}\n"
+            f"RAG context: {state.get('rag_context', '')}\n\n"
+            f"Retrieved tagline examples:\n{format_examples_for_prompt(example_context['tagline'])}"
         ),
         max_tokens=120,
         temperature=0.7,
@@ -210,12 +249,14 @@ async def _regenerate_tagline(state: BrandState) -> str:
 
 async def _regenerate_name_and_tagline(state: BrandState) -> tuple[str, str]:
     context = state.get("context_bundle", {})
+    example_context = build_example_context(state)
     result = await groq_json_completion(
         system_prompt=(
             "You are an expert Indian artisan brand strategist.\n"
             "Output only JSON: {\"brand_name\": \"...\", \"tagline\": \"...\"}\n"
             "Rules: brand_name should be premium 1-2 words, culturally rooted and distinct.\n"
-            "Tagline must be under 8 words and aligned with the same identity."
+            "Tagline must be under 8 words and aligned with the same identity.\n"
+            "Use the retrieved naming and tagline examples as quality references only. Do not copy them."
         ),
         user_prompt=(
             f"Current brand name: {state.get('brand_name')}\n"
@@ -226,7 +267,10 @@ async def _regenerate_name_and_tagline(state: BrandState) -> tuple[str, str]:
             f"Target customer: {context.get('target_customer', 'local_bazaar')}\n"
             f"Script preference: {context.get('script_preference', 'both')}\n"
             f"Artisan story: {context.get('artisan_story', '')}\n"
-            f"RAG context: {state.get('rag_context', '')}"
+            f"Visual context: {state.get('visual_context', '')}\n"
+            f"RAG context: {state.get('rag_context', '')}\n\n"
+            f"Retrieved brand name examples:\n{format_examples_for_prompt(example_context['brand_name'])}\n\n"
+            f"Retrieved tagline examples:\n{format_examples_for_prompt(example_context['tagline'])}"
         ),
         max_tokens=220,
         temperature=0.8,
@@ -268,6 +312,7 @@ async def _run_targeted_regeneration(
             updates[f"{asset_type}_url"] = generated_url
             state[f"{asset_type}_url"] = generated_url
         elif asset_type == "tagline":
+            state = await _prepare_state_for_text_regeneration(state)
             supabase.table("jobs").update(
                 {
                     "current_step": "Regenerating tagline...",
@@ -278,6 +323,7 @@ async def _run_targeted_regeneration(
             updates["tagline"] = tagline
             state["tagline"] = tagline
         elif asset_type == "name":
+            state = await _prepare_state_for_text_regeneration(state)
             supabase.table("jobs").update(
                 {
                     "current_step": "Regenerating brand name...",
