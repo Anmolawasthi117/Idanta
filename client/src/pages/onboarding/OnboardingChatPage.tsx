@@ -35,7 +35,8 @@ const REQUIRED_PHASE_TWO_FIELDS: Array<keyof BrandCreatePayload> = ['brand_value
 const createMessage = (role: Message['role'], content: string): Message => ({ id: `${role}-${Date.now()}-${Math.random()}`, role, content, timestamp: new Date() })
 const serializeMessages = (messages: Message[]): OnboardingDraftMessage[] => messages.map((message) => ({ ...message, timestamp: message.timestamp.toISOString() }))
 const hydrateMessages = (messages: OnboardingDraftMessage[]): Message[] => messages.map((message) => ({ ...message, timestamp: new Date(message.timestamp) }))
-const buildPhaseDefaults = (language: AppLanguage, artisanName?: string): ExtractedFormData => ({ artisan_name: artisanName ?? '', preferred_language: language === 'hi' ? 'hi' : 'en', script_preference: language === 'hi' ? 'hindi' : 'english' })
+const ONBOARDING_CHAT_LANGUAGE: AppLanguage = 'hg'
+const buildPhaseDefaults = (_language: AppLanguage, artisanName?: string): ExtractedFormData => ({ artisan_name: artisanName ?? '', preferred_language: 'hi', script_preference: 'english' })
 const buildArtisanStory = (data: ExtractedFormData) => [data.brand_values, data.brand_vision, data.brand_mission].filter(Boolean).join('\n\n')
 const pairKey = (pair: Pick<BrandIdentityPair, 'pair_id' | 'name' | 'tagline'>) => `${pair.pair_id}::${pair.name.trim().toLowerCase()}::${pair.tagline.trim().toLowerCase()}`
 const paletteSwatches = (option: BrandPaletteOption) => [
@@ -81,33 +82,29 @@ const normalizePhaseFourCandidates = (candidates: BrandPhaseFourCandidates | nul
   }
 }
 
-const buildPhaseOnePrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: CraftItem[]) => {
+const buildPhaseOnePrompt = (_language: AppLanguage, _isVoiceMode: boolean, crafts: CraftItem[]) => {
   const craftChoices = crafts.map((craft) => `"${craft.display_name}" => "${craft.craft_id}"`).join(', ')
   const craftExamples = crafts.slice(0, 5).map((craft) => craft.display_name).join(', ')
-  const preferredPhaseLanguage = language === 'hi' ? 'hi' : 'hg'
   const baseRules = `You are helping with phase 1 of brand onboarding.
 Collect: craft_id from ${craftChoices}; region; years_of_experience; generations_in_craft; primary_occasion from wedding/festival/daily/gifting/home_decor/export/general; target_customer from local_bazaar/tourist/online_india/export.
-Rules: artisan_name is already known. Do not ask name. Do not ask story yet. Do not ask brand tone or feel. script_preference must be "${preferredPhaseLanguage === 'hi' ? 'hindi' : 'english'}". preferred_language must be "${preferredPhaseLanguage === 'hi' ? 'hi' : 'en'}". Use only these craft examples: ${craftExamples || craftChoices}. Ask one question at a time. Keep messages under 2 sentences. Once all fields are collected, clearly say phase 1 is complete.`
-  if (preferredPhaseLanguage === 'hi' || isVoiceMode) return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in pure Hindi using Devanagari script. Do not use English words.\n${baseRules}`
-  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in easy Hinglish written in English letters.\n${baseRules}`
+Rules: artisan_name is already known. Do not ask name. Do not ask story yet. Do not ask brand tone or feel. script_preference must be "english". preferred_language must be "hi". Use only these craft examples: ${craftExamples || craftChoices}. Ask one question at a time. Keep messages under 2 sentences. Once all fields are collected, clearly say phase 1 is complete.`
+  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in simple Hindi written in English letters. Do not use Devanagari script. Do not reply in pure English.\n${baseRules}`
 }
 
-const buildPhaseTwoPrompt = (language: AppLanguage, isVoiceMode: boolean) => {
-  const preferredPhaseLanguage = language === 'hi' ? 'hi' : 'hg'
+const buildPhaseTwoPrompt = (_language: AppLanguage, _isVoiceMode: boolean) => {
   const baseRules = `You are helping with phase 2 of brand onboarding.
 Collect through indirect reflective questions: brand_values, brand_vision, brand_mission.
 Rules: do not ask artisan_name. Do not ask directly for story. Do not repeat craft basics if already collected. Ask one question at a time. Keep messages under 2 sentences. Once all three answers are collected, clearly say phase 2 is complete.`
-  if (preferredPhaseLanguage === 'hi' || isVoiceMode) return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in pure Hindi using Devanagari script. Do not use English words.\n${baseRules}`
-  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in easy Hinglish written in English letters.\n${baseRules}`
+  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in simple Hindi written in English letters. Do not use Devanagari script. Do not reply in pure English.\n${baseRules}`
 }
 
-const buildInitialMessages = (language: AppLanguage, crafts: CraftItem[]) => {
+const buildInitialMessages = (_language: AppLanguage, crafts: CraftItem[]) => {
   const craftExamples = crafts.slice(0, 5).map((craft) => craft.display_name).join(', ')
-  return [createMessage('assistant', copyFor(language, `Namaste. Aap kaunsi kala karte ho? Jaise: ${craftExamples || 'Batik, Maheshwari'}`, `Hello. Which craft do you practice? For example: ${craftExamples || 'Batik, Maheshwari'}`))]
+  return [createMessage('assistant', `Namaste. Aap kaunsi kala karte ho? Jaise: ${craftExamples || 'Batik, Maheshwari'}`)]
 }
 
-const buildPhaseTwoKickoffMessage = (language: AppLanguage) =>
-  createMessage('assistant', copyFor(language, 'Ab phase 2 shuru karte hain. Jab koi aapka product kharidta hai, aap chahte ho ki woh aapke baare me kya mehsoos ya yaad rakhe?', 'Now let us begin phase 2. When someone buys your product, what do you want them to feel or remember about you?'))
+const buildPhaseTwoKickoffMessage = (_language: AppLanguage) =>
+  createMessage('assistant', 'Ab phase 2 shuru karte hain. Jab koi aapka product kharidta hai, aap chahte ho ki woh aapke baare me kya mehsoos ya yaad rakhe?')
 
 const buildIdentityPayload = (data: ExtractedFormData, language: AppLanguage, userName?: string, brandId?: string | null): BrandCreatePayload => {
   const normalizedData = normalizeBrandExtracted(data) ?? data
@@ -124,12 +121,12 @@ const buildIdentityPayload = (data: ExtractedFormData, language: AppLanguage, us
     primary_occasion: normalizedData.primary_occasion ?? 'general',
     target_customer: normalizedData.target_customer ?? 'local_bazaar',
     brand_feel: normalizedData.brand_feel ?? 'earthy',
-    script_preference: normalizedData.script_preference ?? (language === 'hi' ? 'hindi' : 'english'),
+    script_preference: normalizedData.script_preference ?? 'english',
     ...(story ? { artisan_story: story } : {}),
     ...(normalizedData.brand_values ? { brand_values: normalizedData.brand_values } : {}),
     ...(normalizedData.brand_vision ? { brand_vision: normalizedData.brand_vision } : {}),
     ...(normalizedData.brand_mission ? { brand_mission: normalizedData.brand_mission } : {}),
-    preferred_language: language === 'hi' ? 'hi' : 'en',
+    preferred_language: normalizedData.preferred_language ?? 'hi',
     ...(name ? { name } : {}),
     ...(tagline ? { tagline } : {}),
   }
@@ -172,9 +169,10 @@ export default function OnboardingChatPage() {
   const [selectedLogoCandidateId, setSelectedLogoCandidateId] = useState<string>()
   const [selectedBannerCandidateId, setSelectedBannerCandidateId] = useState<string>()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const phaseTwoKickoffSpokenRef = useRef(false)
 
   const { isRecording, isPlaying, isProcessingTranscription, startRecording, stopRecording, playSynthesizedSpeech, enqueueSynthesizedSpeech, stopAudio } = useVoiceChat({
-    language,
+    language: ONBOARDING_CHAT_LANGUAGE,
     onResult: (text) => {
       if (text) void handleSend(text)
     },
@@ -184,6 +182,19 @@ export default function OnboardingChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (currentPhase !== 2) {
+      phaseTwoKickoffSpokenRef.current = false
+      return
+    }
+    if (!isVoiceMode || phaseTwoKickoffSpokenRef.current || messages.length === 0) return
+    const kickoff = buildPhaseTwoKickoffMessage(ONBOARDING_CHAT_LANGUAGE)
+    const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant' && message.content)
+    if (!lastAssistantMessage || lastAssistantMessage.content !== kickoff.content) return
+    phaseTwoKickoffSpokenRef.current = true
+    void playSynthesizedSpeech(kickoff.content)
+  }, [currentPhase, isVoiceMode, messages, playSynthesizedSpeech])
 
   useEffect(() => {
     if (!user?.id || !craftsQuery.data?.length || isDraftReady) return
@@ -253,12 +264,17 @@ export default function OnboardingChatPage() {
   }, [completedPhases, currentIdentitySetIndex, currentPhase, draftBrandId, extractedData, finalSelectedPair, identitySets, isComplete, isDraftReady, messages, phaseFourCandidates, rankedPairs, rankingPrompt, recommendedPairId, selectedBannerCandidateId, selectedLogoCandidateId, shortlistedPairs, user?.id, visualFoundation])
 
   const moveToPhaseTwo = () => {
+    const kickoff = buildPhaseTwoKickoffMessage(ONBOARDING_CHAT_LANGUAGE)
+    phaseTwoKickoffSpokenRef.current = false
     setCompletedPhases((current) => (current.includes(1) ? current : [...current, 1]))
     setCurrentPhase(2)
     setMessages((current) => {
-      const kickoff = buildPhaseTwoKickoffMessage(language)
       return current.some((message) => message.content === kickoff.content) ? current : [...current, kickoff]
     })
+    if (isVoiceMode) {
+      phaseTwoKickoffSpokenRef.current = true
+      void playSynthesizedSpeech(kickoff.content)
+    }
   }
 
   const completePhaseTwo = (data: ExtractedFormData) => {
@@ -306,9 +322,9 @@ export default function OnboardingChatPage() {
     setMessages(nextMessages)
     setIsLoading(true)
     const requiredFields = currentPhase === 1 ? REQUIRED_PHASE_ONE_FIELDS : REQUIRED_PHASE_TWO_FIELDS
-    const systemPrompt = currentPhase === 1 ? buildPhaseOnePrompt(language, isVoiceMode, craftsQuery.data ?? []) : buildPhaseTwoPrompt(language, isVoiceMode)
+    const systemPrompt = currentPhase === 1 ? buildPhaseOnePrompt(ONBOARDING_CHAT_LANGUAGE, isVoiceMode, craftsQuery.data ?? []) : buildPhaseTwoPrompt(ONBOARDING_CHAT_LANGUAGE, isVoiceMode)
     try {
-      let mergedData: ExtractedFormData = { ...extractedData, artisan_name: user?.name ?? extractedData.artisan_name ?? '', preferred_language: language === 'hi' ? 'hi' : 'en', script_preference: language === 'hi' ? 'hindi' : 'english' }
+      let mergedData: ExtractedFormData = { ...extractedData, artisan_name: user?.name ?? extractedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'english' }
       let fullMessage = ''
       let spokenLength = 0
       const assistantMessageId = `assistant-${Date.now()}`
@@ -320,7 +336,7 @@ export default function OnboardingChatPage() {
           {
             system_prompt: systemPrompt,
             messages: nextMessages.map((item) => ({ role: item.role, content: item.content })),
-            context: { selected_language: language, crafts: craftsQuery.data ?? [], extracted_data: mergedData, onboarding_phase: currentPhase },
+            context: { selected_language: ONBOARDING_CHAT_LANGUAGE, crafts: craftsQuery.data ?? [], extracted_data: mergedData, onboarding_phase: currentPhase },
           },
           (event) => {
             if (event.type === 'chunk') {
@@ -347,7 +363,7 @@ export default function OnboardingChatPage() {
               for (const [key, value] of Object.entries({ ...(event.extracted ?? {}), ...(normalizedExtracted ?? {}) })) {
                 if (value !== null && value !== undefined && value !== '') (cleaned as Record<string, unknown>)[key] = value
               }
-              mergedData = { ...mergedData, ...cleaned, artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: language === 'hi' ? 'hi' : 'en', script_preference: language === 'hi' ? 'hindi' : 'english' }
+                mergedData = { ...mergedData, ...cleaned, artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'english' }
               const hasAllRequired = requiredFields.every((field) => Boolean(mergedData[field]))
               if (currentPhase === 1) {
                 setExtractedData(mergedData)
@@ -367,9 +383,9 @@ export default function OnboardingChatPage() {
       }
 
       if (isFallback) {
-        const response = await brandAssistChat(message.trim(), mergedData, craftsQuery.data ?? [], language, undefined, currentPhase)
+        const response = await brandAssistChat(message.trim(), mergedData, craftsQuery.data ?? [], ONBOARDING_CHAT_LANGUAGE, undefined, currentPhase)
         const normalizedExtracted = normalizeBrandExtracted(response.extracted ?? {})
-        mergedData = { ...mergedData, ...(response.extracted ?? {}), ...(normalizedExtracted ?? {}), artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: language === 'hi' ? 'hi' : 'en', script_preference: language === 'hi' ? 'hindi' : 'english' }
+        mergedData = { ...mergedData, ...(response.extracted ?? {}), ...(normalizedExtracted ?? {}), artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'english' }
         setMessages((current) => current.map((item) => (item.id === assistantMessageId ? { ...item, content: response.message } : item)))
         if (isVoiceMode && response.message) playSynthesizedSpeech(response.message)
         const hasAllRequired = requiredFields.every((field) => Boolean(mergedData[field]))
