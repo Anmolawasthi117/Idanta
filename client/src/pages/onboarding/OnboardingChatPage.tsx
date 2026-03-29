@@ -8,7 +8,7 @@ import ChatWindow from '../../components/chat/ChatWindow'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useToast } from '../../components/ui/useToast'
-import { useAnalyzeBrandVisualFoundation, useCrafts, useGenerateBrandIdentityCandidates, useRankBrandIdentityCandidates, useSaveBrandIdentityDraft } from '../../hooks/useBrand'
+import { useAnalyzeBrandVisualFoundation, useCrafts, useGenerateBrandIdentityCandidates, useRankBrandIdentityCandidates, useSaveBrandIdentityDraft, useSelectBrandPaletteOption } from '../../hooks/useBrand'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { normalizeBrandExtracted } from '../../lib/chatNormalization'
 import { clearOnboardingDraft, loadOnboardingDraft, saveOnboardingDraft, type OnboardingDraftMessage } from '../../lib/onboardingDraft'
@@ -16,7 +16,7 @@ import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
 import type { AppLanguage } from '../../store/uiStore'
-import type { BrandCreatePayload, BrandIdentityPair, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
+import type { BrandCreatePayload, BrandIdentityPair, BrandPaletteOption, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
 
 interface Message {
   id: string
@@ -37,6 +37,40 @@ const hydrateMessages = (messages: OnboardingDraftMessage[]): Message[] => messa
 const buildPhaseDefaults = (language: AppLanguage, artisanName?: string): ExtractedFormData => ({ artisan_name: artisanName ?? '', preferred_language: language === 'hi' ? 'hi' : 'en', script_preference: language === 'hi' ? 'hindi' : 'english' })
 const buildArtisanStory = (data: ExtractedFormData) => [data.brand_values, data.brand_vision, data.brand_mission].filter(Boolean).join('\n\n')
 const pairKey = (pair: Pick<BrandIdentityPair, 'pair_id' | 'name' | 'tagline'>) => `${pair.pair_id}::${pair.name.trim().toLowerCase()}::${pair.tagline.trim().toLowerCase()}`
+const paletteSwatches = (option: BrandPaletteOption) => [
+  ['Primary', option.palette.primary],
+  ['Secondary', option.palette.secondary],
+  ['Accent', option.palette.accent],
+  ['Background', option.palette.background ?? '#F5E6C8'],
+]
+const normalizeVisualFoundation = (foundation: BrandVisualFoundation | null | undefined): BrandVisualFoundation | null => {
+  if (!foundation) return null
+  const palette = foundation.palette ?? {
+    primary: '#8B2635',
+    secondary: '#4A7C59',
+    accent: '#C4963B',
+    background: '#F5E6C8',
+  }
+  const paletteOptions = Array.isArray(foundation.palette_options) ? foundation.palette_options : []
+  const recommendedPaletteId = foundation.recommended_palette_id ?? paletteOptions[0]?.option_id ?? null
+  const selectedPaletteId = foundation.selected_palette_id ?? recommendedPaletteId
+  return {
+    ...foundation,
+    visual_motifs: Array.isArray(foundation.visual_motifs) ? foundation.visual_motifs : [],
+    motif_previews: Array.isArray(foundation.motif_previews) ? foundation.motif_previews : [],
+    signature_patterns: Array.isArray(foundation.signature_patterns) ? foundation.signature_patterns : [],
+    palette,
+    palette_options: paletteOptions,
+    recommended_palette_id: recommendedPaletteId,
+    selected_palette_id: selectedPaletteId,
+  }
+}
+const getSavedReferenceImages = (foundation: BrandVisualFoundation | null | undefined, extractedData: ExtractedFormData) =>
+  Array.isArray(foundation?.reference_images) && foundation.reference_images.length > 0
+    ? foundation.reference_images
+    : Array.isArray(extractedData.reference_images)
+      ? extractedData.reference_images
+      : []
 
 const buildPhaseOnePrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: CraftItem[]) => {
   const craftChoices = crafts.map((craft) => `"${craft.display_name}" => "${craft.craft_id}"`).join(', ')
@@ -101,6 +135,7 @@ export default function OnboardingChatPage() {
   const rankIdentityMutation = useRankBrandIdentityCandidates()
   const saveIdentityDraftMutation = useSaveBrandIdentityDraft()
   const analyzeVisualFoundationMutation = useAnalyzeBrandVisualFoundation()
+  const selectPaletteMutation = useSelectBrandPaletteOption()
   const [messages, setMessages] = useState<Message[]>([])
   const [extractedData, setExtractedData] = useState<ExtractedFormData>(buildPhaseDefaults(language, user?.name))
   const [currentPhase, setCurrentPhase] = useState<OnboardingPhase>(1)
@@ -156,7 +191,7 @@ export default function OnboardingChatPage() {
           setRecommendedPairId(savedDraft.recommendedPairId)
           setFinalSelectedPair(savedDraft.finalSelectedPair ?? null)
           setRankingPrompt(savedDraft.rankingPrompt ?? '')
-          setVisualFoundation(savedDraft.visualFoundation ?? null)
+          setVisualFoundation(normalizeVisualFoundation(savedDraft.visualFoundation))
         } else {
           setMessages(buildInitialMessages(language, craftsQuery.data))
         }
@@ -378,25 +413,54 @@ export default function OnboardingChatPage() {
     }
   }
 
-  const handleAnalyzeVisualFoundation = async () => {
-    if (!user?.name || !draftBrandId || selectedVisualFiles.length === 0) return
+  const handleAnalyzeVisualFoundation = async (mode: 'fresh' | 'regenerate' = 'fresh') => {
+    if (!user?.name || !draftBrandId) return
     setIsIdentityLoading(true)
     try {
-      const formData = new FormData()
-      selectedVisualFiles.forEach((file) => formData.append('photos', file))
-      const uploadedUrls = await uploadBrandImages(formData)
+      let uploadedUrls: string[] = []
+      if (selectedVisualFiles.length > 0) {
+        const formData = new FormData()
+        selectedVisualFiles.forEach((file) => formData.append('photos', file))
+        uploadedUrls = await uploadBrandImages(formData)
+      } else if (mode === 'regenerate') {
+        uploadedUrls = getSavedReferenceImages(visualFoundation, extractedData)
+      }
+
+      if (uploadedUrls.length === 0) {
+        pushToast(copyFor(language, 'Phase 3 visuals banane ke liye pehle images select ya upload kijiye.', 'Please select or upload images before generating Phase 3 visuals.'))
+        return
+      }
+
       const response = await analyzeVisualFoundationMutation.mutateAsync({
         ...buildIdentityPayload(extractedData, language, user.name, draftBrandId),
         brand_id: draftBrandId,
         reference_images: uploadedUrls,
       })
-      setVisualFoundation(response)
+      setVisualFoundation(normalizeVisualFoundation(response))
       setExtractedData((current) => ({ ...current, reference_images: uploadedUrls }))
-      pushToast(copyFor(language, 'Motifs aur color palette ready ho gaye.', 'Motifs and color palette are ready.'))
+      pushToast(copyFor(language, mode === 'regenerate' ? 'Phase 3 visuals dubara generate ho gaye.' : 'Motifs aur color palette ready ho gaye.', mode === 'regenerate' ? 'Phase 3 visuals regenerated.' : 'Motifs and color palette are ready.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
     } finally {
       setIsIdentityLoading(false)
+    }
+  }
+
+  const handleSelectPaletteOption = async (optionId: string) => {
+    if (!draftBrandId || !visualFoundation) return
+    try {
+      const response = await selectPaletteMutation.mutateAsync({ brandId: draftBrandId, optionId })
+      setVisualFoundation((current) => {
+        if (!current) return current
+        return normalizeVisualFoundation({
+          ...current,
+          palette: response.palette,
+          selected_palette_id: response.selected_palette_id,
+        })
+      })
+      pushToast(copyFor(language, 'Color palette save ho gayi.', 'Color palette saved.'))
+    } catch (error) {
+      pushToast(getErrorMessage(error))
     }
   }
 
@@ -427,6 +491,7 @@ export default function OnboardingChatPage() {
 
   const activeIdentitySet = identitySets[currentIdentitySetIndex] ?? []
   const isIdentityStage = isComplete
+  const normalizedVisualFoundation = normalizeVisualFoundation(visualFoundation)
 
   return (
     <div className="space-y-6">
@@ -601,7 +666,7 @@ export default function OnboardingChatPage() {
               <div>
                 <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Phase 3', 'Phase 3')}</p>
                 <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Product aur workstation images upload karein', 'Upload product and workstation images')}</h2>
-                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Random achhi images upload kijiye. Hum unse motifs, color palette aur signature patterns nikaal kar next phase ke liye save karenge.', 'Upload a good mix of product and workstation images. We will extract motifs, a color palette, and signature patterns and save them for the next phase.')}</p>
+                <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Achhi product aur workstation images upload kijiye. Hum motif visuals, 3 palette options with recommendation, aur pattern previews bana kar dikhayenge, jisme se aap palette choose kar sakte ho.', 'Upload a good mix of product and workstation images. We will create motif visuals, 3 palette options with a recommendation, and pattern previews so you can choose the palette you want.')}</p>
               </div>
               <input
                 type="file"
@@ -612,42 +677,95 @@ export default function OnboardingChatPage() {
               />
               <div className="flex flex-wrap items-center gap-3">
                 <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">{copyFor(language, `${selectedVisualFiles.length} files selected`, `${selectedVisualFiles.length} files selected`)}</span>
-                <Button onClick={() => void handleAnalyzeVisualFoundation()} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
-                  {copyFor(language, 'Generate motifs and palette', 'Generate motifs and palette')}
+                <Button onClick={() => void handleAnalyzeVisualFoundation('fresh')} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
+                  {copyFor(language, 'Generate Phase 3 visuals', 'Generate Phase 3 visuals')}
                 </Button>
+                {normalizedVisualFoundation ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => void handleAnalyzeVisualFoundation('regenerate')}
+                    loading={isIdentityLoading}
+                    disabled={!draftBrandId}
+                  >
+                    {copyFor(language, 'Regenerate Phase 3 visuals (testing)', 'Regenerate Phase 3 visuals (testing)')}
+                  </Button>
+                ) : null}
               </div>
+              {normalizedVisualFoundation ? <p className="text-xs text-stone-500">{copyFor(language, 'Ye testing button hai. Ye same Phase 3 ko dubara run karta hai aur baad me hata denge.', 'This is a temporary testing button. It reruns Phase 3 using the current images and can be removed later.')}</p> : null}
 
-              {visualFoundation ? (
+              {normalizedVisualFoundation ? (
                 <Card className="space-y-4 border-[#1f5c5a]/15 bg-[#f7faf8]">
                   <div>
                     <p className="text-sm font-semibold text-[#1f5c5a]">{copyFor(language, 'Visual foundation ready', 'Visual foundation ready')}</p>
-                    <p className="mt-2 text-sm leading-6 text-stone-600">{visualFoundation.visual_summary}</p>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">{normalizedVisualFoundation.visual_summary}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Extracted motifs', 'Extracted motifs')}</p>
+                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Motif directions', 'Motif directions')}</p>
                     <div className="flex flex-wrap gap-2">
-                      {visualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
+                      {normalizedVisualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Generated color palette', 'Generated color palette')}</p>
-                    <div className="grid gap-3 sm:grid-cols-4">
-                      {Object.entries(visualFoundation.palette).map(([label, value]) => (
-                        <div key={label} className="space-y-2 rounded-2xl bg-white p-3 shadow-sm">
-                          <div className="h-14 rounded-xl border border-stone-200" style={{ backgroundColor: String(value) }} />
-                          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">{label}</p>
-                          <p className="text-sm text-stone-700">{String(value)}</p>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {normalizedVisualFoundation.motif_previews.map((motif) => (
+                        <div key={motif.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
+                          <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-48 w-full object-cover" />
+                          <div className="space-y-2 p-4">
+                            <p className="font-semibold text-stone-900">{motif.name}</p>
+                            {motif.description ? <p className="text-sm text-stone-600">{motif.description}</p> : null}
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Signature patterns', 'Signature patterns')}</p>
-                    <div className="space-y-2">
-                      {visualFoundation.signature_patterns.map((pattern) => (
-                        <div key={pattern.name} className="rounded-2xl bg-white p-4 shadow-sm">
-                          <p className="font-semibold text-stone-900">{pattern.name}</p>
-                          <p className="mt-1 text-sm text-stone-600">{pattern.description}</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Choose your color palette', 'Choose your color palette')}</p>
+                      {normalizedVisualFoundation.selected_palette_id ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Selected palette saved', 'Selected palette saved')}</span> : null}
+                    </div>
+                    <div className="grid gap-4 xl:grid-cols-3">
+                      {normalizedVisualFoundation.palette_options.map((option) => {
+                        const isRecommended = option.option_id === normalizedVisualFoundation.recommended_palette_id
+                        const isSelected = option.option_id === normalizedVisualFoundation.selected_palette_id
+                        return (
+                          <div key={option.option_id} className={`rounded-3xl bg-white p-4 shadow-sm ring-1 ${isSelected ? 'ring-[#1f5c5a]' : isRecommended ? 'ring-orange-300' : 'ring-stone-200'}`}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {isRecommended ? <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800">{copyFor(language, 'Recommended', 'Recommended')}</span> : null}
+                              {isSelected ? <span className="rounded-full bg-[#1f5c5a] px-3 py-1 text-xs font-semibold text-white">{copyFor(language, 'Selected', 'Selected')}</span> : null}
+                            </div>
+                            <p className="mt-3 text-lg font-semibold text-stone-900">{option.name}</p>
+                            <p className="mt-1 text-sm leading-6 text-stone-600">{option.rationale}</p>
+                            <div className="mt-4 grid grid-cols-4 gap-2">
+                              {paletteSwatches(option).map(([label, value]) => (
+                                <div key={`${option.option_id}-${label}`} className="space-y-2">
+                                  <div className="h-16 rounded-2xl border border-stone-200" style={{ backgroundColor: String(value) }} />
+                                  <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">{label}</p>
+                                  <p className="text-xs text-stone-700">{String(value)}</p>
+                                </div>
+                              ))}
+                            </div>
+                            <Button
+                              className="mt-4 w-full"
+                              variant={isSelected ? 'primary' : 'secondary'}
+                              onClick={() => void handleSelectPaletteOption(option.option_id)}
+                              loading={selectPaletteMutation.isPending && isSelected}
+                              disabled={selectPaletteMutation.isPending}
+                            >
+                              {isSelected ? copyFor(language, 'Palette selected', 'Palette selected') : copyFor(language, 'Choose this palette', 'Choose this palette')}
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Pattern previews', 'Pattern previews')}</p>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {normalizedVisualFoundation.signature_patterns.map((pattern) => (
+                        <div key={pattern.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
+                          {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-48 w-full object-cover" /> : null}
+                          <div className="p-4">
+                            <p className="font-semibold text-stone-900">{pattern.name}</p>
+                            <p className="mt-1 text-sm text-stone-600">{pattern.description}</p>
+                          </div>
                         </div>
                       ))}
                     </div>

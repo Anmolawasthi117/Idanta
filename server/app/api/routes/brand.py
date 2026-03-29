@@ -108,6 +108,36 @@ class SaveBrandIdentityDraftResponse(BaseModel):
 class BrandPatternPayload(BaseModel):
     name: str
     description: str
+    image_url: str | None = None
+
+
+class BrandMotifPreviewPayload(BaseModel):
+    name: str
+    description: str | None = None
+    image_url: str
+
+
+class BrandPalettePayload(BaseModel):
+    primary: str
+    secondary: str
+    accent: str
+    background: str | None = None
+
+
+class BrandPaletteOptionPayload(BaseModel):
+    option_id: str
+    name: str
+    rationale: str
+    palette: BrandPalettePayload
+
+
+class BrandPaletteSelectionRequest(BaseModel):
+    option_id: str
+
+
+class BrandPaletteSelectionResponse(BaseModel):
+    selected_palette_id: str
+    palette: dict
 
 
 class BrandVisualFoundationResponse(BaseModel):
@@ -115,8 +145,12 @@ class BrandVisualFoundationResponse(BaseModel):
     reference_images: list[str]
     visual_summary: str
     visual_motifs: list[str]
+    motif_previews: list[BrandMotifPreviewPayload]
     signature_patterns: list[BrandPatternPayload]
     palette: dict
+    palette_options: list[BrandPaletteOptionPayload]
+    recommended_palette_id: str | None = None
+    selected_palette_id: str | None = None
 
 
 def _create_targeted_job(user_id: str, brand_id: str, asset_type: str) -> tuple[str, str]:
@@ -174,7 +208,11 @@ def _build_state_from_brand(job_id: str, user_id: str, brand: dict) -> BrandStat
         "reference_images": brand.get("reference_images", []),
         "visual_summary": brand.get("visual_summary", "") or "",
         "visual_motifs": brand.get("visual_motifs", []) or [],
+        "motif_previews": brand.get("motif_previews", []) or [],
         "signature_patterns": brand.get("signature_patterns", []) or [],
+        "palette_options": brand.get("palette_options", []) or [],
+        "recommended_palette_id": brand.get("recommended_palette_id", "") or "",
+        "selected_palette_id": brand.get("selected_palette_id", "") or "",
         "brand_name": brand.get("name", "") or "",
         "tagline": brand.get("tagline", "") or "",
         "palette": brand.get("palette", {}) or {},
@@ -295,9 +333,180 @@ async def _build_identity_preview_state(payload: BrandCreateRequest) -> BrandSta
         "artisan_story": payload.artisan_story,
         "preferred_language": payload.preferred_language,
         "reference_images": payload.reference_images,
+        "palette": {},
     }
     return await context_builder_node(state)
 
+
+def _load_design_pool() -> dict:
+    design_pool_path = Path("data/design_pool.json")
+    if not design_pool_path.exists():
+        return {}
+    with open(design_pool_path, encoding="utf-8") as file:
+        return json.load(file)
+
+
+def _normalize_hex(value: object, fallback: str) -> str:
+    candidate = str(value or "").strip()
+    if len(candidate) == 7 and candidate.startswith("#"):
+        return candidate
+    return fallback
+
+
+def _coerce_palette(raw_palette: dict | None, fallback: dict | None = None) -> BrandPalettePayload:
+    base = fallback or {
+        "primary": "#8B2635",
+        "secondary": "#4A7C59",
+        "accent": "#C4963B",
+        "background": "#F5E6C8",
+    }
+    raw_palette = raw_palette or {}
+    return BrandPalettePayload(
+        primary=_normalize_hex(raw_palette.get("primary"), base["primary"]),
+        secondary=_normalize_hex(raw_palette.get("secondary"), base["secondary"]),
+        accent=_normalize_hex(raw_palette.get("accent"), base["accent"]),
+        background=_normalize_hex(raw_palette.get("background"), base.get("background", "#F5E6C8")),
+    )
+
+
+def _fallback_palette_options(state: BrandState, visual_summary: str) -> tuple[list[BrandPaletteOptionPayload], str]:
+    del visual_summary
+    craft_data = state.get("craft_data", {})
+    traditional_colors = [str(item).strip() for item in craft_data.get("traditional_colors", {}).get("hex", []) if str(item).strip()]
+    design_pool = _load_design_pool()
+    pool_palettes = design_pool.get("palettes", [])
+
+    fallback_sets = [
+        {
+            "option_id": "palette_option_1",
+            "name": "Heritage Core",
+            "rationale": "Best match for preserving a premium artisan feel while staying close to the uploaded references.",
+            "palette": {
+                "primary": traditional_colors[0] if len(traditional_colors) > 0 else "#8B2635",
+                "secondary": traditional_colors[1] if len(traditional_colors) > 1 else "#4A7C59",
+                "accent": traditional_colors[2] if len(traditional_colors) > 2 else "#C4963B",
+                "background": "#F5E6C8",
+            },
+        },
+        {
+            "option_id": "palette_option_2",
+            "name": pool_palettes[1]["name"] if len(pool_palettes) > 1 else "Royal Contrast",
+            "rationale": "Adds richer contrast for a more elevated and boutique presentation.",
+            "palette": {
+                "primary": pool_palettes[1]["primary"] if len(pool_palettes) > 1 else "#1A2E5A",
+                "secondary": pool_palettes[1]["secondary"] if len(pool_palettes) > 1 else "#4E3629",
+                "accent": pool_palettes[1]["accent"] if len(pool_palettes) > 1 else "#D4AF37",
+                "background": "#F6EFE3",
+            },
+        },
+        {
+            "option_id": "palette_option_3",
+            "name": pool_palettes[3]["name"] if len(pool_palettes) > 3 else "Soft Modern",
+            "rationale": "Keeps the craft visible but gives the brand a lighter, more contemporary shelf presence.",
+            "palette": {
+                "primary": pool_palettes[3]["primary"] if len(pool_palettes) > 3 else "#2F4F4F",
+                "secondary": pool_palettes[3]["secondary"] if len(pool_palettes) > 3 else "#F5F5DC",
+                "accent": pool_palettes[3]["accent"] if len(pool_palettes) > 3 else "#A9A9A9",
+                "background": "#FBF7EF",
+            },
+        },
+    ]
+
+    options = [
+        BrandPaletteOptionPayload(
+            option_id=item["option_id"],
+            name=item["name"],
+            rationale=item["rationale"],
+            palette=_coerce_palette(item["palette"]).model_dump(),
+        )
+        for item in fallback_sets
+    ]
+    return options, options[0].option_id
+
+
+async def _build_palette_options(state: BrandState, visual_summary: str) -> tuple[list[BrandPaletteOptionPayload], str]:
+    context = state.get("context_bundle", {})
+    craft_data = state.get("craft_data", {})
+    fallback_options, fallback_recommended = _fallback_palette_options(state, visual_summary)
+    try:
+        result = await groq_json_completion(
+            system_prompt=(
+                "You are a senior artisan brand color strategist.\n"
+                "Return only JSON with this shape: "
+                "{\"palette_options\": [{\"option_id\": \"palette_option_1\", \"name\": \"...\", \"rationale\": \"...\", "
+                "\"palette\": {\"primary\": \"#000000\", \"secondary\": \"#111111\", \"accent\": \"#222222\", \"background\": \"#f5f1e8\"}}], "
+                "\"recommended_palette_id\": \"palette_option_1\"}\n"
+                "Rules:\n"
+                "- Generate exactly 3 palette options.\n"
+                "- Each option must feel distinct but still rooted in the craft and uploaded images.\n"
+                "- All palette values must be valid 6-digit hex colors.\n"
+                "- Rationale should explain the shelf or brand effect in 1 sentence.\n"
+                "- recommended_palette_id must match one of the 3 option_ids.\n"
+            ),
+            user_prompt=(
+                f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
+                f"Region: {context.get('region', 'India')}\n"
+                f"Brand feel: {state.get('brand_feel', 'earthy')}\n"
+                f"Artisan story: {context.get('artisan_story', '')}\n"
+                f"Traditional colors from library: {json.dumps(craft_data.get('traditional_colors', {}), ensure_ascii=False)}\n"
+                f"Craft motifs from library: {json.dumps(craft_data.get('motifs', {}), ensure_ascii=False)}\n"
+                f"Visual summary from uploaded images:\n{visual_summary}\n"
+            ),
+            max_tokens=1200,
+            temperature=0.55,
+        )
+        raw_options = result.get("palette_options", [])
+        options: list[BrandPaletteOptionPayload] = []
+        for index, item in enumerate(raw_options[:3], start=1):
+            palette = _coerce_palette(item.get("palette", {}), fallback_options[min(index - 1, len(fallback_options) - 1)].palette)
+            option_id = str(item.get("option_id") or f"palette_option_{index}").strip() or f"palette_option_{index}"
+            name = str(item.get("name") or f"Palette {index}").strip() or f"Palette {index}"
+            rationale = str(item.get("rationale") or fallback_options[min(index - 1, len(fallback_options) - 1)].rationale).strip()
+            options.append(
+                BrandPaletteOptionPayload(
+                    option_id=option_id,
+                    name=name,
+                    rationale=rationale,
+                    palette=palette,
+                )
+            )
+        if len(options) != 3:
+            return fallback_options, fallback_recommended
+        recommended_palette_id = str(result.get("recommended_palette_id") or "").strip()
+        if recommended_palette_id not in {option.option_id for option in options}:
+            recommended_palette_id = options[0].option_id
+        return options, recommended_palette_id
+    except Exception as exc:
+        logger.warning("Palette option generation failed; using fallback options. Error: %s", exc)
+        return fallback_options, fallback_recommended
+
+
+async def _generate_preview_image(
+    *,
+    brand_id: str,
+    category: str,
+    index: int,
+    title: str,
+    description: str,
+    craft_name: str,
+    palette: BrandPalettePayload,
+    visual_summary: str,
+) -> str:
+    prompt = (
+        f"Create a premium artisan design board preview for {craft_name}. "
+        f"Focus on {category}: {title}. "
+        f"Description: {description}. "
+        f"Use a clean presentation on a soft studio board, showing the motif or pattern clearly as a visual concept, not product photography. "
+        f"Use this palette: primary {palette.primary}, secondary {palette.secondary}, accent {palette.accent}, background {palette.background or '#F5E6C8'}. "
+        f"Visual cues: {visual_summary}. "
+        "Keep it elegant, minimal, high contrast, and easy for a client to compare."
+    )
+    image_bytes, mime = await generate_image(prompt, width_hint=1024, height_hint=1024)
+    return await upload_bytes(
+        data=image_bytes,
+        path=f"brands/{brand_id}/phase3/{category}_{index}.png",
+        content_type=mime,
+    )
 
 async def _extract_visual_summary_from_images(image_urls: list[str]) -> str:
     if not image_urls:
@@ -343,19 +552,25 @@ def _fallback_visual_foundation(state: BrandState, visual_summary: str) -> Brand
             description=f"A light premium pattern combining {motifs[min(1, len(motifs)-1)]} with subtle color contrast for backgrounds, story cards, and brand textures.",
         ),
     ]
+    palette_options, recommended_palette_id = _fallback_palette_options(state, visual_summary)
     return BrandVisualFoundationResponse(
         brand_id="",
         reference_images=[],
         visual_summary=visual_summary,
         visual_motifs=motifs,
+        motif_previews=[],
         signature_patterns=patterns,
         palette=palette,
+        palette_options=palette_options,
+        recommended_palette_id=recommended_palette_id,
+        selected_palette_id=recommended_palette_id,
     )
 
 
 async def _build_visual_foundation(state: BrandState, visual_summary: str) -> BrandVisualFoundationResponse:
     context = state.get("context_bundle", {})
     craft_data = state.get("craft_data", {})
+    fallback_foundation = _fallback_visual_foundation(state, visual_summary)
     try:
         result = await groq_json_completion(
             system_prompt=(
@@ -393,22 +608,96 @@ async def _build_visual_foundation(state: BrandState, visual_summary: str) -> Br
         ]
         motifs = [str(item).strip() for item in result.get("visual_motifs", []) if str(item).strip()]
         palette = result.get("palette", {}) or {}
+        palette_options, recommended_palette_id = await _build_palette_options(state, visual_summary)
+        selected_palette = next(
+            (option.palette for option in palette_options if option.option_id == recommended_palette_id),
+            _coerce_palette(palette, fallback_foundation.palette),
+        )
         return BrandVisualFoundationResponse(
             brand_id="",
             reference_images=[],
             visual_summary=visual_summary,
-            visual_motifs=motifs[:5] or _fallback_visual_foundation(state, visual_summary).visual_motifs,
-            signature_patterns=patterns[:4] or _fallback_visual_foundation(state, visual_summary).signature_patterns,
-            palette={
-                "primary": str(palette.get("primary", "#8B2635")),
-                "secondary": str(palette.get("secondary", "#4A7C59")),
-                "accent": str(palette.get("accent", "#C4963B")),
-                "background": str(palette.get("background", "#F5E6C8")),
-            },
+            visual_motifs=motifs[:5] or fallback_foundation.visual_motifs,
+            motif_previews=[],
+            signature_patterns=patterns[:4] or fallback_foundation.signature_patterns,
+            palette=selected_palette.model_dump(),
+            palette_options=palette_options,
+            recommended_palette_id=recommended_palette_id,
+            selected_palette_id=recommended_palette_id,
         )
     except Exception as exc:
         logger.warning("Visual foundation LLM generation failed; using fallback foundation. Error: %s", exc)
-        return _fallback_visual_foundation(state, visual_summary)
+        return fallback_foundation
+
+
+async def _attach_visual_previews(
+    *,
+    foundation: BrandVisualFoundationResponse,
+    state: BrandState,
+    brand_id: str,
+) -> BrandVisualFoundationResponse:
+    craft_name = state.get("context_bundle", {}).get("craft_name", state.get("craft_id", "").replace("_", " ").title())
+    selected_palette = _coerce_palette(foundation.palette)
+
+    motif_previews: list[BrandMotifPreviewPayload] = []
+    for index, motif in enumerate(foundation.visual_motifs[:3], start=1):
+        try:
+            image_url = await _generate_preview_image(
+                brand_id=brand_id,
+                category="motif",
+                index=index,
+                title=motif,
+                description=f"An isolated motif exploration for {motif}.",
+                craft_name=craft_name,
+                palette=selected_palette,
+                visual_summary=foundation.visual_summary,
+            )
+            motif_previews.append(
+                BrandMotifPreviewPayload(
+                    name=motif,
+                    description=f"Motif direction based on uploaded references and craft heritage.",
+                    image_url=image_url,
+                )
+            )
+        except Exception as exc:
+            logger.warning("Could not generate motif preview for brand=%s motif=%s: %s", brand_id, motif, exc)
+
+    signature_patterns: list[BrandPatternPayload] = []
+    for index, pattern in enumerate(foundation.signature_patterns[:3], start=1):
+        try:
+            image_url = await _generate_preview_image(
+                brand_id=brand_id,
+                category="pattern",
+                index=index,
+                title=pattern.name,
+                description=pattern.description,
+                craft_name=craft_name,
+                palette=selected_palette,
+                visual_summary=foundation.visual_summary,
+            )
+            signature_patterns.append(
+                BrandPatternPayload(
+                    name=pattern.name,
+                    description=pattern.description,
+                    image_url=image_url,
+                )
+            )
+        except Exception as exc:
+            logger.warning("Could not generate pattern preview for brand=%s pattern=%s: %s", brand_id, pattern.name, exc)
+            signature_patterns.append(pattern)
+
+    return BrandVisualFoundationResponse(
+        brand_id=foundation.brand_id,
+        reference_images=foundation.reference_images,
+        visual_summary=foundation.visual_summary,
+        visual_motifs=foundation.visual_motifs,
+        motif_previews=motif_previews,
+        signature_patterns=signature_patterns,
+        palette=foundation.palette,
+        palette_options=foundation.palette_options,
+        recommended_palette_id=foundation.recommended_palette_id,
+        selected_palette_id=foundation.selected_palette_id,
+    )
 
 
 def _build_identity_generation_prompt(
@@ -892,31 +1181,49 @@ async def build_brand_visual_foundation(
         state = await _build_identity_preview_state(payload)
         visual_summary = await _extract_visual_summary_from_images(payload.reference_images)
         foundation = await _build_visual_foundation(state, visual_summary)
+        foundation = await _attach_visual_previews(
+            foundation=BrandVisualFoundationResponse(
+                brand_id=payload.brand_id,
+                reference_images=payload.reference_images,
+                visual_summary=foundation.visual_summary,
+                visual_motifs=foundation.visual_motifs,
+                motif_previews=foundation.motif_previews,
+                signature_patterns=foundation.signature_patterns,
+                palette=foundation.palette,
+                palette_options=foundation.palette_options,
+                recommended_palette_id=foundation.recommended_palette_id,
+                selected_palette_id=foundation.selected_palette_id,
+            ),
+            state=state,
+            brand_id=payload.brand_id,
+        )
 
         updates = {
             "reference_images": payload.reference_images,
             "visual_summary": foundation.visual_summary,
             "visual_motifs": foundation.visual_motifs,
+            "motif_previews": [preview.model_dump() for preview in foundation.motif_previews],
             "signature_patterns": [pattern.model_dump() for pattern in foundation.signature_patterns],
             "palette": foundation.palette,
+            "palette_options": [option.model_dump() for option in foundation.palette_options],
+            "recommended_palette_id": foundation.recommended_palette_id,
+            "selected_palette_id": foundation.selected_palette_id,
         }
         try:
             supabase.table("brands").update(updates).eq("id", payload.brand_id).eq("user_id", user_id).execute()
         except APIError as exc:
             logger.warning("Could not persist full visual foundation for brand=%s: %s", payload.brand_id, exc)
             try:
-                supabase.table("brands").update({"palette": foundation.palette}).eq("id", payload.brand_id).eq("user_id", user_id).execute()
+                supabase.table("brands").update(
+                    {
+                        "palette": foundation.palette,
+                        "selected_palette_id": foundation.selected_palette_id,
+                    }
+                ).eq("id", payload.brand_id).eq("user_id", user_id).execute()
             except APIError as palette_exc:
                 logger.warning("Could not persist fallback palette for brand=%s: %s", payload.brand_id, palette_exc)
 
-        return BrandVisualFoundationResponse(
-            brand_id=payload.brand_id,
-            reference_images=payload.reference_images,
-            visual_summary=foundation.visual_summary,
-            visual_motifs=foundation.visual_motifs,
-            signature_patterns=foundation.signature_patterns,
-            palette=foundation.palette,
-        )
+        return foundation
     except Exception as exc:
         logger.exception("Visual foundation generation failed for brand=%s", payload.brand_id)
         raise HTTPException(
@@ -1004,7 +1311,11 @@ async def create_brand(
         "palette": existing_brand.get("palette", {}) if existing_brand else {},
         "visual_summary": existing_brand.get("visual_summary", "") if existing_brand else "",
         "visual_motifs": existing_brand.get("visual_motifs", []) if existing_brand else [],
+        "motif_previews": existing_brand.get("motif_previews", []) if existing_brand else [],
         "signature_patterns": existing_brand.get("signature_patterns", []) if existing_brand else [],
+        "palette_options": existing_brand.get("palette_options", []) if existing_brand else [],
+        "recommended_palette_id": existing_brand.get("recommended_palette_id", "") if existing_brand else "",
+        "selected_palette_id": existing_brand.get("selected_palette_id", "") if existing_brand else "",
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)
@@ -1039,6 +1350,50 @@ async def upload_brand_images(
         )
         photo_urls.append(url)
     return photo_urls
+
+
+@router.patch(
+    "/{brand_id}/palette-selection",
+    response_model=BrandPaletteSelectionResponse,
+    summary="Select one of the generated Phase 3 palette options",
+    tags=["Brands"],
+)
+async def select_brand_palette_option(
+    brand_id: str,
+    payload: BrandPaletteSelectionRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    result = (
+        supabase.table("brands")
+        .select("id, palette_options")
+        .eq("id", brand_id)
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+
+    palette_options = result.data.get("palette_options") or []
+    selected_option = next(
+        (option for option in palette_options if str(option.get("option_id", "")).strip() == payload.option_id.strip()),
+        None,
+    )
+    if not selected_option:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Palette option not found for this brand.")
+
+    palette = selected_option.get("palette") or {}
+    supabase.table("brands").update(
+        {
+            "palette": palette,
+            "selected_palette_id": payload.option_id.strip(),
+        }
+    ).eq("id", brand_id).eq("user_id", user_id).execute()
+
+    return BrandPaletteSelectionResponse(
+        selected_palette_id=payload.option_id.strip(),
+        palette=palette,
+    )
 
 
 @router.get(
@@ -1135,6 +1490,10 @@ async def regenerate_brand(
         "artisan_story": brand.get("artisan_story"),
         "preferred_language": brand.get("preferred_language", "hi"),
         "reference_images": brand.get("reference_images", []),
+        "palette": brand.get("palette", {}) or {},
+        "palette_options": brand.get("palette_options", []) or [],
+        "recommended_palette_id": brand.get("recommended_palette_id", "") or "",
+        "selected_palette_id": brand.get("selected_palette_id", "") or "",
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)

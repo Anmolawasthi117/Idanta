@@ -40,6 +40,26 @@ class PaletteSchema(BaseModel):
     primary: str = Field(..., pattern=r"^#[0-9A-Fa-f]{6}$")
     secondary: str = Field(..., pattern=r"^#[0-9A-Fa-f]{6}$")
     accent: str = Field(..., pattern=r"^#[0-9A-Fa-f]{6}$")
+    background: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+
+
+class BrandMotifPreviewSchema(BaseModel):
+    name: str
+    description: Optional[str] = None
+    image_url: str
+
+
+class BrandPatternSchema(BaseModel):
+    name: str
+    description: str
+    image_url: Optional[str] = None
+
+
+class BrandPaletteOptionSchema(BaseModel):
+    option_id: str
+    name: str
+    rationale: str
+    palette: PaletteSchema
 
 
 class BrandCreate(BaseModel):
@@ -159,10 +179,14 @@ class BrandResponse(BaseModel):
     reference_images: Optional[list[str]] = None
     visual_summary: Optional[str] = None
     visual_motifs: Optional[list[str]] = None
-    signature_patterns: Optional[list[Dict]] = None
+    motif_previews: Optional[list[BrandMotifPreviewSchema]] = None
+    signature_patterns: Optional[list[BrandPatternSchema]] = None
     name: Optional[str]
     tagline: Optional[str]
     palette: Optional[Dict]
+    palette_options: Optional[list[BrandPaletteOptionSchema]] = None
+    recommended_palette_id: Optional[str] = None
+    selected_palette_id: Optional[str] = None
     story_en: Optional[str]
     story_hi: Optional[str]
     logo_url: Optional[str]

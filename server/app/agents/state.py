@@ -30,7 +30,11 @@ class BrandState(TypedDict, total=False):
     visual_context: str
     visual_summary: str
     visual_motifs: List[str]
+    motif_previews: List[Dict[str, Any]]
     signature_patterns: List[Dict[str, Any]]
+    palette_options: List[Dict[str, Any]]
+    recommended_palette_id: str
+    selected_palette_id: str
 
     # Intelligence output
     brand_names: List[str]

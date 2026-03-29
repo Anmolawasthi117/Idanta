@@ -192,7 +192,23 @@ Generate a premium brand identity for this artisan by formulating names and a ta
         None
     )
     
-    if chosen_palette_data:
+    locked_palette = state.get("palette") if isinstance(state.get("palette"), dict) else None
+    has_locked_palette = bool(
+        locked_palette
+        and locked_palette.get("primary")
+        and locked_palette.get("secondary")
+        and locked_palette.get("accent")
+    )
+
+    if has_locked_palette:
+        final_palette = {
+            "primary": locked_palette["primary"],
+            "secondary": locked_palette["secondary"],
+            "accent": locked_palette["accent"],
+            **({"background": locked_palette["background"]} if locked_palette.get("background") else {}),
+            **({"id": locked_palette["id"]} if locked_palette.get("id") else {}),
+        }
+    elif chosen_palette_data:
         final_palette = {
             "primary": chosen_palette_data["primary"],
             "secondary": chosen_palette_data["secondary"],

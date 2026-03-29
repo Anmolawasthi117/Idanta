@@ -35,6 +35,27 @@ export interface BrandCreatePayload {
 export interface BrandPattern {
   name: string
   description: string
+  image_url?: string | null
+}
+
+export interface BrandMotifPreview {
+  name: string
+  description?: string | null
+  image_url: string
+}
+
+export interface BrandPalette {
+  primary: string
+  secondary: string
+  accent: string
+  background?: string
+}
+
+export interface BrandPaletteOption {
+  option_id: string
+  name: string
+  rationale: string
+  palette: BrandPalette
 }
 
 export interface BrandVisualFoundation {
@@ -42,8 +63,12 @@ export interface BrandVisualFoundation {
   reference_images: string[]
   visual_summary: string
   visual_motifs: string[]
+  motif_previews: BrandMotifPreview[]
   signature_patterns: BrandPattern[]
   palette: BrandPalette
+  palette_options: BrandPaletteOption[]
+  recommended_palette_id?: string | null
+  selected_palette_id?: string | null
 }
 
 export interface BrandIdentityPair {
@@ -68,13 +93,6 @@ export interface BrandIdentityRankResponse {
   ranked_pairs: RankedBrandIdentityPair[]
   recommended_pair_id?: string | null
   next_prompt: string
-}
-
-export interface BrandPalette {
-  primary: string
-  secondary: string
-  accent: string
-  background?: string
 }
 
 export interface Brand {
@@ -105,7 +123,11 @@ export interface Brand {
   reference_images?: string[]
   visual_summary?: string
   visual_motifs?: string[]
+  motif_previews?: BrandMotifPreview[]
   signature_patterns?: BrandPattern[]
+  palette_options?: BrandPaletteOption[]
+  recommended_palette_id?: string | null
+  selected_palette_id?: string | null
 }
 
 export interface CraftItem {

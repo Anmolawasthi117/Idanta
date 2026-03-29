@@ -128,7 +128,11 @@ ALTER TABLE brands
     ADD COLUMN IF NOT EXISTS script_preference TEXT DEFAULT 'both',
     ADD COLUMN IF NOT EXISTS visual_summary TEXT,
     ADD COLUMN IF NOT EXISTS visual_motifs JSONB DEFAULT '[]'::jsonb,
-    ADD COLUMN IF NOT EXISTS signature_patterns JSONB DEFAULT '[]'::jsonb;
+    ADD COLUMN IF NOT EXISTS motif_previews JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS signature_patterns JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS palette_options JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS recommended_palette_id TEXT,
+    ADD COLUMN IF NOT EXISTS selected_palette_id TEXT;
 
 ALTER TABLE products
     ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'apparel',

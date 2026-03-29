@@ -9,6 +9,7 @@ import {
   regenerateBrand,
   regenerateBrandAsset,
   saveBrandIdentityDraft,
+  selectBrandPaletteOption,
   type RegenerableBrandAsset,
   updateBrandIdentity,
 } from '../api/brand.api'
@@ -52,6 +53,11 @@ export const useSaveBrandIdentityDraft = () =>
 export const useAnalyzeBrandVisualFoundation = () =>
   useMutation({
     mutationFn: (payload: BrandCreatePayload & { brand_id: string; reference_images: string[] }) => analyzeBrandVisualFoundation(payload),
+  })
+
+export const useSelectBrandPaletteOption = () =>
+  useMutation({
+    mutationFn: ({ brandId, optionId }: { brandId: string; optionId: string }) => selectBrandPaletteOption(brandId, optionId),
   })
 
 export const useRegenerateBrand = () =>

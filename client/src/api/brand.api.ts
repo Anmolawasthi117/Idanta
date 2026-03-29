@@ -6,6 +6,7 @@ import type {
   BrandIdentityPair,
   BrandIdentityRankResponse,
   BrandIdentitySetResponse,
+  BrandPalette,
   BrandVisualFoundation,
   CraftItem,
 } from '../types/brand.types'
@@ -100,6 +101,16 @@ export const analyzeBrandVisualFoundation = async (
   },
 ): Promise<BrandVisualFoundation> => {
   const { data } = await apiClient.post<BrandVisualFoundation>('/brands/visual-foundation', payload)
+  return data
+}
+
+export const selectBrandPaletteOption = async (
+  brandId: string,
+  optionId: string,
+): Promise<{ selected_palette_id: string; palette: BrandPalette }> => {
+  const { data } = await apiClient.patch<{ selected_palette_id: string; palette: BrandPalette }>(`/brands/${brandId}/palette-selection`, {
+    option_id: optionId,
+  })
   return data
 }
 
