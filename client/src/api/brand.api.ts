@@ -88,7 +88,7 @@ export const brandAssistChat = async (
     if (craft) {
       next.craft_id = craft.craft_id
       return {
-        message: copy(language, 'Bahut badhiya. Aapka naam kya hai?', 'Lovely. What is your name?'),
+        message: copy(language, 'Bahut badhiya. Aap kis shehar ya area se kaam karte ho?', 'Lovely. Which city, town, or area do you work from?'),
         extracted: next,
       }
     }
@@ -98,14 +98,6 @@ export const brandAssistChat = async (
         `Aap kis kaam me mahir ho? In me se batayein: ${crafts.map((item) => item.display_name).join(', ')}`,
         `Which craft do you practice? Please choose from: ${crafts.map((item) => item.display_name).join(', ')}`,
       ),
-      extracted: next,
-    }
-  }
-
-  if (!next.artisan_name) {
-    next.artisan_name = message.trim()
-    return {
-      message: copy(language, 'Aap kis shehar ya area se kaam karte ho?', 'Which city, town, or area do you work from?'),
       extracted: next,
     }
   }
@@ -152,7 +144,7 @@ export const brandAssistChat = async (
 
   if (!next.primary_occasion) {
     const options: BrandCreatePayload['primary_occasion'][] = ['wedding', 'festival', 'daily', 'gifting', 'home_decor', 'export', 'general']
-    const matched = options.find((option) => lower.includes(option.replace('_', ' ')) || lower.includes(option))
+    const matched = options.find((option) => option && (lower.includes(option.replace('_', ' ')) || lower.includes(option)))
     if (matched) {
       next.primary_occasion = matched
       return {
@@ -176,16 +168,21 @@ export const brandAssistChat = async (
 
   if (!next.target_customer) {
     const options: BrandCreatePayload['target_customer'][] = ['local_bazaar', 'tourist', 'online_india', 'export']
-    const matched = options.find((option) => lower.includes(option.replace('_', ' ')) || lower.includes(option.split('_')[0]))
+    const matched = options.find(
+      (option) => option && (lower.includes(option.replace('_', ' ')) || lower.includes(option.split('_')[0] ?? option)),
+    )
     if (matched) {
       next.target_customer = matched
+      next.script_preference = next.script_preference ?? (language === 'hi' ? 'hindi' : 'english')
+      next.preferred_language = next.preferred_language ?? (language === 'hi' ? 'hi' : 'en')
       return {
         message: copy(
           language,
-          'Brand ka ehsaas kaisa ho - earthy, royal, vibrant ya minimal?',
-          'What should the brand feel like - earthy, royal, vibrant, or minimal?',
+          'Phase 1 complete ho gaya. Aapka progress save ho gaya hai.',
+          'Phase 1 is complete. Your progress has been saved.',
         ),
         extracted: next,
+        is_complete: true,
       }
     }
     return {
@@ -198,47 +195,8 @@ export const brandAssistChat = async (
     }
   }
 
-  if (!next.brand_feel) {
-    const options: BrandCreatePayload['brand_feel'][] = ['earthy', 'royal', 'vibrant', 'minimal']
-    const matched = options.find((option) => lower.includes(option))
-    if (matched) {
-      next.brand_feel = matched
-      next.script_preference = next.script_preference ?? (language === 'en' ? 'english' : 'hindi')
-      next.preferred_language = next.preferred_language ?? (language === 'en' ? 'en' : 'hi')
-      return {
-        message: copy(
-          language,
-          'Apne kaam se judi koi yaad ya kahani 1-2 line me batao.',
-          'Please share one special memory or short story about your craft in 1 or 2 lines.',
-        ),
-        extracted: next,
-      }
-    }
-    return {
-      message: copy(
-        language,
-        'Ek option chuniye - earthy, royal, vibrant ya minimal.',
-        'Please choose one option - earthy, royal, vibrant, or minimal.',
-      ),
-      extracted: next,
-    }
-  }
-
-  if (!next.artisan_story) {
-    next.artisan_story = message.trim()
-    return {
-      message: copy(
-        language,
-        'Sab taiyar hai. Neeche dekhkar confirm kijiye aur apna brand banaiye.',
-        'Everything is ready. Please review below and create your brand.',
-      ),
-      extracted: next,
-      is_complete: true,
-    }
-  }
-
   return {
-    message: copy(language, 'Sab information mil gayi. Ab brand banana shuru karte hain.', 'We have all the information. Let us start building your brand.'),
+    message: copy(language, 'Phase 1 ki sari information mil gayi hai.', 'We have all the phase 1 information.'),
     extracted: next,
     is_complete: true,
   }

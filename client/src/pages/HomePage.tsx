@@ -16,7 +16,6 @@ export default function HomePage() {
   const user = useAuthStore((state) => state.user)
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
   const [welcomeNote] = useState(() => welcomeNotes[Math.floor(Math.random() * welcomeNotes.length)])
-  const [awaitingInteraction, setAwaitingInteraction] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const hasStartedAudioRef = useRef(false)
   const isRequestInFlightRef = useRef(false)
@@ -26,7 +25,6 @@ export default function HomePage() {
 
   const setInteractionState = useCallback((value: boolean) => {
     awaitingInteractionRef.current = value
-    setAwaitingInteraction(value)
   }, [])
 
   const playBufferedAudio = useCallback(async () => {

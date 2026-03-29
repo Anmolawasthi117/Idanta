@@ -240,9 +240,9 @@ export const useVoiceChat = ({
     } catch (err) {
       console.error('Streaming TTS error, falling back to REST TTS:', err)
       try {
-        const audioBase64 = await synthesizeSpeech(textToPlay, language)
-        console.info('[TTS] fallback REST audio received', { base64Chars: audioBase64.length })
-        const audioEl = new Audio(`data:audio/mpeg;base64,${audioBase64}`)
+        const { audio_base64: audioBase64, mime_type: mimeType } = await synthesizeSpeech(textToPlay, language)
+        console.info('[TTS] fallback REST audio received', { base64Chars: audioBase64.length, mimeType })
+        const audioEl = new Audio(`data:${mimeType || 'audio/mpeg'};base64,${audioBase64}`)
         audioRef.current = audioEl
         await new Promise<void>((resolve) => {
           audioEl.onended = () => {
