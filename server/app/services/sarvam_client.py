@@ -23,6 +23,20 @@ def _decode_audio_payload(value) -> bytes | None:
     return None
 
 
+def detect_audio_mime_type(audio_bytes: bytes | None) -> str:
+    if not audio_bytes:
+        return "audio/mpeg"
+    if audio_bytes.startswith(b"RIFF") and audio_bytes[8:12] == b"WAVE":
+        return "audio/wav"
+    if audio_bytes.startswith(b"ID3") or audio_bytes[:2] == b"\xff\xfb":
+        return "audio/mpeg"
+    if audio_bytes.startswith(b"OggS"):
+        return "audio/ogg"
+    if audio_bytes[:4] == b"fLaC":
+        return "audio/flac"
+    return "application/octet-stream"
+
+
 def _extract_audio_chunks(message) -> list[bytes]:
     """
     Extract audio chunks from multiple possible SDK event shapes.

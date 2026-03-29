@@ -131,14 +131,19 @@ export const transcribeAudio = async (audioBlob: Blob, language: string): Promis
   return data.text
 }
 
-export const synthesizeSpeech = async (text: string, language: string): Promise<string> => {
+export interface SynthesizeSpeechResult {
+  audio_base64: string
+  mime_type: string
+}
+
+export const synthesizeSpeech = async (text: string, language: string): Promise<SynthesizeSpeechResult> => {
   const targetLanguage = language === 'en' ? 'en-IN' : 'hi-IN'
   const payload = {
     text,
     target_language_code: targetLanguage,
   }
-  const { data } = await apiClient.post<{ audio_base64: string }>('/chat/synthesize-speech', payload)
-  return data.audio_base64
+  const { data } = await apiClient.post<SynthesizeSpeechResult>('/chat/synthesize-speech', payload)
+  return data
 }
 
 export const synthesizeSpeechStreamResponse = async (text: string, language: string): Promise<Response> => {

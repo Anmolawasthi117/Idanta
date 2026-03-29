@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowRight, LoaderCircle, LogIn, Sparkles, Volume2 } from 'lucide-react'
+import { ArrowRight, LogIn, Sparkles } from 'lucide-react'
 import { synthesizeSpeech } from '../api/chat.api'
 import { useAuthStore } from '../store/authStore'
 
@@ -16,48 +16,123 @@ export default function HomePage() {
   const user = useAuthStore((state) => state.user)
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
   const [welcomeNote] = useState(() => welcomeNotes[Math.floor(Math.random() * welcomeNotes.length)])
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [awaitingInteraction, setAwaitingInteraction] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const hasStartedAudioRef = useRef(false)
+  const isRequestInFlightRef = useRef(false)
+  const pendingAudioRef = useRef<{ mimeType: string; audioBase64: string } | null>(null)
+  const awaitingInteractionRef = useRef(false)
+  const interactionUnlockedRef = useRef(false)
+
+  const setInteractionState = useCallback((value: boolean) => {
+    awaitingInteractionRef.current = value
+    setAwaitingInteraction(value)
+  }, [])
+
+  const playBufferedAudio = useCallback(async () => {
+    if (hasStartedAudioRef.current) return
+
+    const pendingAudio = pendingAudioRef.current
+    if (!pendingAudio) return
+
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+
+    const audio = new Audio(`data:${pendingAudio.mimeType};base64,${pendingAudio.audioBase64}`)
+    audioRef.current = audio
+    await audio.play()
+    hasStartedAudioRef.current = true
+    setInteractionState(false)
+  }, [setInteractionState])
 
   const playWelcomeNote = useCallback(async () => {
-    setIsSpeaking(true)
+    if (hasStartedAudioRef.current || isRequestInFlightRef.current) return
+
+    isRequestInFlightRef.current = true
 
     try {
-      const audioBase64 = await synthesizeSpeech(welcomeNote, 'hi')
+      const { audio_base64: audioBase64, mime_type: mimeType } = await synthesizeSpeech(welcomeNote, 'hi')
+      pendingAudioRef.current = { audioBase64, mimeType: mimeType || 'audio/mpeg' }
 
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
+      if (interactionUnlockedRef.current) {
+        await playBufferedAudio()
+        return
       }
 
-      const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`)
-      audioRef.current = audio
-
-      audio.onended = () => {
-        setIsSpeaking(false)
-      }
-
-      audio.onerror = () => {
-        setIsSpeaking(false)
-      }
-
-      await audio.play()
+      await playBufferedAudio()
     } catch (error) {
-      console.error('Failed to play homepage Sarvam TTS:', error)
-      setIsSpeaking(false)
+      const isAutoplayBlocked =
+        error instanceof DOMException &&
+        (error.name === 'NotAllowedError' || error.name === 'AbortError')
+
+      if (!isAutoplayBlocked) {
+        console.error('Failed to autoplay homepage Sarvam TTS:', error)
+      }
+      setInteractionState(true)
+    } finally {
+      isRequestInFlightRef.current = false
     }
-  }, [welcomeNote])
+  }, [playBufferedAudio, setInteractionState, welcomeNote])
+
+  const resumeWelcomeNote = useCallback(async () => {
+    try {
+      interactionUnlockedRef.current = true
+
+      if (pendingAudioRef.current) {
+        await playBufferedAudio()
+      } else if (!isRequestInFlightRef.current) {
+        await playWelcomeNote()
+      }
+    } catch (error) {
+      console.error('Failed to resume homepage Sarvam TTS after interaction:', error)
+    }
+  }, [playBufferedAudio, playWelcomeNote])
 
   useEffect(() => {
+    if (!hasHydrated || token) return
+
+    const handleVisibleAutoplay = () => {
+      if (document.visibilityState === 'visible') {
+        void playWelcomeNote()
+      }
+    }
+
     void playWelcomeNote()
+    window.addEventListener('pageshow', handleVisibleAutoplay)
+    document.addEventListener('visibilitychange', handleVisibleAutoplay)
 
     return () => {
+      window.removeEventListener('pageshow', handleVisibleAutoplay)
+      document.removeEventListener('visibilitychange', handleVisibleAutoplay)
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.currentTime = 0
       }
     }
-  }, [playWelcomeNote])
+  }, [hasHydrated, playWelcomeNote, token])
+
+  useEffect(() => {
+    if (!hasHydrated || token || hasStartedAudioRef.current) return
+
+    const handleInteraction = () => {
+      interactionUnlockedRef.current = true
+      if (awaitingInteractionRef.current || pendingAudioRef.current) {
+        void resumeWelcomeNote()
+      }
+    }
+
+    window.addEventListener('pointerdown', handleInteraction)
+    window.addEventListener('keydown', handleInteraction)
+    window.addEventListener('touchstart', handleInteraction)
+
+    return () => {
+      window.removeEventListener('pointerdown', handleInteraction)
+      window.removeEventListener('keydown', handleInteraction)
+      window.removeEventListener('touchstart', handleInteraction)
+    }
+  }, [hasHydrated, resumeWelcomeNote, token])
 
   if (!hasHydrated) return null
   if (token) return <Navigate to={user?.has_brand ? '/dashboard' : '/onboarding'} replace />
@@ -75,18 +150,7 @@ export default function HomePage() {
               Idanta
             </div>
             <div className="mt-6 space-y-5">
-              <div className="flex flex-wrap items-start gap-3">
-                <p className="max-w-2xl flex-1 text-lg font-medium leading-8 text-[#1f5c5a] sm:text-xl">{welcomeNote}</p>
-                <button
-                  type="button"
-                  onClick={() => void playWelcomeNote()}
-                  disabled={isSpeaking}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#1f5c5a]/15 bg-white/80 text-[#1f5c5a] transition hover:bg-[#eef4f1] disabled:cursor-not-allowed disabled:opacity-60"
-                  aria-label="Play welcome note"
-                >
-                  {isSpeaking ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
-                </button>
-              </div>
+              <p className="max-w-2xl text-lg font-medium leading-8 text-[#1f5c5a] sm:text-xl">{welcomeNote}</p>
               <h1 className='max-w-3xl font-["Iowan_Old_Style","Palatino_Linotype","Book_Antiqua",serif] text-4xl leading-tight text-stone-900 sm:text-5xl lg:text-6xl'>
                 Build a brand home that feels warm, intentional, and ready to grow with you.
               </h1>
@@ -99,7 +163,8 @@ export default function HomePage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/login"
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#1f5c5a] px-5 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-[#184b49]"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#1f5c5a] px-5 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-[#184b49] hover:text-white visited:text-white"
+                style={{ color: '#ffffff' }}
               >
                 Log in
                 <LogIn className="ml-2 h-5 w-5" />
@@ -128,7 +193,7 @@ export default function HomePage() {
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="rounded-[1.5rem] border border-[#1f5c5a]/10 bg-[#eef4f1] p-5">
-                <p className="text-sm font-semibold text-[#1f5c5a]">नया अकाउंट बनाएं यहाँ</p>
+                <p className="text-sm font-semibold text-[#1f5c5a]">नए उपयोगकर्ता यहाँ पंजीकरण करें</p>
                 <p className="mt-2 text-sm leading-6 text-stone-600">
                   Create your account in a few steps and move straight into onboarding.
                 </p>
