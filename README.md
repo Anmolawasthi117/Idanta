@@ -1,171 +1,286 @@
 # Idanta
 
-Idanta is a full-stack AI platform for Indian artisans. It helps a craftsperson create a brand identity, generate product assets, and download print-ready files like logos, banners, hang tags, labels, story cards, and product visuals.
+Idanta is an AI-assisted brand and product system for Indian artisans. The repo contains a FastAPI backend and a React frontend that work together to:
 
-This repo has two apps:
+- onboard an artisan through guided chat
+- turn craft context into a brand identity
+- let the user choose a final name, tagline, palette, motif, pattern, logo, and banner
+- generate a downloadable brand kit
+- create category-aware product assets such as branded photos, labels, hang tags, story cards, and certificates
 
-- `server/` - FastAPI backend with Supabase, LangGraph, Groq, RAG, WeasyPrint, and storage uploads
-- `client/` - React + TypeScript + Vite frontend with Tailwind v4, TanStack Query, and Zustand
+This README explains the whole monorepo at a high level. Detailed implementation notes for each app live in:
 
-## What The App Does
+- [server/README.md](/c:/Users/sir_anmol/Desktop/Idanta/server/README.md)
+- [client/README.md](/c:/Users/sir_anmol/Desktop/Idanta/client/README.md)
 
-- Phone-based login and registration
-- Brand onboarding with AI-guided chat
-- Brand generation with:
-  - name
-  - tagline
-  - palette
-  - story in English and Hindi
-  - logo
-  - banner
-  - downloadable brand kit
-- Product onboarding with category-specific metadata
-- Product asset generation with:
-  - listing copy
-  - branded product photo
-  - hang tag PDF
-  - label PDF
-  - story card PDF
-  - certificate PDF for original paintings
+## Monorepo Shape
 
-## Tech Stack
+```text
+Idanta/
+├── client/   # React + TypeScript + Vite frontend
+├── server/   # FastAPI + LangGraph + Supabase backend
+└── README.md
+```
 
-### Backend
+## What The Product Does
 
-- FastAPI
-- Supabase Postgres + Storage
-- LangGraph
-- Groq
-- Google Gemini
-- Sentence Transformers
-- WeasyPrint
-- CairoSVG
-- Pillow
+Idanta is built around two connected pipelines:
 
-### Frontend
+1. `Brand pipeline`
+2. `Product pipeline`
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS v4
-- TanStack Query
-- Zustand
-- Axios
+The brand pipeline builds the visual and verbal identity of an artisan brand. The product pipeline uses that finished brand system to create product-facing assets.
 
-## Prerequisites
+## Core Product Journey
 
-Make sure these are installed before starting:
+```mermaid
+flowchart TD
+    A[User registers or logs in] --> B[Onboarding chat starts]
+    B --> C[Phase 1: craft basics]
+    C --> D[Phase 2: story and intent]
+    D --> E[Identity shortlist and ranking]
+    E --> F[Phase 3: palette selection]
+    F --> G[Phase 3: motif and pattern generation]
+    G --> H[Phase 4: logo and banner selection]
+    H --> I[Brand page with final assets]
+    I --> J[Product creation]
+    J --> K[Product graph generates product assets]
+    K --> L[Product detail page and downloads]
+```
+
+## Repo Responsibilities
+
+### `server/`
+
+The backend owns:
+
+- authentication APIs
+- onboarding and generation APIs
+- Supabase read/write operations
+- craft context loading and RAG retrieval
+- LangGraph orchestration for brand and product generation
+- prompt building for text and image generation
+- PDF and downloadable kit packaging
+- job tracking
+
+### `client/`
+
+The frontend owns:
+
+- auth screens
+- onboarding chat UX
+- Phase 1 to Phase 4 selection flow
+- voice recording and text-to-speech playback
+- brand page and product pages
+- local onboarding draft persistence
+- API calls and query caching
+
+## System Architecture
+
+```mermaid
+flowchart LR
+    U[User] --> FE[React client]
+    FE --> API[FastAPI API]
+    API --> SB[(Supabase Postgres)]
+    API --> ST[(Supabase Storage)]
+    API --> GQ[Groq models]
+    API --> GI[Gemini or image service]
+    API --> RAG[Craft library and vector retrieval]
+    API --> LG[LangGraph workflows]
+    LG --> SB
+    LG --> ST
+```
+
+## Brand Pipeline Summary
+
+The current onboarding flow is intentionally staged:
+
+### Phase 1
+
+The user provides foundational artisan context:
+
+- craft
+- region
+- years of experience
+- generations in craft
+- occasion
+- target customer
+
+### Phase 2
+
+The user provides brand-story direction:
+
+- values
+- vision
+- mission
+
+### Identity stage
+
+The backend proposes name and tagline sets. The user:
+
+- reviews candidate sets
+- shortlists
+- ranks
+- locks a final pair
+
+### Phase 3
+
+The user uploads reference images of their craft or products. The backend:
+
+- extracts a visual summary
+- generates 3 palette options
+- recommends one palette
+- waits for palette selection
+- generates motif previews and pattern previews based on the selected palette
+
+### Phase 4
+
+The backend uses:
+
+- selected palette
+- motif and pattern system
+- brand name and tagline
+- internal logo reference library from `server/data/logo_sample`
+
+to generate:
+
+- 3 logo candidates
+- 3 banner candidates
+
+The user selects one of each and moves to the final brand page.
+
+## Brand Data Flow
+
+```mermaid
+flowchart TD
+    A[Onboarding chat answers] --> B[Brand draft payload]
+    B --> C[Identity generation and ranking]
+    C --> D[Final name and tagline selected]
+    D --> E[Reference images uploaded]
+    E --> F[Visual summary extracted]
+    F --> G[3 palette options generated]
+    G --> H[User selects palette]
+    H --> I[Motif and pattern previews generated]
+    I --> J[Phase 4 logo and banner candidates generated]
+    J --> K[User selects final logo and banner]
+    K --> L[Brand page reads persisted brand record]
+```
+
+## Product Pipeline Summary
+
+Once a brand exists, the user can add products. The product system:
+
+- accepts category-specific metadata
+- validates `category_data` by category
+- loads the parent brand context
+- generates product copy and product visuals
+- generates print assets
+- packages product-ready outputs
+
+Supported product areas already include:
+
+- apparel
+- jewelry
+- pottery
+- painting
+- home decor
+- other
+
+## Product Data Flow
+
+```mermaid
+flowchart TD
+    A[User creates product] --> B[Product row saved in Supabase]
+    B --> C[Generate product assets API]
+    C --> D[Product graph loads product and brand]
+    D --> E[Copy generation]
+    E --> F[Print and visual asset generation]
+    F --> G[Packager uploads final files]
+    G --> H[Product detail page shows assets]
+```
+
+## How The Code Is Organized
+
+### Backend style
+
+The backend is organized around responsibilities:
+
+- `app/api/routes`: HTTP entry points
+- `app/models`: request and response shapes
+- `app/agents/graphs`: orchestration graphs
+- `app/agents/nodes`: individual workflow nodes
+- `app/services`: integrations and prompt builders
+- `app/rag`: craft retrieval and embeddings
+- `app/core`: config, DB, auth helpers
+- `data/`: craft knowledge, sample libraries, schema, and design pools
+
+### Frontend style
+
+The frontend is organized around user-facing features:
+
+- `src/pages`: route-level screens
+- `src/components`: reusable UI pieces
+- `src/api`: API wrappers
+- `src/hooks`: React Query hooks and voice hooks
+- `src/store`: auth and UI state
+- `src/lib`: normalization, i18n, local draft helpers
+- `src/types`: shared TS interfaces
+- `src/router`: route setup
+
+## Important Data Sources
+
+The repo relies on several curated local data files:
+
+- [database_schema.sql](/c:/Users/sir_anmol/Desktop/Idanta/server/data/database_schema.sql)
+- [brand_verbal_pool.json](/c:/Users/sir_anmol/Desktop/Idanta/server/data/brand_verbal_pool.json)
+- [brand_visual_pool.json](/c:/Users/sir_anmol/Desktop/Idanta/server/data/brand_visual_pool.json)
+- `server/data/craft_library/*.json`
+- `server/data/logo_sample/*`
+
+These are not just static assets. They actively shape generation quality and prompt context.
+
+## Setup
+
+### Prerequisites
 
 - Python 3.10+
 - Node.js 18+
 - npm
-- A Supabase project
-- A Groq API key
-- A Gemini API key
+- Supabase project
+- Groq API key
+- Gemini API key
 
-## Folder Structure
-
-```text
-Idanta/
-├── client/
-├── server/
-└── README.md
-```
-
-## 1. Clone And Open The Project
-
-```powershell
-git clone <your-repo-url>
-cd Idanta
-```
-
-## 2. Backend Setup
-
-### 2.1 Create Python virtual environment
+### Backend
 
 ```powershell
 cd server
 python -m venv venv
 .\venv\Scripts\activate
 pip install -r requirements.txt
+uvicorn main:app --reload
 ```
 
-### 2.2 Create `server/.env`
+### Frontend
 
-There is currently no `server/.env.example` in the repo, so create a file named `server/.env` manually with these values:
-
-```env
-PROJECT_NAME=Idanta API
-API_V1_STR=/api/v1
-ENVIRONMENT=development
-
-CORS_ORIGINS=["http://localhost:5173","http://localhost:3000"]
-
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_STORAGE_BUCKET=idanta-assets
-
-JWT_SECRET_KEY=replace_with_a_long_random_secret
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080
-
-GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.3-70b-versatile
-
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_VISION_MODEL=gemini-1.5-flash
-
-POLLINATIONS_BASE_URL=https://image.pollinations.ai/prompt
-
-EMBEDDING_MODEL=all-MiniLM-L6-v2
-RAG_TOP_K=4
-
-PDF_TEMPLATE_DIR=data/pdf_templates
+```powershell
+cd client
+npm install
+npm run dev
 ```
 
-## 3. Supabase Database Setup
+### URLs
 
-Open your Supabase project and go to `SQL Editor`.
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:8000`
+- docs: `http://localhost:8000/api/v1/docs`
+
+## Database Setup
 
 Run the full schema from:
 
-- [database_schema.sql](c:/Users/sir_anmol/Desktop/Idanta/server/data/database_schema.sql)
+- [database_schema.sql](/c:/Users/sir_anmol/Desktop/Idanta/server/data/database_schema.sql)
 
-If your database was already created earlier, make sure these additive migrations have also been run.
-
-### 3.1 Brands migration
-
-```sql
-alter table brands
-  add column if not exists artisan_name text,
-  add column if not exists region text,
-  add column if not exists preferred_language text default 'hi',
-  add column if not exists generations_in_craft integer default 1,
-  add column if not exists years_of_experience integer default 0,
-  add column if not exists primary_occasion text default 'general',
-  add column if not exists target_customer text default 'local',
-  add column if not exists brand_feel text default 'earthy',
-  add column if not exists artisan_story text,
-  add column if not exists script_preference text default 'both';
-```
-
-### 3.2 Products migration
-
-```sql
-alter table products
-  add column if not exists category text default 'apparel',
-  add column if not exists occasion text default 'general',
-  add column if not exists time_to_make_hrs integer default 0,
-  add column if not exists description_voice text,
-  add column if not exists category_data jsonb default '{}',
-  add column if not exists story_card_url text,
-  add column if not exists certificate_url text;
-```
-
-## 4. Prepare The Craft Knowledge Base
-
-After the schema is ready, index the craft library into the vector store:
+Then run craft indexing:
 
 ```powershell
 cd server
@@ -173,160 +288,19 @@ cd server
 python -m app.rag.indexer
 ```
 
-Do this at least once after setting up the database.
+## How To Read The Rest Of The Docs
 
-## 5. Start The Backend
+- Read [server/README.md](/c:/Users/sir_anmol/Desktop/Idanta/server/README.md) if you want to understand orchestration, routes, data model, prompt assembly, RAG, and background generation.
+- Read [client/README.md](/c:/Users/sir_anmol/Desktop/Idanta/client/README.md) if you want to understand screens, query hooks, onboarding chat behavior, routing, local drafts, and voice UX.
 
-From the `server/` folder:
+## Current Mental Model
 
-```powershell
-.\venv\Scripts\activate
-uvicorn main:app --reload
-```
+The simplest way to think about Idanta is:
 
-Backend will run at:
+- the backend is the generation brain
+- the frontend is the guided decision surface
+- Supabase is the system of record
+- local JSON pools and craft files are the design memory
+- Phase 1 to Phase 4 is the “brand-making funnel”
+- products inherit the completed brand system
 
-- `http://localhost:8000`
-- API root: `http://localhost:8000/api/v1`
-
-Health check:
-
-- `GET http://localhost:8000/api/v1/health`
-
-## 6. Frontend Setup
-
-Open a new terminal and move to the client:
-
-```powershell
-cd client
-npm install
-```
-
-### 6.1 Create `client/.env`
-
-You can copy the existing example:
-
-```powershell
-copy .env.example .env
-```
-
-The file should contain:
-
-```env
-VITE_API_URL=http://localhost:8000
-```
-
-### 6.2 Start the frontend
-
-```powershell
-npm run dev
-```
-
-Frontend will run at:
-
-- `http://localhost:5173`
-
-## 7. How To Run The Full App
-
-You need both servers running at the same time.
-
-### Terminal 1
-
-```powershell
-cd server
-.\venv\Scripts\activate
-uvicorn main:app --reload
-```
-
-### Terminal 2
-
-```powershell
-cd client
-npm run dev
-```
-
-Then open:
-
-- `http://localhost:5173`
-
-## 8. First-Time Test Flow
-
-Use this order to confirm the app is working:
-
-1. Start backend
-2. Start frontend
-3. Register a new user
-4. Create a brand
-5. Wait for the brand job to finish
-6. Open the dashboard and brand page
-7. Add a product
-8. Wait for the product job to finish
-9. Open the product detail page and download assets
-
-For API-level testing, use:
-
-- [POSTMAN_TESTING.md](c:/Users/sir_anmol/Desktop/Idanta/server/POSTMAN_TESTING.md)
-
-## 9. Important Notes
-
-- JWT auth in the frontend is stored only in memory, so refreshing the browser logs the user out by design.
-- Brand chat and product chat now call backend proxy routes:
-  - `POST /api/v1/chat/brand-assist`
-  - `POST /api/v1/chat/product-assist`
-- Logo and banner downloads are converted to PNG on the frontend before download so they are easier to share or send for printing.
-- Product detail now supports story card and certificate downloads if those assets exist.
-- If product assets seem missing, first confirm the new `story_card_url` and `certificate_url` columns were added in Supabase.
-- If jobs fail midway, check the FastAPI terminal logs first. That is usually the fastest way to find the actual error.
-
-## 10. Useful Commands
-
-### Backend
-
-```powershell
-python -m compileall server/app server/main.py
-```
-
-### Frontend
-
-```powershell
-npm run lint
-node_modules\.bin\tsc.cmd -b
-npm run build
-```
-
-## 11. Current MVP Status
-
-Working now:
-
-- auth
-- brand creation
-- product creation
-- job polling
-- dashboard
-- brand asset downloads
-- product asset downloads
-- backend-connected chat endpoints
-
-Still a next step:
-
-- real streaming voice-call style chat
-- higher-end visual redesign of generated print assets
-- more advanced signed asset download endpoints
-
-## 12. If The App Does Not Start
-
-Check these in order:
-
-1. Is Supabase configured correctly in `server/.env`?
-2. Did you run the SQL schema and the additive migration?
-3. Did you run `python -m app.rag.indexer` at least once?
-4. Is the backend running on `http://localhost:8000`?
-5. Is `client/.env` pointing to the same backend URL?
-6. Are Groq and Gemini keys present?
-7. Are both terminals running at the same time?
-
-If all of those are correct, test the backend health route first:
-
-```text
-http://localhost:8000/api/v1/health
-```
