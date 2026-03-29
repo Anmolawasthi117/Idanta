@@ -78,10 +78,56 @@ export const brandAssistChat = async (
   crafts: CraftItem[],
   language: AppLanguage,
   _systemPrompt?: string,
+  phase: 1 | 2 = 1,
 ): Promise<BrandChatMessage> => {
   void _systemPrompt
   const next = { ...extracted }
   const lower = message.toLowerCase()
+
+  if (phase === 2) {
+    if (!next.brand_values) {
+      next.brand_values = message.trim()
+      return {
+        message: copy(
+          language,
+          'Aane wale kuch saalon me aap chahoge log aapke kaam ke baare me kya kahe?',
+          'In a few years, what would you love people to say about your work?',
+        ),
+        extracted: next,
+      }
+    }
+
+    if (!next.brand_vision) {
+      next.brand_vision = message.trim()
+      return {
+        message: copy(
+          language,
+          'Roz ye kaam karne ki sabse badi wajah kya hai?',
+          'Why do you do this work every day?',
+        ),
+        extracted: next,
+      }
+    }
+
+    if (!next.brand_mission) {
+      next.brand_mission = message.trim()
+      return {
+        message: copy(
+          language,
+          'Phase 2 complete ho gaya. Aapki brand story ka core direction save ho gaya hai.',
+          'Phase 2 is complete. Your brand story direction has been saved.',
+        ),
+        extracted: next,
+        is_complete: true,
+      }
+    }
+
+    return {
+      message: copy(language, 'Phase 2 ki sari information mil gayi hai.', 'We have all the phase 2 information.'),
+      extracted: next,
+      is_complete: true,
+    }
+  }
 
   if (!next.craft_id) {
     const craft = findCraft(message, crafts)

@@ -26,6 +26,7 @@ interface Message {
 }
 
 type ExtractedFormData = Partial<BrandCreatePayload>
+type OnboardingPhase = 1 | 2
 
 const REQUIRED_PHASE_ONE_FIELDS: Array<keyof BrandCreatePayload> = [
   'craft_id',
@@ -36,6 +37,8 @@ const REQUIRED_PHASE_ONE_FIELDS: Array<keyof BrandCreatePayload> = [
   'target_customer',
 ]
 
+const REQUIRED_PHASE_TWO_FIELDS: Array<keyof BrandCreatePayload> = ['brand_values', 'brand_vision', 'brand_mission']
+
 const createMessage = (role: Message['role'], content: string): Message => ({
   id: `${role}-${Date.now()}-${Math.random()}`,
   role,
@@ -43,7 +46,7 @@ const createMessage = (role: Message['role'], content: string): Message => ({
   timestamp: new Date(),
 })
 
-const buildBrandPrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: CraftItem[]) => {
+const buildPhaseOnePrompt = (language: AppLanguage, isVoiceMode: boolean, crafts: CraftItem[]) => {
   const craftChoices = crafts.map((craft) => `"${craft.display_name}" => "${craft.craft_id}"`).join(', ')
   const craftExamples = crafts.slice(0, 5).map((craft) => craft.display_name).join(', ')
   const preferredPhaseLanguage = language === 'hi' ? 'hi' : 'hg'
@@ -60,7 +63,8 @@ You need to collect the following information from the user:
 
 Important normalization rules:
 - artisan_name is already known. Do not ask for the user's name.
-- artisan_story will be collected in phase 2. Do not ask for the user's story.
+- artisan_story will be collected in later phases. Do not ask for the user's story yet.
+- brand_feel will be collected in a later phase. Do not ask about brand tone or brand feel.
 - script_preference must be: "${preferredPhaseLanguage === 'hi' ? 'hindi' : 'english'}"
 - preferred_language must be: "${preferredPhaseLanguage === 'hi' ? 'hi' : 'en'}"
 - When asking about craft, give examples ONLY from this list: ${craftExamples || craftChoices}
@@ -68,6 +72,43 @@ Important normalization rules:
 - Ask exactly one question at a time.
 - Keep messages under 2 sentences.
 - Once all phase 1 fields are collected, clearly say phase 1 is complete.
+`.trim()
+
+  if (preferredPhaseLanguage === 'hi' || isVoiceMode) {
+    return `
+You are Idanta's friendly brand assistant helping Indian artisans create their brand.
+Speak only in pure Hindi using Devanagari script. Do not use English words.
+${baseRules}
+`.trim()
+  }
+
+  return `
+You are Idanta's friendly brand assistant helping Indian artisans create their brand.
+Speak only in easy Hinglish written in English letters.
+${baseRules}
+`.trim()
+}
+
+const buildPhaseTwoPrompt = (language: AppLanguage, isVoiceMode: boolean) => {
+  const preferredPhaseLanguage = language === 'hi' ? 'hi' : 'hg'
+  const baseRules = `
+You are helping with phase 2 of brand onboarding.
+
+You need to collect the following information through indirect reflective questions:
+1. brand_values
+Question intent: What should a buyer feel or remember about the maker and the work?
+2. brand_vision
+Question intent: In a few years, what would the artisan love people to say about the work?
+3. brand_mission
+Question intent: Why does the artisan continue this work every day?
+
+Important normalization rules:
+- Do not ask for artisan_name.
+- Do not ask directly for "story". Ask warm reflective questions instead.
+- Do not ask about craft basics again if they are already collected.
+- Ask exactly one question at a time.
+- Keep messages under 2 sentences.
+- Once all three answers are collected, clearly say phase 2 is complete.
 `.trim()
 
   if (preferredPhaseLanguage === 'hi' || isVoiceMode) {
@@ -99,6 +140,16 @@ const buildInitialMessages = (language: AppLanguage, crafts: CraftItem[]) => {
   ]
 }
 
+const buildPhaseTwoKickoffMessage = (language: AppLanguage) =>
+  createMessage(
+    'assistant',
+    copyFor(
+      language,
+      'Ab phase 2 shuru karte hain. Jab koi aapka product kharidta hai, aap chahte ho ki woh aapke baare me kya mehsoos ya yaad rakhe?',
+      'Now let us begin phase 2. When someone buys your product, what do you want them to feel or remember about you?',
+    ),
+  )
+
 const serializeMessages = (messages: Message[]): OnboardingDraftMessage[] =>
   messages.map((message) => ({
     ...message,
@@ -111,11 +162,16 @@ const hydrateMessages = (messages: OnboardingDraftMessage[]): Message[] =>
     timestamp: new Date(message.timestamp),
   }))
 
-const buildPhaseOneDefaults = (language: AppLanguage, artisanName?: string): ExtractedFormData => ({
+const buildPhaseDefaults = (language: AppLanguage, artisanName?: string): ExtractedFormData => ({
   artisan_name: artisanName ?? '',
   preferred_language: language === 'hi' ? 'hi' : 'en',
   script_preference: language === 'hi' ? 'hindi' : 'english',
 })
+
+const buildArtisanStory = (data: ExtractedFormData) => {
+  const parts = [data.brand_values, data.brand_vision, data.brand_mission].filter(Boolean)
+  return parts.join('\n\n')
+}
 
 export default function OnboardingChatPage() {
   const { pushToast } = useToast()
@@ -123,7 +179,9 @@ export default function OnboardingChatPage() {
   const language = useLanguage()
   const user = useAuthStore((state) => state.user)
   const [messages, setMessages] = useState<Message[]>([])
-  const [extractedData, setExtractedData] = useState<ExtractedFormData>(buildPhaseOneDefaults(language, user?.name))
+  const [extractedData, setExtractedData] = useState<ExtractedFormData>(buildPhaseDefaults(language, user?.name))
+  const [currentPhase, setCurrentPhase] = useState<OnboardingPhase>(1)
+  const [completedPhases, setCompletedPhases] = useState<number[]>([])
   const [isComplete, setIsComplete] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isBackendChatLive, setIsBackendChatLive] = useState(true)
@@ -165,11 +223,13 @@ export default function OnboardingChatPage() {
         if (savedDraft) {
           setMessages(hydrateMessages(savedDraft.messages))
           setExtractedData({
-            ...buildPhaseOneDefaults(language, user.name),
+            ...buildPhaseDefaults(language, user.name),
             ...savedDraft.extractedData,
             artisan_name: user.name,
           })
-          setIsComplete(savedDraft.isComplete)
+          setCurrentPhase(savedDraft.currentPhase)
+          setCompletedPhases(savedDraft.completedPhases)
+          setIsComplete(savedDraft.completedPhases.includes(2) || savedDraft.isComplete)
         } else {
           setMessages(buildInitialMessages(language, craftsQuery.data))
         }
@@ -194,14 +254,37 @@ export default function OnboardingChatPage() {
 
     void saveOnboardingDraft({
       userId: user.id,
-      currentPhase: 1,
-      completedPhases: isComplete ? [1] : [],
+      currentPhase,
+      completedPhases,
       messages: serializeMessages(messages),
       extractedData,
       isComplete,
       updatedAt: new Date().toISOString(),
     })
-  }, [extractedData, isComplete, isDraftReady, messages, user?.id])
+  }, [completedPhases, currentPhase, extractedData, isComplete, isDraftReady, messages, user?.id])
+
+  const moveToPhaseTwo = () => {
+    setCompletedPhases((current) => (current.includes(1) ? current : [...current, 1]))
+    setCurrentPhase(2)
+    setMessages((current) => {
+      if (current.some((message) => message.content === buildPhaseTwoKickoffMessage(language).content)) {
+        return current
+      }
+      return [...current, buildPhaseTwoKickoffMessage(language)]
+    })
+  }
+
+  const completePhaseTwo = (data: ExtractedFormData) => {
+    const nextData = {
+      ...data,
+      artisan_story: buildArtisanStory(data),
+    }
+    setExtractedData(nextData)
+    setCompletedPhases([1, 2])
+    setCurrentPhase(2)
+    setIsComplete(true)
+    return nextData
+  }
 
   const handleSend = async (message: string) => {
     if (!message.trim()) return
@@ -210,6 +293,10 @@ export default function OnboardingChatPage() {
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
     setIsLoading(true)
+
+    const requiredFields = currentPhase === 1 ? REQUIRED_PHASE_ONE_FIELDS : REQUIRED_PHASE_TWO_FIELDS
+    const systemPrompt =
+      currentPhase === 1 ? buildPhaseOnePrompt(language, isVoiceMode, craftsQuery.data ?? []) : buildPhaseTwoPrompt(language, isVoiceMode)
 
     try {
       let mergedData: ExtractedFormData = {
@@ -222,23 +309,20 @@ export default function OnboardingChatPage() {
       let spokenLength = 0
       const assistantMessageId = `assistant-${Date.now()}`
 
-      setMessages((current) => [
-        ...current,
-        { id: assistantMessageId, role: 'assistant', content: '', timestamp: new Date() },
-      ])
+      setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: '', timestamp: new Date() }])
 
       let isFallback = false
 
       try {
         await brandAssistStream(
           {
-            system_prompt: buildBrandPrompt(language, isVoiceMode, craftsQuery.data ?? []),
+            system_prompt: systemPrompt,
             messages: nextMessages.map((item) => ({ role: item.role, content: item.content })),
             context: {
               selected_language: language,
               crafts: craftsQuery.data ?? [],
               extracted_data: mergedData,
-              onboarding_phase: 1,
+              onboarding_phase: currentPhase,
             },
           },
           (event) => {
@@ -265,26 +349,33 @@ export default function OnboardingChatPage() {
               }
             } else if (event.type === 'final') {
               const normalizedExtracted = normalizeBrandExtracted(event.extracted ?? {})
-              if (normalizedExtracted) {
-                const cleaned: ExtractedFormData = {}
-                for (const [key, value] of Object.entries(normalizedExtracted)) {
-                  if (value !== null && value !== undefined && value !== '') {
-                    ;(cleaned as Record<string, unknown>)[key] = value
-                  }
-                }
-
-                mergedData = {
-                  ...mergedData,
-                  ...cleaned,
-                  artisan_name: user?.name ?? mergedData.artisan_name ?? '',
-                  preferred_language: language === 'hi' ? 'hi' : 'en',
-                  script_preference: language === 'hi' ? 'hindi' : 'english',
+              const cleaned: ExtractedFormData = {}
+              for (const [key, value] of Object.entries({ ...(event.extracted ?? {}), ...(normalizedExtracted ?? {}) })) {
+                if (value !== null && value !== undefined && value !== '') {
+                  ;(cleaned as Record<string, unknown>)[key] = value
                 }
               }
 
-              setExtractedData(mergedData)
-              const hasAllRequired = REQUIRED_PHASE_ONE_FIELDS.every((field) => Boolean(mergedData[field]))
-              setIsComplete(Boolean(event.is_complete) || hasAllRequired)
+              mergedData = {
+                ...mergedData,
+                ...cleaned,
+                artisan_name: user?.name ?? mergedData.artisan_name ?? '',
+                preferred_language: language === 'hi' ? 'hi' : 'en',
+                script_preference: language === 'hi' ? 'hindi' : 'english',
+              }
+
+              const hasAllRequired = requiredFields.every((field) => Boolean(mergedData[field]))
+
+              if (currentPhase === 1) {
+                setExtractedData(mergedData)
+                if (Boolean(event.is_complete) || hasAllRequired) {
+                  moveToPhaseTwo()
+                }
+              } else {
+                const completedData = Boolean(event.is_complete) || hasAllRequired ? completePhaseTwo(mergedData) : mergedData
+                setExtractedData(completedData)
+              }
+
               setIsLoading(false)
             } else if (event.type === 'error') {
               pushToast(event.content)
@@ -299,19 +390,17 @@ export default function OnboardingChatPage() {
       }
 
       if (isFallback) {
-        const response = await brandAssistChat(message.trim(), mergedData, craftsQuery.data ?? [], language)
+        const response = await brandAssistChat(message.trim(), mergedData, craftsQuery.data ?? [], language, undefined, currentPhase)
         const normalizedExtracted = normalizeBrandExtracted(response.extracted ?? {})
-        if (normalizedExtracted) {
-          mergedData = {
-            ...mergedData,
-            ...normalizedExtracted,
-            artisan_name: user?.name ?? mergedData.artisan_name ?? '',
-            preferred_language: language === 'hi' ? 'hi' : 'en',
-            script_preference: language === 'hi' ? 'hindi' : 'english',
-          }
+        mergedData = {
+          ...mergedData,
+          ...(response.extracted ?? {}),
+          ...(normalizedExtracted ?? {}),
+          artisan_name: user?.name ?? mergedData.artisan_name ?? '',
+          preferred_language: language === 'hi' ? 'hi' : 'en',
+          script_preference: language === 'hi' ? 'hindi' : 'english',
         }
 
-        setExtractedData(mergedData)
         setMessages((current) =>
           current.map((item) => (item.id === assistantMessageId ? { ...item, content: response.message } : item)),
         )
@@ -320,8 +409,18 @@ export default function OnboardingChatPage() {
           playSynthesizedSpeech(response.message)
         }
 
-        const hasAllRequired = REQUIRED_PHASE_ONE_FIELDS.every((field) => Boolean(mergedData[field]))
-        setIsComplete(Boolean(response.is_complete) || hasAllRequired)
+        const hasAllRequired = requiredFields.every((field) => Boolean(mergedData[field]))
+
+        if (currentPhase === 1) {
+          setExtractedData(mergedData)
+          if (Boolean(response.is_complete) || hasAllRequired) {
+            moveToPhaseTwo()
+          }
+        } else {
+          const completedData = Boolean(response.is_complete) || hasAllRequired ? completePhaseTwo(mergedData) : mergedData
+          setExtractedData(completedData)
+        }
+
         setIsLoading(false)
       }
     } catch (error) {
@@ -337,152 +436,150 @@ export default function OnboardingChatPage() {
   return (
     <div className="space-y-6">
       <Card className="space-y-3 bg-orange-50">
-        <p className="text-sm font-semibold text-orange-700">{copyFor(language, 'Phase 1', 'Phase 1')}</p>
+        <p className="text-sm font-semibold text-orange-700">{copyFor(language, `Phase ${currentPhase}`, `Phase ${currentPhase}`)}</p>
         <p className="text-base text-stone-700">
-          {isBackendChatLive
+          {currentPhase === 1
             ? copyFor(
                 language,
-                'Hum phase 1 me aapke craft, jagah, anubhav aur brand direction samajh rahe hain. Aapka progress local draft me save hota rahega.',
-                'In phase 1, we are collecting your craft, region, experience, and brand direction. Your progress is being saved locally.',
+                'Hum phase 1 me aapke craft aur business context samajh rahe hain. Progress local draft me save hota rahega.',
+                'In phase 1, we are collecting your craft and business context. Progress is being saved locally.',
               )
             : copyFor(
                 language,
-                'Backend chat abhi respond nahi kar raha, isliye temporary fallback chat chal rahi hai. Aapka progress fir bhi local draft me save ho raha hai.',
-                'The backend chat is not responding right now, so a temporary fallback chat is running. Your progress is still being saved locally.',
+                'Ab phase 2 me hum aapki kahani ko indirect sawaalon se samajh rahe hain, taki brand ke assets aur copy aur gehre ho sakein.',
+                'In phase 2, we are understanding your story through indirect questions so the brand assets and copy can become richer.',
               )}
         </p>
       </Card>
 
       <div className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex flex-col items-start gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
-              <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">
-                {copyFor(language, 'Phase 1: Baat karke brand banao', 'Phase 1: Create your brand by chatting')}
-              </h1>
-              <Button
-                variant={isVoiceMode ? 'primary' : 'secondary'}
-                onClick={() => {
-                  const nextMode = !isVoiceMode
-                  setIsVoiceMode(nextMode)
-                  if (nextMode) {
-                    const lastAssistantMessage = messages
-                      .slice()
-                      .reverse()
-                      .find((message) => message.role === 'assistant' && message.content)
-                    if (lastAssistantMessage) {
-                      playSynthesizedSpeech(lastAssistantMessage.content)
-                    }
-                  } else {
-                    stopAudio()
-                    stopRecording()
+        <div className="space-y-2">
+          <div className="flex flex-col items-start gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">
+              {copyFor(language, `Phase ${currentPhase}: Baat karke brand banao`, `Phase ${currentPhase}: Create your brand by chatting`)}
+            </h1>
+            <Button
+              variant={isVoiceMode ? 'primary' : 'secondary'}
+              onClick={() => {
+                const nextMode = !isVoiceMode
+                setIsVoiceMode(nextMode)
+                if (nextMode) {
+                  const lastAssistantMessage = messages.slice().reverse().find((message) => message.role === 'assistant' && message.content)
+                  if (lastAssistantMessage) {
+                    playSynthesizedSpeech(lastAssistantMessage.content)
                   }
-                }}
-              >
-                {isVoiceMode ? <Mic className="mr-2 h-4 w-4" /> : <MicOff className="mr-2 h-4 w-4" />}
-                {isVoiceMode ? copyFor(language, 'Voice Mode On', 'Voice Mode On') : copyFor(language, 'Voice Mode Off', 'Voice Mode Off')}
-              </Button>
-            </div>
-            <p className="text-sm text-stone-600 sm:text-base">
-              {copyFor(
-                language,
-                'Naam aur kahani hum baad me lenge. Abhi sirf phase 1 ka zaroori context jama karte hain.',
-                'We will ask for the name and story in later steps. Right now we are only collecting phase 1 essentials.',
-              )}
-            </p>
-          </div>
-
-          <ChatWindow>
-            {messages.map((message) => (
-              <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} />
-            ))}
-            <div ref={messagesEndRef} />
-          </ChatWindow>
-
-          {isVoiceMode ? (
-            <Card className="flex flex-col items-center justify-center border-orange-200 bg-orange-50 p-6">
-              {isPlaying ? (
-                <div className="flex flex-col items-center gap-4">
-                  <Volume2 className="h-12 w-12 animate-pulse text-orange-500" />
-                  <p className="font-medium text-stone-700">
-                    {copyFor(language, 'Assistant bol raha hai...', 'Assistant is speaking...')}
-                  </p>
-                  <Button variant="secondary" onClick={stopAudio}>
-                    <Square className="mr-2 h-4 w-4" /> {copyFor(language, 'Roko', 'Stop')}
-                  </Button>
-                </div>
-              ) : isProcessingTranscription ? (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-orange-500" />
-                  <p className="animate-pulse font-medium text-stone-700">
-                    {copyFor(language, 'Samajh rahe hain...', 'Processing audio...')}
-                  </p>
-                </div>
-              ) : isRecording ? (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="relative">
-                    <Mic className="h-12 w-12 text-red-500" />
-                    <span className="absolute right-0 top-0 h-3 w-3 animate-ping rounded-full bg-red-400" />
-                  </div>
-                  <p className="animate-pulse font-medium text-stone-700">
-                    {copyFor(language, 'Aapki awaaz sun rahe hain...', 'Listening to you...')}
-                  </p>
-                  <Button variant="secondary" onClick={stopRecording}>
-                    <Square className="mr-2 h-4 w-4" /> {copyFor(language, 'Done', 'Done')}
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-4">
-                  <Button size="lg" className="h-14 w-full rounded-full px-6 text-base shadow-md sm:h-16 sm:w-auto sm:px-8 sm:text-lg" onClick={startRecording} loading={isLoading}>
-                    <Mic className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
-                    {copyFor(language, 'Tap karke Boliye', 'Tap to Speak')}
-                  </Button>
-                  <p className="text-center text-xs text-stone-500 sm:text-sm">
-                    {copyFor(language, 'Boliye aur hum phase 1 ka context save karenge.', 'Speak and we will save your phase 1 context.')}
-                  </p>
-                </div>
-              )}
-            </Card>
-          ) : (
-            <ChatInput
-              onSend={(value) => void handleSend(value)}
-              loading={isLoading || craftsQuery.isLoading}
-              placeholder={copyFor(language, 'Yahan jawaab likhiye...', 'Yahan jawaab likhiye...')}
-            />
-          )}
-          <Card className="space-y-3">
-            <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Local draft', 'Local draft')}</p>
-            <p className="text-sm text-stone-600">
-              {isComplete
-                ? copyFor(
-                    language,
-                    'Phase 1 complete ho chuka hai aur aapka progress local draft me save hai. Reload karne par bhi yahi context milega.',
-                    'Phase 1 is complete and your progress is saved locally. Even after a reload, this context will still be here.',
-                  )
-                : copyFor(
-                    language,
-                    'Aapka ongoing chat aur summary local draft me save ho raha hai, taki reload ke baad bhi kuch na kho jaaye.',
-                    'Your ongoing chat and summary are being saved locally so nothing gets lost after a reload.',
-                  )}
-            </p>
-            {isComplete ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (!user?.id || !craftsQuery.data?.length) return
-                  void clearOnboardingDraft(user.id)
-                  setExtractedData({
-                    ...buildPhaseOneDefaults(language, user.name),
-                  })
-                  setMessages(buildInitialMessages(language, craftsQuery.data))
-                  setIsComplete(false)
+                } else {
                   stopAudio()
                   stopRecording()
-                }}
-              >
-                {copyFor(language, 'Phase 1 dubara shuru karein', 'Restart phase 1')}
-              </Button>
-            ) : null}
+                }
+              }}
+            >
+              {isVoiceMode ? <Mic className="mr-2 h-4 w-4" /> : <MicOff className="mr-2 h-4 w-4" />}
+              {isVoiceMode ? copyFor(language, 'Voice Mode On', 'Voice Mode On') : copyFor(language, 'Voice Mode Off', 'Voice Mode Off')}
+            </Button>
+          </div>
+          <p className="text-sm text-stone-600 sm:text-base">
+            {currentPhase === 1
+              ? copyFor(
+                  language,
+                  'Naam, kahani aur tone hum agle phases me lenge. Abhi phase 1 ka zaroori context jama karte hain.',
+                  'Name, story, and tone will come in later phases. Right now we are collecting phase 1 essentials.',
+                )
+              : copyFor(
+                  language,
+                  'Ab hum values, vision aur mission ko natural tareeke se samajh rahe hain.',
+                  'Now we are understanding your values, vision, and mission in a natural way.',
+                )}
+          </p>
+        </div>
+
+        <ChatWindow>
+          {messages.map((message) => (
+            <ChatMessage key={message.id} role={message.role} content={message.content} timestamp={message.timestamp} />
+          ))}
+          <div ref={messagesEndRef} />
+        </ChatWindow>
+
+        {isVoiceMode ? (
+          <Card className="flex flex-col items-center justify-center border-orange-200 bg-orange-50 p-6">
+            {isPlaying ? (
+              <div className="flex flex-col items-center gap-4">
+                <Volume2 className="h-12 w-12 animate-pulse text-orange-500" />
+                <p className="font-medium text-stone-700">{copyFor(language, 'Assistant bol raha hai...', 'Assistant is speaking...')}</p>
+                <Button variant="secondary" onClick={stopAudio}>
+                  <Square className="mr-2 h-4 w-4" /> {copyFor(language, 'Roko', 'Stop')}
+                </Button>
+              </div>
+            ) : isProcessingTranscription ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-orange-500" />
+                <p className="animate-pulse font-medium text-stone-700">{copyFor(language, 'Samajh rahe hain...', 'Processing audio...')}</p>
+              </div>
+            ) : isRecording ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <Mic className="h-12 w-12 text-red-500" />
+                  <span className="absolute right-0 top-0 h-3 w-3 animate-ping rounded-full bg-red-400" />
+                </div>
+                <p className="animate-pulse font-medium text-stone-700">{copyFor(language, 'Aapki awaaz sun rahe hain...', 'Listening to you...')}</p>
+                <Button variant="secondary" onClick={stopRecording}>
+                  <Square className="mr-2 h-4 w-4" /> {copyFor(language, 'Done', 'Done')}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <Button size="lg" className="h-14 w-full rounded-full px-6 text-base shadow-md sm:h-16 sm:w-auto sm:px-8 sm:text-lg" onClick={startRecording} loading={isLoading}>
+                  <Mic className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+                  {copyFor(language, 'Tap karke Boliye', 'Tap to Speak')}
+                </Button>
+                <p className="text-center text-xs text-stone-500 sm:text-sm">
+                  {copyFor(language, 'Boliye aur hum aapka context save karenge.', 'Speak and we will save your context.')}
+                </p>
+              </div>
+            )}
           </Card>
+        ) : (
+          <ChatInput
+            onSend={(value) => void handleSend(value)}
+            loading={isLoading || craftsQuery.isLoading}
+            placeholder={copyFor(language, 'Yahan jawaab likhiye...', 'Yahan jawaab likhiye...')}
+          />
+        )}
+
+        <Card className="space-y-3">
+          <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Local draft', 'Local draft')}</p>
+          <p className="text-sm text-stone-600">
+            {isComplete
+              ? copyFor(
+                  language,
+                  'Phase 1 aur phase 2 complete ho chuke hain. Aapka sara progress local draft me save hai.',
+                  'Phase 1 and phase 2 are complete. Your full progress is saved locally.',
+                )
+              : copyFor(
+                  language,
+                  'Aapka ongoing chat local draft me save ho raha hai, taki reload ke baad bhi context bana rahe.',
+                  'Your ongoing chat is being saved locally so the context stays intact after reload.',
+                )}
+          </p>
+          {isComplete ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!user?.id || !craftsQuery.data?.length) return
+                void clearOnboardingDraft(user.id)
+                setExtractedData(buildPhaseDefaults(language, user.name))
+                setMessages(buildInitialMessages(language, craftsQuery.data))
+                setCompletedPhases([])
+                setCurrentPhase(1)
+                setIsComplete(false)
+                stopAudio()
+                stopRecording()
+              }}
+            >
+              {copyFor(language, 'Onboarding dubara shuru karein', 'Restart onboarding')}
+            </Button>
+          ) : null}
+        </Card>
       </div>
     </div>
   )

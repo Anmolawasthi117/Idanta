@@ -22,6 +22,9 @@ export interface BrandCreatePayload {
   brand_feel?: BrandFeel
   script_preference: ScriptPreference
   artisan_story?: string
+  brand_values?: string
+  brand_vision?: string
+  brand_mission?: string
   preferred_language: string
 }
 
@@ -53,6 +56,9 @@ export interface Brand {
   target_customer?: TargetCustomer
   script_preference?: ScriptPreference
   artisan_story?: string
+  brand_values?: string
+  brand_vision?: string
+  brand_mission?: string
   preferred_language?: string
 }
 
