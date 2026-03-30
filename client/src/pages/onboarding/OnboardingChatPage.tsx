@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import { ArrowRight, CheckCircle2, Mic, MicOff, Sparkles, Square, Volume2 } from 'lucide-react'
 import { brandAssistStream } from '../../api/chat.api'
 import { brandAssistChat, uploadBrandImages } from '../../api/brand.api'
@@ -32,6 +33,7 @@ type OnboardingPhase = 1 | 2
 
 const REQUIRED_PHASE_ONE_FIELDS: Array<keyof BrandCreatePayload> = ['craft_id', 'region', 'years_of_experience', 'generations_in_craft', 'primary_occasion', 'target_customer']
 const REQUIRED_PHASE_TWO_FIELDS: Array<keyof BrandCreatePayload> = ['brand_values', 'brand_vision', 'brand_mission']
+const DEFAULT_CRAFT_ID = 'batik_print_india'
 
 const createMessage = (role: Message['role'], content: string): Message => ({ id: `${role}-${Date.now()}-${Math.random()}`, role, content, timestamp: new Date() })
 const serializeMessages = (messages: Message[]): OnboardingDraftMessage[] => messages.map((message) => ({ ...message, timestamp: message.timestamp.toISOString() }))
@@ -39,6 +41,21 @@ const hydrateMessages = (messages: OnboardingDraftMessage[]): Message[] => messa
 const ONBOARDING_CHAT_LANGUAGE: AppLanguage = 'hi'
 const buildPhaseDefaults = (_language: AppLanguage, artisanName?: string): ExtractedFormData => ({ artisan_name: artisanName ?? '', preferred_language: 'hi', script_preference: 'hindi' })
 const buildArtisanStory = (data: ExtractedFormData) => [data.brand_values, data.brand_vision, data.brand_mission].filter(Boolean).join('\n\n')
+const normalizeText = (value: unknown, fallback = '') => (typeof value === 'string' ? value.trim() : fallback).trim()
+const normalizeOptionalText = (value: unknown) => {
+  const normalized = normalizeText(value)
+  return normalized.length > 0 ? normalized : undefined
+}
+const normalizePrimaryOccasion = (value: unknown): BrandCreatePayload['primary_occasion'] => {
+  const candidate = typeof value === 'string' ? value.trim().toLowerCase().replace(/[\s-]+/g, '_') : ''
+  const allowed: BrandCreatePayload['primary_occasion'][] = ['wedding', 'festival', 'daily', 'gifting', 'home_decor', 'export', 'general']
+  return allowed.includes(candidate as BrandCreatePayload['primary_occasion']) ? (candidate as BrandCreatePayload['primary_occasion']) : 'general'
+}
+const normalizeTargetCustomer = (value: unknown): BrandCreatePayload['target_customer'] => {
+  const candidate = typeof value === 'string' ? value.trim().toLowerCase().replace(/[\s-]+/g, '_') : ''
+  const allowed: BrandCreatePayload['target_customer'][] = ['local_bazaar', 'tourist', 'online_india', 'export']
+  return allowed.includes(candidate as BrandCreatePayload['target_customer']) ? (candidate as BrandCreatePayload['target_customer']) : 'local_bazaar'
+}
 const pairKey = (pair: Pick<BrandIdentityPair, 'pair_id' | 'name' | 'tagline'>) => `${pair.pair_id}::${pair.name.trim().toLowerCase()}::${pair.tagline.trim().toLowerCase()}`
 const paletteSwatches = (option: BrandPaletteOption) => [
   ['Primary', option.palette.primary],
@@ -107,27 +124,30 @@ const buildInitialMessages = (_language: AppLanguage, crafts: CraftItem[]) => {
 const buildPhaseTwoKickoffMessage = (_language: AppLanguage) =>
   createMessage('assistant', 'अब हम Phase 2 शुरू करते हैं। जब कोई आपका उत्पाद खरीदता है, तो आप चाहते हैं कि वह आपके बारे में क्या महसूस करे या क्या याद रखे?')
 
-const buildIdentityPayload = (data: ExtractedFormData, _language: AppLanguage, userName?: string, brandId?: string | null): BrandCreatePayload => {
+const buildIdentityPayload = (data: ExtractedFormData, _language: AppLanguage, userName?: string, brandId?: string | null, craftIdFallback?: string): BrandCreatePayload => {
   const normalizedData = normalizeBrandExtracted(data) ?? data
-  const story = (normalizedData.artisan_story ?? buildArtisanStory(normalizedData)).trim()
-  const name = normalizedData.name?.trim()
-  const tagline = normalizedData.tagline?.trim()
+  const story = normalizeOptionalText(normalizedData.artisan_story) ?? normalizeOptionalText(buildArtisanStory(normalizedData))
+  const name = normalizeOptionalText(normalizedData.name)
+  const tagline = normalizeOptionalText(normalizedData.tagline)
+  const brandValues = normalizeOptionalText(normalizedData.brand_values)
+  const brandVision = normalizeOptionalText(normalizedData.brand_vision)
+  const brandMission = normalizeOptionalText(normalizedData.brand_mission)
   return {
     ...(brandId ? { brand_id: brandId } : {}),
-    craft_id: normalizedData.craft_id ?? '',
-    artisan_name: userName ?? normalizedData.artisan_name ?? '',
-    region: normalizedData.region ?? '',
+    craft_id: normalizeText(normalizedData.craft_id, craftIdFallback ?? DEFAULT_CRAFT_ID) || (craftIdFallback ?? DEFAULT_CRAFT_ID),
+    artisan_name: normalizeText(userName, normalizeText(normalizedData.artisan_name, 'Idanta Artisan')) || 'Idanta Artisan',
+    region: normalizeText(normalizedData.region, 'India') || 'India',
     years_of_experience: typeof normalizedData.years_of_experience === 'number' && !Number.isNaN(normalizedData.years_of_experience) ? normalizedData.years_of_experience : 0,
     generations_in_craft: typeof normalizedData.generations_in_craft === 'number' && !Number.isNaN(normalizedData.generations_in_craft) ? normalizedData.generations_in_craft : 1,
-    primary_occasion: normalizedData.primary_occasion ?? 'general',
-    target_customer: normalizedData.target_customer ?? 'local_bazaar',
-    brand_feel: normalizedData.brand_feel ?? 'earthy',
-    script_preference: normalizedData.script_preference ?? 'english',
+    primary_occasion: normalizePrimaryOccasion(normalizedData.primary_occasion),
+    target_customer: normalizeTargetCustomer(normalizedData.target_customer),
+    brand_feel: normalizedData.brand_feel === 'royal' || normalizedData.brand_feel === 'vibrant' || normalizedData.brand_feel === 'minimal' ? normalizedData.brand_feel : 'earthy',
+    script_preference: normalizedData.script_preference === 'english' || normalizedData.script_preference === 'both' || normalizedData.script_preference === 'hindi' ? normalizedData.script_preference : 'hindi',
     ...(story ? { artisan_story: story } : {}),
-    ...(normalizedData.brand_values ? { brand_values: normalizedData.brand_values } : {}),
-    ...(normalizedData.brand_vision ? { brand_vision: normalizedData.brand_vision } : {}),
-    ...(normalizedData.brand_mission ? { brand_mission: normalizedData.brand_mission } : {}),
-    preferred_language: normalizedData.preferred_language ?? 'hi',
+    ...(brandValues ? { brand_values: brandValues } : {}),
+    ...(brandVision ? { brand_vision: brandVision } : {}),
+    ...(brandMission ? { brand_mission: brandMission } : {}),
+    preferred_language: normalizedData.preferred_language === 'en' ? 'en' : 'hi',
     ...(name ? { name } : {}),
     ...(tagline ? { tagline } : {}),
   }
@@ -291,10 +311,11 @@ export default function OnboardingChatPage() {
 
   const requestIdentitySet = async (setNumber: 1 | 2) => {
     if (!user?.name) return
+    if (!craftsQuery.data?.length) return
     setIsIdentityLoading(true)
     try {
       const response = await generateIdentityMutation.mutateAsync({
-        ...buildIdentityPayload(extractedData, language, user.name, draftBrandId),
+        ...buildIdentityPayload(extractedData, language, user.name, draftBrandId, craftsQuery.data?.[0]?.craft_id),
         set_number: setNumber,
         excluded_pairs: setNumber === 2 ? identitySets.flat() : [],
       })
@@ -306,7 +327,11 @@ export default function OnboardingChatPage() {
       setCurrentIdentitySetIndex(setNumber - 1)
       setHasIdentityBootstrapFailed(false)
     } catch (error) {
-      pushToast(getErrorMessage(error))
+      if (axios.isAxiosError(error) && error.response?.status === 422) {
+        pushToast(typeof error.response.data?.detail === 'string' ? error.response.data.detail : 'Identity generation payload is still invalid. Please try once more.')
+      } else {
+        pushToast(getErrorMessage(error))
+      }
       if (setNumber === 1) setHasIdentityBootstrapFailed(true)
     } finally {
       setIsIdentityLoading(false)
@@ -314,9 +339,9 @@ export default function OnboardingChatPage() {
   }
 
   useEffect(() => {
-    if (!isDraftReady || !isComplete || identitySets.length > 0 || isIdentityLoading || !user?.name || hasIdentityBootstrapFailed) return
+    if (!isDraftReady || !isComplete || identitySets.length > 0 || isIdentityLoading || !user?.name || hasIdentityBootstrapFailed || !craftsQuery.data?.length) return
     void requestIdentitySet(1)
-  }, [hasIdentityBootstrapFailed, identitySets.length, isComplete, isDraftReady, isIdentityLoading, user?.name])
+  }, [craftsQuery.data?.length, hasIdentityBootstrapFailed, identitySets.length, isComplete, isDraftReady, isIdentityLoading, user?.name])
 
   const handleSend = async (message: string) => {
     if (!message.trim()) return
