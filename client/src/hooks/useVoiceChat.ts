@@ -25,8 +25,32 @@ export const useVoiceChat = ({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const ttsQueue = useRef<string[]>([])
   const isPlayingQueueRef = useRef(false)
+  const processTTSQueueRef = useRef<() => void>(() => {})
+  const pendingSpeechRef = useRef('')
+  const pendingSpeechTimerRef = useRef<number | null>(null)
+
+  const clearPendingSpeech = useCallback(() => {
+    if (pendingSpeechTimerRef.current !== null) {
+      window.clearTimeout(pendingSpeechTimerRef.current)
+      pendingSpeechTimerRef.current = null
+    }
+    pendingSpeechRef.current = ''
+  }, [])
+
+  const flushPendingSpeech = useCallback(() => {
+    const cleanPending = pendingSpeechRef.current.replace(/\s+/g, ' ').trim()
+    pendingSpeechRef.current = ''
+    if (pendingSpeechTimerRef.current !== null) {
+      window.clearTimeout(pendingSpeechTimerRef.current)
+      pendingSpeechTimerRef.current = null
+    }
+    if (!cleanPending) return
+    ttsQueue.current.push(cleanPending)
+    processTTSQueueRef.current()
+  }, [])
 
   const stopAudio = useCallback(() => {
+    clearPendingSpeech()
     ttsQueue.current = []
     isPlayingQueueRef.current = false
     if (audioRef.current) {
@@ -35,7 +59,7 @@ export const useVoiceChat = ({
       audioRef.current = null
     }
     setIsPlaying(false)
-  }, [])
+  }, [clearPendingSpeech])
 
   const startRecording = useCallback(async () => {
     try {
@@ -270,18 +294,28 @@ export const useVoiceChat = ({
     }
   }, [language])
 
+  processTTSQueueRef.current = () => {
+    void processTTSQueue()
+  }
+
   const enqueueSynthesizedSpeech = useCallback(
     (text: string) => {
       const cleanText = text.replace(/[*_#`~>]/g, '').trim()
       if (!cleanText) return
-      ttsQueue.current.push(cleanText)
-      processTTSQueue()
+      pendingSpeechRef.current = pendingSpeechRef.current ? `${pendingSpeechRef.current} ${cleanText}` : cleanText
+      if (pendingSpeechTimerRef.current !== null) {
+        window.clearTimeout(pendingSpeechTimerRef.current)
+      }
+      pendingSpeechTimerRef.current = window.setTimeout(() => {
+        flushPendingSpeech()
+      }, 600)
     },
-    [processTTSQueue]
+    [flushPendingSpeech]
   )
 
   const playSynthesizedSpeech = useCallback(
     async (text: string) => {
+      clearPendingSpeech()
       ttsQueue.current = []
       isPlayingQueueRef.current = false
       const cleanText = text.replace(/[*_#`~>]/g, '').trim()
@@ -291,7 +325,7 @@ export const useVoiceChat = ({
       ttsQueue.current.push(cleanText)
       await processTTSQueue()
     },
-    [processTTSQueue, stopAudio]
+    [clearPendingSpeech, processTTSQueue, stopAudio]
   )
   
 

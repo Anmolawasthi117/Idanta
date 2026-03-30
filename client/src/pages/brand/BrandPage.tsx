@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import BrandAssetGrid from '../../components/brand/BrandAssetGrid'
 import PaletteDisplay from '../../components/brand/PaletteDisplay'
@@ -7,8 +7,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import { useToast } from '../../components/ui/useToast'
 import { useBrandAsset } from '../../hooks/useAssets'
-import { useBrand, useRegenerateBrand, useRegenerateBrandAsset } from '../../hooks/useBrand'
-import { useJobs } from '../../hooks/useJobs'
+import { useLatestBrand, useRegenerateBrand, useRegenerateBrandAsset } from '../../hooks/useBrand'
 import { getJobStatus } from '../../api/jobs.api'
 import { downloadBlob, getErrorMessage, sanitizeHtml } from '../../lib/utils'
 import { copyFor, useLanguage } from '../../lib/i18n'
@@ -16,16 +15,8 @@ import { Package, ImageIcon, Type, RefreshCw, Sparkles } from 'lucide-react'
 import type { RegenerableBrandAsset } from '../../api/brand.api'
 
 export default function BrandPage() {
-  const { data: jobs } = useJobs()
   const queryClient = useQueryClient()
-  const latestBrandId = useMemo(
-    () =>
-      jobs?.filter((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id).map(
-        (job) => job.ref_id as string,
-      )[0] ?? null,
-    [jobs],
-  )
-  const brandQuery = useBrand(latestBrandId)
+  const latestBrandQuery = useLatestBrand()
   const assetMutation = useBrandAsset()
   const regenerateAllMutation = useRegenerateBrand()
   const regenerateAssetMutation = useRegenerateBrandAsset()
@@ -36,7 +27,8 @@ export default function BrandPage() {
   const [editedTagline, setEditedTagline] = useState('')
   const [activeRegeneration, setActiveRegeneration] = useState<RegenerableBrandAsset | 'all' | null>(null)
 
-  const brand = brandQuery.data
+  const brand = latestBrandQuery.data
+  const activeStory = storyTab === 'en' ? brand?.story_en : brand?.story_hi
 
   const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
@@ -62,6 +54,7 @@ export default function BrandPage() {
       setActiveRegeneration('all')
       const result = await regenerateAllMutation.mutateAsync(brand.id)
       await waitForJob(result.job_id)
+      await queryClient.invalidateQueries({ queryKey: ['brand', 'latest'] })
       await queryClient.invalidateQueries({ queryKey: ['brand', brand.id] })
       await queryClient.invalidateQueries({ queryKey: ['jobs'] })
       pushToast(copyFor(language, 'Sab assets regenerate ho gaye.', 'All assets have been regenerated.'))
@@ -78,6 +71,7 @@ export default function BrandPage() {
       setActiveRegeneration(assetType)
       const result = await regenerateAssetMutation.mutateAsync({ brandId: brand.id, assetType, payload })
       await waitForJob(result.job_id)
+      await queryClient.invalidateQueries({ queryKey: ['brand', 'latest'] })
       await queryClient.invalidateQueries({ queryKey: ['brand', brand.id] })
       await queryClient.invalidateQueries({ queryKey: ['jobs'] })
       pushToast(copyFor(language, 'Selected asset regenerate ho gaya.', 'Selected asset has been regenerated.'))
@@ -156,16 +150,12 @@ export default function BrandPage() {
     }
   }
 
-  if (!latestBrandId) {
-    return <Card>{copyFor(language, 'Aapka brand abhi bana nahi hai. Pehle onboarding poora kijiye.', 'Your brand is not created yet. Please complete onboarding first.')}</Card>
-  }
-
-  if (brandQuery.isLoading) {
+  if (latestBrandQuery.isLoading) {
     return <Card>{copyFor(language, 'Brand load ho raha hai...', 'Loading brand...')}</Card>
   }
 
   if (!brand) {
-    return <Card>{copyFor(language, 'Brand data nahi mila.', 'Brand data not found.')}</Card>
+    return <Card>{copyFor(language, 'Aapka brand abhi bana nahi hai. Pehle onboarding poora kijiye.', 'Your brand is not created yet. Please complete onboarding first.')}</Card>
   }
 
   return (
@@ -307,7 +297,7 @@ export default function BrandPage() {
         <div
           className="prose max-w-none text-base leading-relaxed text-stone-700"
           dangerouslySetInnerHTML={{
-            __html: sanitizeHtml((storyTab === 'en' ? brand.story_en : brand.story_hi).replace(/\n/g, '<br />')),
+            __html: sanitizeHtml((activeStory ?? copyFor(language, 'Brand story abhi tayyar ho rahi hai.', 'Your brand story is still being prepared.')).replace(/\n/g, '<br />')),
           }}
         />
       </Card>

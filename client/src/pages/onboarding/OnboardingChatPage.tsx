@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, CheckCircle2, Mic, MicOff, Sparkles, Square, Volume2 } from 'lucide-react'
 import { brandAssistStream } from '../../api/chat.api'
 import { brandAssistChat, uploadBrandImages } from '../../api/brand.api'
@@ -17,7 +18,7 @@ import { copyFor, useLanguage } from '../../lib/i18n'
 import { getErrorMessage } from '../../lib/utils'
 import { useAuthStore } from '../../store/authStore'
 import type { AppLanguage } from '../../store/uiStore'
-import type { BrandAssetCandidate, BrandCreatePayload, BrandIdentityPair, BrandPaletteOption, BrandPhaseFourCandidates, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
+import type { BrandCreatePayload, BrandIdentityPair, BrandPaletteOption, BrandPhaseFourCandidates, BrandVisualFoundation, CraftItem, RankedBrandIdentityPair } from '../../types/brand.types'
 
 interface Message {
   id: string
@@ -35,8 +36,8 @@ const REQUIRED_PHASE_TWO_FIELDS: Array<keyof BrandCreatePayload> = ['brand_value
 const createMessage = (role: Message['role'], content: string): Message => ({ id: `${role}-${Date.now()}-${Math.random()}`, role, content, timestamp: new Date() })
 const serializeMessages = (messages: Message[]): OnboardingDraftMessage[] => messages.map((message) => ({ ...message, timestamp: message.timestamp.toISOString() }))
 const hydrateMessages = (messages: OnboardingDraftMessage[]): Message[] => messages.map((message) => ({ ...message, timestamp: new Date(message.timestamp) }))
-const ONBOARDING_CHAT_LANGUAGE: AppLanguage = 'hg'
-const buildPhaseDefaults = (_language: AppLanguage, artisanName?: string): ExtractedFormData => ({ artisan_name: artisanName ?? '', preferred_language: 'hi', script_preference: 'english' })
+const ONBOARDING_CHAT_LANGUAGE: AppLanguage = 'hi'
+const buildPhaseDefaults = (_language: AppLanguage, artisanName?: string): ExtractedFormData => ({ artisan_name: artisanName ?? '', preferred_language: 'hi', script_preference: 'hindi' })
 const buildArtisanStory = (data: ExtractedFormData) => [data.brand_values, data.brand_vision, data.brand_mission].filter(Boolean).join('\n\n')
 const pairKey = (pair: Pick<BrandIdentityPair, 'pair_id' | 'name' | 'tagline'>) => `${pair.pair_id}::${pair.name.trim().toLowerCase()}::${pair.tagline.trim().toLowerCase()}`
 const paletteSwatches = (option: BrandPaletteOption) => [
@@ -87,26 +88,26 @@ const buildPhaseOnePrompt = (_language: AppLanguage, _isVoiceMode: boolean, craf
   const craftExamples = crafts.slice(0, 5).map((craft) => craft.display_name).join(', ')
   const baseRules = `You are helping with phase 1 of brand onboarding.
 Collect: craft_id from ${craftChoices}; region; years_of_experience; generations_in_craft; primary_occasion from wedding/festival/daily/gifting/home_decor/export/general; target_customer from local_bazaar/tourist/online_india/export.
-Rules: artisan_name is already known. Do not ask name. Do not ask story yet. Do not ask brand tone or feel. script_preference must be "english". preferred_language must be "hi". Use only these craft examples: ${craftExamples || craftChoices}. Ask one question at a time. Keep messages under 2 sentences. Once all fields are collected, clearly say phase 1 is complete.`
-  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in simple Hindi written in English letters. Do not use Devanagari script. Do not reply in pure English.\n${baseRules}`
+Rules: artisan_name is already known. Do not ask name. Do not ask story yet. Do not ask brand tone or feel. script_preference must be "hindi". preferred_language must be "hi". Speak in natural Hindi using Devanagari script only. Do not use Hinglish or pure English. Use only these craft examples: ${craftExamples || craftChoices}. Ask one question at a time. Keep messages under 2 sentences. Once all fields are collected, clearly say phase 1 is complete.`
+  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in natural Hindi using the Devanagari script. Do not use Hinglish or pure English.\n${baseRules}`
 }
 
 const buildPhaseTwoPrompt = (_language: AppLanguage, _isVoiceMode: boolean) => {
   const baseRules = `You are helping with phase 2 of brand onboarding.
 Collect through indirect reflective questions: brand_values, brand_vision, brand_mission.
 Rules: do not ask artisan_name. Do not ask directly for story. Do not repeat craft basics if already collected. Ask one question at a time. Keep messages under 2 sentences. Once all three answers are collected, clearly say phase 2 is complete.`
-  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in simple Hindi written in English letters. Do not use Devanagari script. Do not reply in pure English.\n${baseRules}`
+  return `You are Idanta's friendly brand assistant helping Indian artisans create their brand. Speak only in natural Hindi using the Devanagari script. Do not use Hinglish or pure English.\n${baseRules}`
 }
 
 const buildInitialMessages = (_language: AppLanguage, crafts: CraftItem[]) => {
   const craftExamples = crafts.slice(0, 5).map((craft) => craft.display_name).join(', ')
-  return [createMessage('assistant', `Namaste. Aap kaunsi kala karte ho? Jaise: ${craftExamples || 'Batik, Maheshwari'}`)]
+  return [createMessage('assistant', `नमस्ते। आप कौन सी कला करते हैं? जैसे: ${craftExamples || 'Batik, Maheshwari'}`)]
 }
 
 const buildPhaseTwoKickoffMessage = (_language: AppLanguage) =>
-  createMessage('assistant', 'Ab phase 2 shuru karte hain. Jab koi aapka product kharidta hai, aap chahte ho ki woh aapke baare me kya mehsoos ya yaad rakhe?')
+  createMessage('assistant', 'अब हम Phase 2 शुरू करते हैं। जब कोई आपका उत्पाद खरीदता है, तो आप चाहते हैं कि वह आपके बारे में क्या महसूस करे या क्या याद रखे?')
 
-const buildIdentityPayload = (data: ExtractedFormData, language: AppLanguage, userName?: string, brandId?: string | null): BrandCreatePayload => {
+const buildIdentityPayload = (data: ExtractedFormData, _language: AppLanguage, userName?: string, brandId?: string | null): BrandCreatePayload => {
   const normalizedData = normalizeBrandExtracted(data) ?? data
   const story = (normalizedData.artisan_story ?? buildArtisanStory(normalizedData)).trim()
   const name = normalizedData.name?.trim()
@@ -134,10 +135,12 @@ const buildIdentityPayload = (data: ExtractedFormData, language: AppLanguage, us
 
 export default function OnboardingChatPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { pushToast } = useToast()
   const craftsQuery = useCrafts()
   const language = useLanguage()
   const user = useAuthStore((state) => state.user)
+  const setUser = useAuthStore((state) => state.setUser)
   const generateIdentityMutation = useGenerateBrandIdentityCandidates()
   const rankIdentityMutation = useRankBrandIdentityCandidates()
   const saveIdentityDraftMutation = useSaveBrandIdentityDraft()
@@ -324,7 +327,7 @@ export default function OnboardingChatPage() {
     const requiredFields = currentPhase === 1 ? REQUIRED_PHASE_ONE_FIELDS : REQUIRED_PHASE_TWO_FIELDS
     const systemPrompt = currentPhase === 1 ? buildPhaseOnePrompt(ONBOARDING_CHAT_LANGUAGE, isVoiceMode, craftsQuery.data ?? []) : buildPhaseTwoPrompt(ONBOARDING_CHAT_LANGUAGE, isVoiceMode)
     try {
-      let mergedData: ExtractedFormData = { ...extractedData, artisan_name: user?.name ?? extractedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'english' }
+      let mergedData: ExtractedFormData = { ...extractedData, artisan_name: user?.name ?? extractedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'hindi' }
       let fullMessage = ''
       let spokenLength = 0
       const assistantMessageId = `assistant-${Date.now()}`
@@ -363,7 +366,7 @@ export default function OnboardingChatPage() {
               for (const [key, value] of Object.entries({ ...(event.extracted ?? {}), ...(normalizedExtracted ?? {}) })) {
                 if (value !== null && value !== undefined && value !== '') (cleaned as Record<string, unknown>)[key] = value
               }
-                mergedData = { ...mergedData, ...cleaned, artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'english' }
+                mergedData = { ...mergedData, ...cleaned, artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'hindi' }
               const hasAllRequired = requiredFields.every((field) => Boolean(mergedData[field]))
               if (currentPhase === 1) {
                 setExtractedData(mergedData)
@@ -385,7 +388,7 @@ export default function OnboardingChatPage() {
       if (isFallback) {
         const response = await brandAssistChat(message.trim(), mergedData, craftsQuery.data ?? [], ONBOARDING_CHAT_LANGUAGE, undefined, currentPhase)
         const normalizedExtracted = normalizeBrandExtracted(response.extracted ?? {})
-        mergedData = { ...mergedData, ...(response.extracted ?? {}), ...(normalizedExtracted ?? {}), artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'english' }
+        mergedData = { ...mergedData, ...(response.extracted ?? {}), ...(normalizedExtracted ?? {}), artisan_name: user?.name ?? mergedData.artisan_name ?? '', preferred_language: 'hi', script_preference: 'hindi' }
         setMessages((current) => current.map((item) => (item.id === assistantMessageId ? { ...item, content: response.message } : item)))
         if (isVoiceMode && response.message) playSynthesizedSpeech(response.message)
         const hasAllRequired = requiredFields.every((field) => Boolean(mergedData[field]))
@@ -545,6 +548,8 @@ export default function OnboardingChatPage() {
         logoUrl: selectedLogo.image_url,
         bannerUrl: selectedBanner.image_url,
       })
+      if (user) setUser({ ...user, has_brand: true })
+      await queryClient.invalidateQueries({ queryKey: ['brand', 'latest'] })
       if (user?.id) await clearOnboardingDraft(user.id)
       pushToast(copyFor(language, 'Phase 4 assets save ho gaye. Ab aapke final brand page par chalte hain.', 'Phase 4 assets have been saved. Taking you to your final brand page.'))
       navigate('/brand')
@@ -808,7 +813,7 @@ export default function OnboardingChatPage() {
               <div className="space-y-3">
                 {rankedPairs.slice().sort((a, b) => a.rank - b.rank).map((pair) => {
                   const isRecommended = pair.pair_id === recommendedPairId
-                  const isFinal = pair.pair_id === finalSelectedPair?.pair_id
+                  const isFinal = false
                   return (
                     <Card key={pair.pair_id} className={`space-y-3 ${isRecommended ? 'border-orange-300 bg-white' : ''}`}>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -932,10 +937,10 @@ export default function OnboardingChatPage() {
                       <div className="space-y-2">
                         <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Motif directions', 'Motif directions')}</p>
                         <div className="flex flex-wrap gap-2">
-                          {normalizedVisualFoundation.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
+                          {normalizedVisualFoundation?.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
-                          {normalizedVisualFoundation.motif_previews.map((motif) => (
+                          {normalizedVisualFoundation?.motif_previews.map((motif) => (
                             <div key={motif.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
                               <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-48 w-full object-cover" />
                               <div className="space-y-2 p-4">
@@ -949,7 +954,7 @@ export default function OnboardingChatPage() {
                       <div className="space-y-2">
                         <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Pattern previews', 'Pattern previews')}</p>
                         <div className="grid gap-4 md:grid-cols-2">
-                          {normalizedVisualFoundation.signature_patterns.map((pattern) => (
+                          {normalizedVisualFoundation?.signature_patterns.map((pattern) => (
                             <div key={pattern.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
                               {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-48 w-full object-cover" /> : null}
                               <div className="p-4">

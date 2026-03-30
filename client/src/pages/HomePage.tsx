@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { ArrowRight, LogIn, Sparkles } from 'lucide-react'
 import { synthesizeSpeech } from '../api/chat.api'
+import { useLatestBrand } from '../hooks/useBrand'
 import { useAuthStore } from '../store/authStore'
 
 const welcomeNotes = [
@@ -15,6 +16,7 @@ export default function HomePage() {
   const token = useAuthStore((state) => state.token)
   const user = useAuthStore((state) => state.user)
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
+  const latestBrandQuery = useLatestBrand(Boolean(token))
   const [welcomeNote] = useState(() => welcomeNotes[Math.floor(Math.random() * welcomeNotes.length)])
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const hasStartedAudioRef = useRef(false)
@@ -133,7 +135,8 @@ export default function HomePage() {
   }, [hasHydrated, resumeWelcomeNote, token])
 
   if (!hasHydrated) return null
-  if (token) return <Navigate to={user?.has_brand ? '/dashboard' : '/onboarding'} replace />
+  if (token && latestBrandQuery.isLoading) return null
+  if (token) return <Navigate to={user?.has_brand || Boolean(latestBrandQuery.data) ? '/dashboard' : '/onboarding'} replace />
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(31,92,90,0.14),_transparent_32%),linear-gradient(180deg,_#f5efe4_0%,_#fbf8f2_48%,_#f6f1e8_100%)] px-4 py-8 text-stone-900 sm:px-6 lg:px-8">

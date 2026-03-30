@@ -13,6 +13,7 @@ import Select from '../../components/ui/Select'
 import Textarea from '../../components/ui/Textarea'
 import { useToast } from '../../components/ui/useToast'
 import { useJobs } from '../../hooks/useJobs'
+import { useLatestBrand } from '../../hooks/useBrand'
 import { useCreateProduct, useGenerateProductAssets } from '../../hooks/useProduct'
 import { useVoiceChat } from '../../hooks/useVoiceChat'
 import { normalizeProductExtracted } from '../../lib/chatNormalization'
@@ -83,12 +84,11 @@ export default function AddProductPage() {
   const navigate = useNavigate()
   const { pushToast } = useToast()
   const jobsQuery = useJobs()
+  const latestBrandQuery = useLatestBrand()
   const createProductMutation = useCreateProduct()
   const generateMutation = useGenerateProductAssets()
   const language = useLanguage()
-  const brandId =
-    jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id)?.ref_id ??
-    null
+  const brandId = latestBrandQuery.data?.id ?? (jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id)?.ref_id ?? null)
 
   const [mode, setMode] = useState<'chat' | 'form'>('chat')
   const [messages, setMessages] = useState<Message[]>([
@@ -110,7 +110,6 @@ export default function AddProductPage() {
   const {
     isRecording,
     isPlaying,
-    isProcessingTranscription,
     startRecording,
     stopRecording,
     playSynthesizedSpeech,
@@ -330,7 +329,7 @@ export default function AddProductPage() {
                 ? copyFor(language, 'Phase 1 product chat ab backend se connected hai.', 'Phase 1 product chat is now connected to the backend.')
                 : copyFor(language, 'Backend chat abhi respond nahi kar raha, isliye temporary fallback chat chal rahi hai.', 'The backend chat is not responding right now, so a temporary fallback chat is being used.')}
             </span>
-            <Button variant={isVoiceMode ? 'primary' : 'secondary'} size="sm" onClick={() => {
+            <Button variant={isVoiceMode ? 'primary' : 'secondary'} onClick={() => {
               const newMode = !isVoiceMode
               setIsVoiceMode(newMode)
               if (newMode) {

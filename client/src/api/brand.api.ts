@@ -1,4 +1,5 @@
 import apiClient from './client'
+import axios from 'axios'
 import type {
   Brand,
   BrandChatMessage,
@@ -34,6 +35,18 @@ export const uploadBrandImages = async (formData: FormData): Promise<string[]> =
 export const getBrand = async (brandId: string): Promise<Brand> => {
   const { data } = await apiClient.get<Brand>(`/brands/${brandId}`)
   return data
+}
+
+export const getLatestBrand = async (): Promise<Brand | null> => {
+  try {
+    const { data } = await apiClient.get<Brand>('/brands/latest')
+    return data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null
+    }
+    throw error
+  }
 }
 
 export const getCrafts = async (): Promise<CraftItem[]> => {
@@ -166,6 +179,7 @@ export const brandAssistChat = async (
           language,
           'Aane wale kuch saalon me aap chahoge log aapke kaam ke baare me kya kahe?',
           'In a few years, what would you love people to say about your work?',
+          'Aane wale kuch saalon mein aap chahenge ki log aapke kaam ke baare mein kya kahen?',
         ),
         extracted: next,
       }
@@ -178,6 +192,7 @@ export const brandAssistChat = async (
           language,
           'Roz ye kaam karne ki sabse badi wajah kya hai?',
           'Why do you do this work every day?',
+          'Aap roz yeh kaam karne ki sabse badi wajah kya maante hain?',
         ),
         extracted: next,
       }
@@ -190,6 +205,7 @@ export const brandAssistChat = async (
           language,
           'Phase 2 complete ho gaya. Aapki brand story ka core direction save ho gaya hai.',
           'Phase 2 is complete. Your brand story direction has been saved.',
+          'Phase 2 poora ho gaya hai. Aapki brand story ki mukhya disha save ho gayi hai.',
         ),
         extracted: next,
         is_complete: true,
@@ -197,7 +213,7 @@ export const brandAssistChat = async (
     }
 
     return {
-      message: copy(language, 'Phase 2 ki sari information mil gayi hai.', 'We have all the phase 2 information.'),
+      message: copy(language, 'Phase 2 ki sari information mil gayi hai.', 'We have all the phase 2 information.', 'Phase 2 ki saari jaankari mil gayi hai.'),
       extracted: next,
       is_complete: true,
     }
@@ -208,7 +224,7 @@ export const brandAssistChat = async (
     if (craft) {
       next.craft_id = craft.craft_id
       return {
-        message: copy(language, 'Bahut badhiya. Aap kis shehar ya area se kaam karte ho?', 'Lovely. Which city, town, or area do you work from?'),
+        message: copy(language, 'Bahut badhiya. Aap kis shehar ya area se kaam karte ho?', 'Lovely. Which city, town, or area do you work from?', 'Bahut badhiya. Aap kis shehar ya ilaake se kaam karte hain?'),
         extracted: next,
       }
     }
@@ -217,6 +233,7 @@ export const brandAssistChat = async (
         language,
         `Aap kis kaam me mahir ho? In me se batayein: ${crafts.map((item) => item.display_name).join(', ')}`,
         `Which craft do you practice? Please choose from: ${crafts.map((item) => item.display_name).join(', ')}`,
+        `Aap kis kala mein kaam karte hain? Inmein se chuniye: ${crafts.map((item) => item.display_name).join(', ')}`,
       ),
       extracted: next,
     }
@@ -225,7 +242,7 @@ export const brandAssistChat = async (
   if (!next.region) {
     next.region = message.trim()
     return {
-      message: copy(language, 'Ye kaam kitne saal se kar rahe ho?', 'How many years have you done this craft?'),
+      message: copy(language, 'Ye kaam kitne saal se kar rahe ho?', 'How many years have you done this craft?', 'Aap yeh kaam kitne saalon se kar rahe hain?'),
       extracted: next,
     }
   }
@@ -239,11 +256,12 @@ export const brandAssistChat = async (
           language,
           'Ye kala ghar me kitni peedhi se chal rahi hai?',
           'How many generations has this craft been in your family?',
+          'Yeh kala aapke ghar mein kitni peedhiyon se chal rahi hai?',
         ),
         extracted: next,
       }
     }
-    return { message: copy(language, 'Bas number me batayein, jaise 10 saal.', 'Please answer with a number, like 10 years.'), extracted: next }
+    return { message: copy(language, 'Bas number me batayein, jaise 10 saal.', 'Please answer with a number, like 10 years.', 'Kripya sirf number mein batayein, jaise 10 saal.'), extracted: next }
   }
 
   if (!next.generations_in_craft) {
@@ -255,11 +273,12 @@ export const brandAssistChat = async (
           language,
           'Zyada bikri kis kaam ke liye hoti hai - shaadi, festival, daily, gifting, home decor ya export?',
           'What is your main selling occasion - wedding, festival, daily use, gifting, home decor, or export?',
+          'Aapki zyada bikri kis mauke ke liye hoti hai - shaadi, tyohar, rozmarra, gifting, home decor ya export?',
         ),
         extracted: next,
       }
     }
-    return { message: copy(language, 'Peedhi number me batayein, jaise 2 ya 3.', 'Please answer with a generation number, like 2 or 3.'), extracted: next }
+    return { message: copy(language, 'Peedhi number me batayein, jaise 2 ya 3.', 'Please answer with a generation number, like 2 or 3.', 'Peedhi ka number batayein, jaise 2 ya 3.'), extracted: next }
   }
 
   if (!next.primary_occasion) {
@@ -272,6 +291,7 @@ export const brandAssistChat = async (
           language,
           'Aap zyada kis ko bechte ho - local bazaar, tourist, online India ya export?',
           'Who do you mostly sell to - local bazaar, tourists, online India, or export buyers?',
+          'Aap adhiktar kisko bechte hain - local bazaar, tourist, online India ya export buyers?',
         ),
         extracted: next,
       }
@@ -281,6 +301,7 @@ export const brandAssistChat = async (
         language,
         'In me se ek batayein: wedding, festival, daily, gifting, home decor, export.',
         'Please choose one: wedding, festival, daily, gifting, home decor, or export.',
+        'Inmein se ek batayein: shaadi, tyohar, rozmarra, gifting, home decor ya export.',
       ),
       extracted: next,
     }
@@ -300,6 +321,7 @@ export const brandAssistChat = async (
           language,
           'Phase 1 complete ho gaya. Aapka progress save ho gaya hai.',
           'Phase 1 is complete. Your progress has been saved.',
+          'Phase 1 poora ho gaya hai. Aapki progress save ho gayi hai.',
         ),
         extracted: next,
         is_complete: true,
@@ -310,13 +332,14 @@ export const brandAssistChat = async (
         language,
         'Simple batayein - local bazaar, tourist, online India ya export.',
         'Please choose simply - local bazaar, tourist, online India, or export.',
+        'Seedha batayein - local bazaar, tourist, online India ya export.',
       ),
       extracted: next,
     }
   }
 
   return {
-    message: copy(language, 'Phase 1 ki sari information mil gayi hai.', 'We have all the phase 1 information.'),
+    message: copy(language, 'Phase 1 ki sari information mil gayi hai.', 'We have all the phase 1 information.', 'Phase 1 ki saari jaankari mil gayi hai.'),
     extracted: next,
     is_complete: true,
   }

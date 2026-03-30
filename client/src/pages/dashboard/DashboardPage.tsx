@@ -3,7 +3,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import ProductCard from '../../components/product/ProductCard'
-import { useBrand } from '../../hooks/useBrand'
+import { useLatestBrand } from '../../hooks/useBrand'
 import { useJobs } from '../../hooks/useJobs'
 import { useProducts } from '../../hooks/useProduct'
 import { useAuthStore } from '../../store/authStore'
@@ -12,15 +12,16 @@ import { copyFor, useLanguage } from '../../lib/i18n'
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const jobsQuery = useJobs()
-  const brandId =
-    jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id)
-      ?.ref_id ?? null
   const activeBrandJob = jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status !== 'done')
-  const brandQuery = useBrand(brandId)
-  const productsQuery = useProducts(brandId)
+  const brandQuery = useLatestBrand()
+  const productsQuery = useProducts(brandQuery.data?.id ?? null)
   const language = useLanguage()
 
-  if (!user?.has_brand) {
+  if (brandQuery.isLoading) {
+    return null
+  }
+
+  if (!user?.has_brand && !brandQuery.data) {
     return <Navigate to="/onboarding" replace />
   }
 
@@ -63,7 +64,7 @@ export default function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
               <p className="text-sm text-stone-500">{copyFor(language, 'Kareegar', 'Artisan', 'कारीगर')}</p>
-              <p className="text-base font-medium text-stone-900">{brandQuery.data?.artisan_name ?? user.name}</p>
+              <p className="text-base font-medium text-stone-900">{brandQuery.data?.artisan_name ?? user?.name ?? ''}</p>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
               <p className="text-sm text-stone-500">{copyFor(language, 'Jagah', 'Region', 'क्षेत्र')}</p>

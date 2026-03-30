@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
+import { useLatestBrand } from '../hooks/useBrand'
 import { useAuthStore } from '../store/authStore'
 import AppShell from '../components/layout/AppShell'
 import HomePage from '../pages/HomePage'
@@ -26,9 +27,11 @@ function AuthPageRoute({ children }: { children: ReactElement }) {
   const token = useAuthStore((state) => state.token)
   const user = useAuthStore((state) => state.user)
   const hasHydrated = useAuthStore((state) => state.hasHydrated)
+  const latestBrandQuery = useLatestBrand(Boolean(token))
 
   if (!hasHydrated) return null
-  if (token) return <Navigate to={user?.has_brand ? '/dashboard' : '/onboarding'} replace />
+  if (token && latestBrandQuery.isLoading) return null
+  if (token) return <Navigate to={user?.has_brand || Boolean(latestBrandQuery.data) ? '/dashboard' : '/onboarding'} replace />
   return children
 }
 

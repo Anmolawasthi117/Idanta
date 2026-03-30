@@ -6,6 +6,7 @@ import {
   generateBrandIdentityCandidates,
   getBrand,
   getCrafts,
+  getLatestBrand,
   rankBrandIdentityCandidates,
   regenerateBrand,
   regenerateBrandAsset,
@@ -29,6 +30,13 @@ export const useBrand = (brandId: string | null) =>
     queryKey: ['brand', brandId],
     queryFn: () => getBrand(brandId as string),
     enabled: Boolean(brandId),
+  })
+
+export const useLatestBrand = (enabled = true) =>
+  useQuery({
+    queryKey: ['brand', 'latest'],
+    queryFn: getLatestBrand,
+    enabled,
   })
 
 export const useCreateBrand = () =>

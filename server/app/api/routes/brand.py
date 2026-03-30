@@ -1795,6 +1795,7 @@ async def select_brand_phase_four_assets(
             {
                 "logo_url": payload.logo_url.strip(),
                 "banner_url": payload.banner_url.strip(),
+                "status": "ready",
             }
         )
         .eq("id", brand_id)
@@ -1803,7 +1804,31 @@ async def select_brand_phase_four_assets(
     )
     if not updated.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+    try:
+        supabase.table("users").update({"has_brand": True}).eq("id", user_id).execute()
+    except Exception as exc:
+        logger.warning("Could not update has_brand for user=%s after Phase 4 selection: %s", user_id, exc)
     return updated.data[0]
+
+
+@router.get(
+    "/latest",
+    response_model=BrandPublic,
+    summary="Get the latest saved brand for the current user",
+    tags=["Brands"],
+)
+async def get_latest_brand(user_id: str = Depends(get_current_user_id)):
+    result = (
+        supabase.table("brands")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found.")
+    return result.data[0]
 
 
 @router.get(
