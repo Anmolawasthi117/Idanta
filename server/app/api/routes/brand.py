@@ -12,11 +12,14 @@ from pathlib import Path
 import io
 import zipfile
 import asyncio
+import re
+from collections import Counter
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
+from PIL import Image
 
 from app.agents.nodes.context_builder import context_builder_node
 from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
@@ -366,17 +369,9 @@ async def _build_identity_preview_state(payload: BrandCreateRequest, selected_pa
     return await context_builder_node(state)
 
 
-def _load_design_pool() -> dict:
-    design_pool_path = Path("data/design_pool.json")
-    if not design_pool_path.exists():
-        return {}
-    with open(design_pool_path, encoding="utf-8") as file:
-        return json.load(file)
-
-
 def _normalize_hex(value: object, fallback: str) -> str:
     candidate = str(value or "").strip()
-    if len(candidate) == 7 and candidate.startswith("#"):
+    if len(candidate) == 7 and candidate.startswith("#") and re.fullmatch(r"#[0-9A-Fa-f]{6}", candidate):
         return candidate
     return fallback
 
@@ -397,45 +392,125 @@ def _coerce_palette(raw_palette: dict | None, fallback: dict | None = None) -> B
     )
 
 
-def _fallback_palette_options(state: BrandState, visual_summary: str) -> tuple[list[BrandPaletteOptionPayload], str]:
-    del visual_summary
-    craft_data = state.get("craft_data", {})
-    traditional_colors = [str(item).strip() for item in craft_data.get("traditional_colors", {}).get("hex", []) if str(item).strip()]
-    design_pool = _load_design_pool()
-    pool_palettes = design_pool.get("palettes", [])
+def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    value = hex_color.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _mix_hex(hex_a: str, hex_b: str, ratio_b: float) -> str:
+    ratio = max(0.0, min(1.0, ratio_b))
+    a = _hex_to_rgb(hex_a)
+    b = _hex_to_rgb(hex_b)
+    mixed = (
+        int(round(a[0] * (1 - ratio) + b[0] * ratio)),
+        int(round(a[1] * (1 - ratio) + b[1] * ratio)),
+        int(round(a[2] * (1 - ratio) + b[2] * ratio)),
+    )
+    return _rgb_to_hex(mixed)
+
+
+def _color_distance(hex_a: str, hex_b: str) -> float:
+    ar, ag, ab = _hex_to_rgb(hex_a)
+    br, bg, bb = _hex_to_rgb(hex_b)
+    return ((ar - br) ** 2 + (ag - bg) ** 2 + (ab - bb) ** 2) ** 0.5
+
+
+def _dedupe_swatches(swatches: list[tuple[str, int]], *, min_distance: float = 44.0, max_colors: int = 8) -> list[tuple[str, int]]:
+    deduped: list[tuple[str, int]] = []
+    for color, count in swatches:
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+            continue
+        if any(_color_distance(color, existing) < min_distance for existing, _ in deduped):
+            continue
+        deduped.append((color.upper(), int(count)))
+        if len(deduped) >= max_colors:
+            break
+    return deduped
+
+
+def _select_distinct_color(candidates: list[str], anchors: list[str], fallback: str) -> str:
+    for candidate in candidates:
+        if all(_color_distance(candidate, anchor) >= 36 for anchor in anchors):
+            return candidate
+    return fallback
+
+
+async def _extract_image_color_swatches(image_urls: list[str], *, max_images: int = 6, colors_per_image: int = 12) -> list[tuple[str, int]]:
+    if not image_urls:
+        return []
+    counter: Counter[str] = Counter()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for url in image_urls[:max_images]:
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+                with Image.open(io.BytesIO(response.content)) as image:
+                    rgb_image = image.convert("RGB")
+                    rgb_image.thumbnail((240, 240))
+                    quantized = rgb_image.convert("P", palette=Image.ADAPTIVE, colors=colors_per_image)
+                    palette = quantized.getpalette() or []
+                    color_counts = quantized.getcolors(maxcolors=240 * 240) or []
+                    for count, color_index in color_counts:
+                        base = int(color_index) * 3
+                        if base + 2 >= len(palette):
+                            continue
+                        rgb = (int(palette[base]), int(palette[base + 1]), int(palette[base + 2]))
+                        counter[_rgb_to_hex(rgb)] += int(count)
+            except Exception as exc:
+                logger.warning("Could not sample colors from image %s: %s", url, exc)
+    sorted_swatches = sorted(counter.items(), key=lambda item: item[1], reverse=True)
+    return _dedupe_swatches(sorted_swatches)
+
+
+def _fallback_palette_options(swatches: list[tuple[str, int]]) -> tuple[list[BrandPaletteOptionPayload], str]:
+    dominant = [color for color, _ in swatches]
+    defaults = [
+        dominant[0] if len(dominant) > 0 else "#8B2635",
+        dominant[1] if len(dominant) > 1 else "#4A7C59",
+        dominant[2] if len(dominant) > 2 else "#C4963B",
+        dominant[3] if len(dominant) > 3 else "#2E4057",
+    ]
+    primary = defaults[0]
+    secondary = _select_distinct_color(defaults[1:] + [primary], [primary], defaults[1])
+    accent = _select_distinct_color(defaults[2:] + [secondary], [primary, secondary], defaults[2])
+    tertiary = _select_distinct_color(defaults[3:] + [accent], [primary, secondary, accent], defaults[3])
 
     fallback_sets = [
         {
             "option_id": "palette_option_1",
-            "name": "Heritage Core",
-            "rationale": "Best match for preserving a premium artisan feel while staying close to the uploaded references.",
+            "name": "Image Core",
+            "rationale": "Closest translation of dominant colors from the uploaded images.",
             "palette": {
-                "primary": traditional_colors[0] if len(traditional_colors) > 0 else "#8B2635",
-                "secondary": traditional_colors[1] if len(traditional_colors) > 1 else "#4A7C59",
-                "accent": traditional_colors[2] if len(traditional_colors) > 2 else "#C4963B",
-                "background": "#F5E6C8",
+                "primary": primary,
+                "secondary": secondary,
+                "accent": accent,
+                "background": _mix_hex(primary, "#FFFFFF", 0.86),
             },
         },
         {
             "option_id": "palette_option_2",
-            "name": pool_palettes[1]["name"] if len(pool_palettes) > 1 else "Royal Contrast",
-            "rationale": "Adds richer contrast for a more elevated and boutique presentation.",
+            "name": "Image Contrast",
+            "rationale": "Builds stronger contrast using secondary tones found in the uploaded images.",
             "palette": {
-                "primary": pool_palettes[1]["primary"] if len(pool_palettes) > 1 else "#1A2E5A",
-                "secondary": pool_palettes[1]["secondary"] if len(pool_palettes) > 1 else "#4E3629",
-                "accent": pool_palettes[1]["accent"] if len(pool_palettes) > 1 else "#D4AF37",
-                "background": "#F6EFE3",
+                "primary": secondary,
+                "secondary": tertiary,
+                "accent": accent,
+                "background": _mix_hex(secondary, "#FFFFFF", 0.9),
             },
         },
         {
             "option_id": "palette_option_3",
-            "name": pool_palettes[3]["name"] if len(pool_palettes) > 3 else "Soft Modern",
-            "rationale": "Keeps the craft visible but gives the brand a lighter, more contemporary shelf presence.",
+            "name": "Image Accent",
+            "rationale": "Pushes image-derived accent tones for a bolder expression while keeping source fidelity.",
             "palette": {
-                "primary": pool_palettes[3]["primary"] if len(pool_palettes) > 3 else "#2F4F4F",
-                "secondary": pool_palettes[3]["secondary"] if len(pool_palettes) > 3 else "#F5F5DC",
-                "accent": pool_palettes[3]["accent"] if len(pool_palettes) > 3 else "#A9A9A9",
-                "background": "#FBF7EF",
+                "primary": accent,
+                "secondary": primary,
+                "accent": tertiary,
+                "background": _mix_hex(accent, "#FFFFFF", 0.9),
             },
         },
     ]
@@ -452,36 +527,32 @@ def _fallback_palette_options(state: BrandState, visual_summary: str) -> tuple[l
     return options, options[0].option_id
 
 
-async def _build_palette_options(state: BrandState, visual_summary: str) -> tuple[list[BrandPaletteOptionPayload], str]:
-    context = state.get("context_bundle", {})
-    craft_data = state.get("craft_data", {})
-    fallback_options, fallback_recommended = _fallback_palette_options(state, visual_summary)
+async def _build_palette_options(image_urls: list[str], visual_summary: str) -> tuple[list[BrandPaletteOptionPayload], str]:
+    swatches = await _extract_image_color_swatches(image_urls)
+    fallback_options, fallback_recommended = _fallback_palette_options(swatches)
+    swatch_preview = [item[0] for item in swatches[:8]]
     try:
         result = await groq_json_completion(
             system_prompt=(
-                "You are a senior artisan brand color strategist.\n"
+                "You are a senior color strategist.\n"
                 "Return only JSON with this shape: "
                 "{\"palette_options\": [{\"option_id\": \"palette_option_1\", \"name\": \"...\", \"rationale\": \"...\", "
                 "\"palette\": {\"primary\": \"#000000\", \"secondary\": \"#111111\", \"accent\": \"#222222\", \"background\": \"#f5f1e8\"}}], "
                 "\"recommended_palette_id\": \"palette_option_1\"}\n"
                 "Rules:\n"
                 "- Generate exactly 3 palette options.\n"
-                "- Each option must feel distinct but still rooted in the craft and uploaded images.\n"
+                "- Use only uploaded-image evidence (swatches + visual summary). Do not use craft, user, story, or region context.\n"
+                "- Keep each option visually distinct while preserving source fidelity to the image swatches.\n"
                 "- All palette values must be valid 6-digit hex colors.\n"
-                "- Rationale should explain the shelf or brand effect in 1 sentence.\n"
+                "- Rationale should explain visual effect in 1 sentence.\n"
                 "- recommended_palette_id must match one of the 3 option_ids.\n"
             ),
             user_prompt=(
-                f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
-                f"Region: {context.get('region', 'India')}\n"
-                f"Brand feel: {state.get('brand_feel', 'earthy')}\n"
-                f"Artisan story: {context.get('artisan_story', '')}\n"
-                f"Traditional colors from library: {json.dumps(craft_data.get('traditional_colors', {}), ensure_ascii=False)}\n"
-                f"Craft motifs from library: {json.dumps(craft_data.get('motifs', {}), ensure_ascii=False)}\n"
+                f"Extracted image swatches (hex): {json.dumps(swatch_preview, ensure_ascii=False)}\n"
                 f"Visual summary from uploaded images:\n{visual_summary}\n"
             ),
             max_tokens=1200,
-            temperature=0.55,
+            temperature=0.45,
         )
         raw_options = result.get("palette_options", [])
         options: list[BrandPaletteOptionPayload] = []
@@ -516,17 +587,17 @@ async def _generate_preview_image(
     index: int,
     title: str,
     description: str,
-    craft_name: str,
     palette: BrandPalettePayload,
     visual_summary: str,
 ) -> str:
     prompt = (
-        f"Create a premium artisan design board preview for {craft_name}. "
+        "Create a premium design board preview. "
         f"Focus on {category}: {title}. "
         f"Description: {description}. "
         f"Use a clean presentation on a soft studio board, showing the motif or pattern clearly as a visual concept, not product photography. "
         f"Use this palette: primary {palette.primary}, secondary {palette.secondary}, accent {palette.accent}, background {palette.background or '#F5E6C8'}. "
-        f"Visual cues: {visual_summary}. "
+        f"Visual cues from uploaded images only: {visual_summary}. "
+        "Do not include craft labels, region names, or textual story context in the image. "
         "Keep it elegant, minimal, high contrast, and easy for a client to compare."
     )
     image_bytes, mime = await generate_image(prompt, width_hint=1024, height_hint=1024)
@@ -822,75 +893,86 @@ async def _extract_visual_summary_from_images(image_urls: list[str]) -> str:
         return "Uploaded images suggest an artisan-made visual world with handcrafted texture, repeatable motifs, and a palette that should stay rooted, premium, and usable for brand design."
 
 
-def _fallback_visual_foundation(state: BrandState, visual_summary: str) -> BrandVisualFoundationResponse:
-    craft_data = state.get("craft_data", {})
-    traditional_colors = craft_data.get("traditional_colors", {})
-    motif_data = craft_data.get("motifs", {})
-    primary_motifs = [str(item).strip() for item in motif_data.get("primary", []) if str(item).strip()]
-    secondary_motifs = [str(item).strip() for item in motif_data.get("secondary", []) if str(item).strip()]
-    motifs = (primary_motifs + secondary_motifs)[:5] or ["artisan linework", "handcrafted geometry", "material texture"]
-    hex_values = [str(item).strip() for item in traditional_colors.get("hex", []) if str(item).strip()]
-    palette = {
-        "primary": hex_values[0] if len(hex_values) > 0 else "#8B2635",
-        "secondary": hex_values[1] if len(hex_values) > 1 else "#4A7C59",
-        "accent": hex_values[2] if len(hex_values) > 2 else "#C4963B",
-        "background": "#F5E6C8",
-    }
+def _fallback_visual_foundation(image_urls: list[str], visual_summary: str, selected_palette: dict | None = None) -> BrandVisualFoundationResponse:
+    motifs = [
+        "Dominant contour motif",
+        "Surface texture motif",
+        "Rhythmic repeat motif",
+    ]
+    palette = _coerce_palette(selected_palette).model_dump() if selected_palette else _coerce_palette(None).model_dump()
     patterns = [
         BrandPatternPayload(
-            name="Signature Border Repeat",
-            description=f"A repeat system built from {motifs[0]} accents and restrained spacing, using the brand palette for packaging edges and banner framing.",
+            name="Contour Repeat Grid",
+            description=f"A structured repeat pattern derived from {motifs[0]}, balanced with breathing space and strict palette control.",
         ),
         BrandPatternPayload(
-            name="Motif Scatter Rhythm",
-            description=f"A light premium pattern combining {motifs[min(1, len(motifs)-1)]} with subtle color contrast for backgrounds, story cards, and brand textures.",
+            name="Texture Overlay Rhythm",
+            description=f"A secondary pattern layering {motifs[1]} in low-density rhythm for backgrounds and support surfaces.",
+        ),
+        BrandPatternPayload(
+            name="Hero Motif Stripe",
+            description=f"A directional stripe system built from {motifs[2]} for high-visibility hero sections.",
         ),
     ]
-    palette_options, recommended_palette_id = _fallback_palette_options(state, visual_summary)
+    palette_options, recommended_palette_id = _fallback_palette_options([])
     return BrandVisualFoundationResponse(
         brand_id="",
-        reference_images=[],
+        reference_images=image_urls,
         visual_summary=visual_summary,
-        visual_motifs=motifs,
+        visual_motifs=motifs[:3],
         motif_previews=[],
-        signature_patterns=patterns,
+        signature_patterns=patterns[:3],
         palette=palette,
         palette_options=palette_options,
         recommended_palette_id=recommended_palette_id,
-        selected_palette_id=recommended_palette_id,
+        selected_palette_id=None,
     )
 
 
-async def _build_visual_foundation(state: BrandState, visual_summary: str) -> BrandVisualFoundationResponse:
-    context = state.get("context_bundle", {})
-    craft_data = state.get("craft_data", {})
-    fallback_foundation = _fallback_visual_foundation(state, visual_summary)
+async def _build_visual_foundation(
+    state: BrandState,
+    image_urls: list[str],
+    visual_summary: str,
+    selected_palette_id: str | None = None,
+    selected_palette: dict | None = None,
+) -> BrandVisualFoundationResponse:
+    del state
+    palette_options, recommended_palette_id = await _build_palette_options(image_urls, visual_summary)
+    selected_palette_payload = (
+        _coerce_palette(selected_palette)
+        if selected_palette
+        else next(
+            (option.palette for option in palette_options if option.option_id == selected_palette_id),
+            next((option.palette for option in palette_options if option.option_id == recommended_palette_id), _coerce_palette(None)),
+        )
+    )
+    effective_selected_palette_id = (
+        selected_palette_id
+        if selected_palette_id in {option.option_id for option in palette_options}
+        else recommended_palette_id
+    )
+    fallback_foundation = _fallback_visual_foundation(image_urls, visual_summary, selected_palette_payload.model_dump())
     try:
         result = await groq_json_completion(
             system_prompt=(
-                "You are a senior brand art director building the visual foundation for an artisan brand.\n"
+                "You are a senior visual analyst building image-only motif and pattern directions.\n"
                 "Return only JSON with this shape: "
                 "{\"visual_motifs\": [\"motif1\", \"motif2\", \"motif3\"], "
-                "\"signature_patterns\": [{\"name\": \"...\", \"description\": \"...\"}], "
-                "\"palette\": {\"primary\": \"#000000\", \"secondary\": \"#111111\", \"accent\": \"#222222\", \"background\": \"#f5f1e8\"}}\n"
+                "\"signature_patterns\": [{\"name\": \"...\", \"description\": \"...\"}]}\n"
                 "Rules:\n"
-                "- visual_motifs must be concise and design-usable.\n"
-                "- signature_patterns must be created by combining motifs with color logic from the images.\n"
-                "- palette colors must be valid hex codes.\n"
-                "- Keep the output premium, craft-specific, and visually coherent.\n"
-                "- Avoid generic motifs like flower if you can be more specific.\n"
+                "- Extract 1 to 3 motifs only from uploaded-image evidence.\n"
+                "- Never use craft/user/story/region context.\n"
+                "- Motifs must be concrete and visually distinct from each other.\n"
+                "- Generate 1 to 3 signature patterns using only the extracted motifs and provided selected palette.\n"
+                "- Pattern descriptions must state motif usage + palette usage clearly.\n"
+                "- Keep outputs concise and directly usable by designers.\n"
             ),
             user_prompt=(
-                f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
-                f"Region: {context.get('region', 'India')}\n"
-                f"Artisan story: {context.get('artisan_story', '')}\n"
-                f"Craft motifs from library: {json.dumps(craft_data.get('motifs', {}), ensure_ascii=False)}\n"
-                f"Traditional colors from library: {json.dumps(craft_data.get('traditional_colors', {}), ensure_ascii=False)}\n"
-                f"Materials: {json.dumps(craft_data.get('materials', {}), ensure_ascii=False)}\n"
+                f"Selected palette (must be used): {json.dumps(selected_palette_payload.model_dump(), ensure_ascii=False)}\n"
                 f"Visual summary from uploaded images:\n{visual_summary}\n"
             ),
             max_tokens=1200,
-            temperature=0.6,
+            temperature=0.5,
         )
         patterns = [
             BrandPatternPayload(
@@ -900,33 +982,33 @@ async def _build_visual_foundation(state: BrandState, visual_summary: str) -> Br
             for item in result.get("signature_patterns", [])
             if str(item.get("name", "")).strip() and str(item.get("description", "")).strip()
         ]
-        motifs = [str(item).strip() for item in result.get("visual_motifs", []) if str(item).strip()]
-        palette = result.get("palette", {}) or {}
-        palette_options, recommended_palette_id = await _build_palette_options(state, visual_summary)
-        selected_palette = next(
-            (option.palette for option in palette_options if option.option_id == recommended_palette_id),
-            _coerce_palette(palette, fallback_foundation.palette),
-        )
+        motifs = [str(item).strip() for item in result.get("visual_motifs", []) if str(item).strip()][:3]
         return BrandVisualFoundationResponse(
             brand_id="",
-            reference_images=[],
+            reference_images=image_urls,
             visual_summary=visual_summary,
-            visual_motifs=motifs[:5] or fallback_foundation.visual_motifs,
+            visual_motifs=motifs or fallback_foundation.visual_motifs,
             motif_previews=[],
-            signature_patterns=patterns[:4] or fallback_foundation.signature_patterns,
-            palette=selected_palette.model_dump(),
+            signature_patterns=patterns[:3] or fallback_foundation.signature_patterns,
+            palette=selected_palette_payload.model_dump(),
             palette_options=palette_options,
             recommended_palette_id=recommended_palette_id,
-            selected_palette_id=recommended_palette_id,
+            selected_palette_id=effective_selected_palette_id,
         )
     except Exception as exc:
         logger.warning("Visual foundation LLM generation failed; using fallback foundation. Error: %s", exc)
         return fallback_foundation
 
 
-async def _build_palette_only_foundation(state: BrandState, visual_summary: str, selected_palette_id: str | None = None) -> BrandVisualFoundationResponse:
-    fallback_foundation = _fallback_visual_foundation(state, visual_summary)
-    palette_options, recommended_palette_id = await _build_palette_options(state, visual_summary)
+async def _build_palette_only_foundation(
+    state: BrandState,
+    image_urls: list[str],
+    visual_summary: str,
+    selected_palette_id: str | None = None,
+) -> BrandVisualFoundationResponse:
+    del state
+    fallback_foundation = _fallback_visual_foundation(image_urls, visual_summary)
+    palette_options, recommended_palette_id = await _build_palette_options(image_urls, visual_summary)
     effective_selected_palette_id = selected_palette_id if selected_palette_id in {option.option_id for option in palette_options} else None
     effective_palette = next(
         (option.palette for option in palette_options if option.option_id == effective_selected_palette_id),
@@ -934,7 +1016,7 @@ async def _build_palette_only_foundation(state: BrandState, visual_summary: str,
     )
     return BrandVisualFoundationResponse(
         brand_id="",
-        reference_images=[],
+        reference_images=image_urls,
         visual_summary=visual_summary,
         visual_motifs=[],
         motif_previews=[],
@@ -952,7 +1034,7 @@ async def _attach_visual_previews(
     state: BrandState,
     brand_id: str,
 ) -> BrandVisualFoundationResponse:
-    craft_name = state.get("context_bundle", {}).get("craft_name", state.get("craft_id", "").replace("_", " ").title())
+    del state
     selected_palette = _coerce_palette(foundation.palette)
 
     motif_previews: list[BrandMotifPreviewPayload] = []
@@ -964,14 +1046,13 @@ async def _attach_visual_previews(
                 index=index,
                 title=motif,
                 description=f"An isolated motif exploration for {motif}.",
-                craft_name=craft_name,
                 palette=selected_palette,
                 visual_summary=foundation.visual_summary,
             )
             motif_previews.append(
                 BrandMotifPreviewPayload(
                     name=motif,
-                    description=f"Motif direction based on uploaded references and craft heritage.",
+                    description="Motif direction extracted only from uploaded references.",
                     image_url=image_url,
                 )
             )
@@ -987,7 +1068,6 @@ async def _attach_visual_previews(
                 index=index,
                 title=pattern.name,
                 description=pattern.description,
-                craft_name=craft_name,
                 palette=selected_palette,
                 visual_summary=foundation.visual_summary,
             )
@@ -1504,7 +1584,13 @@ async def build_brand_visual_foundation(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Please select a color palette before generating motif and pattern visuals.",
                 )
-            foundation = await _build_visual_foundation(state, visual_summary)
+            foundation = await _build_visual_foundation(
+                state,
+                payload.reference_images,
+                visual_summary,
+                selected_palette_id=existing_brand.get("selected_palette_id"),
+                selected_palette=selected_palette,
+            )
             foundation = await _attach_visual_previews(
                 foundation=BrandVisualFoundationResponse(
                     brand_id=payload.brand_id,
@@ -1524,6 +1610,7 @@ async def build_brand_visual_foundation(
         else:
             foundation = await _build_palette_only_foundation(
                 state,
+                payload.reference_images,
                 visual_summary,
                 selected_palette_id=existing_brand.get("selected_palette_id"),
             )
