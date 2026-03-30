@@ -306,6 +306,10 @@ export default function AddProductPage() {
     }
   }
 
+  if (latestBrandQuery.isLoading) {
+    return <Card>{copyFor(language, 'Brand load ho raha hai...', 'Loading brand...')}</Card>
+  }
+
   if (!brandId) {
     return <Card>{copyFor(language, 'Pehle brand banao, phir product jodenge.', 'Create your brand first, then we will add products.')}</Card>
   }

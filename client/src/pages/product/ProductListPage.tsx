@@ -3,16 +3,23 @@ import ProductCard from '../../components/product/ProductCard'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import { useJobs } from '../../hooks/useJobs'
+import { useLatestBrand } from '../../hooks/useBrand'
 import { useProducts } from '../../hooks/useProduct'
 import { copyFor, useLanguage } from '../../lib/i18n'
 
 export default function ProductListPage() {
   const jobsQuery = useJobs()
+  const latestBrandQuery = useLatestBrand()
   const language = useLanguage()
   const brandId =
-    jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id)?.ref_id ??
-    null
+    latestBrandQuery.data?.id ??
+    (jobsQuery.data?.find((job) => job.job_type === 'brand_onboarding' && job.status === 'done' && job.ref_id)?.ref_id ??
+      null)
   const productsQuery = useProducts(brandId)
+
+  if (latestBrandQuery.isLoading) {
+    return <Card>{copyFor(language, 'Brand load ho raha hai...', 'Loading brand...')}</Card>
+  }
 
   if (!brandId) {
     return <Card>{copyFor(language, 'Pehle brand ready hona chahiye. Onboarding poora kijiye.', 'Your brand should be ready first. Please complete onboarding.')}</Card>
