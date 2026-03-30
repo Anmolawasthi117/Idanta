@@ -596,6 +596,7 @@ async def _generate_preview_image(
         f"Description: {description}. "
         f"Use a clean presentation on a soft studio board, showing the motif or pattern clearly as a visual concept, not product photography. "
         f"Use this palette: primary {palette.primary}, secondary {palette.secondary}, accent {palette.accent}, background {palette.background or '#F5E6C8'}. "
+        "Strict palette lock: use only the provided palette colors in the output. Do not add random hues or off-palette gradients. "
         f"Visual cues from uploaded images only: {visual_summary}. "
         "Do not include craft labels, region names, or textual story context in the image. "
         "Keep it elegant, minimal, high contrast, and easy for a client to compare."
@@ -611,21 +612,39 @@ async def _generate_preview_image(
 LOGO_CANDIDATE_VARIANTS = [
     {
         "candidate_id": "logo_candidate_1",
-        "title": "Signature Emblem",
-        "rationale": "A premium emblem-first identity that feels crafted, memorable, and rooted in heritage.",
-        "direction": "Create a refined emblem-led logo with strong brand recall, premium negative space, and one hero symbol derived from the selected motif system.",
+        "title": "Wordmark Serif",
+        "rationale": "A premium serif wordmark emphasizing trust, elegance, and strong readability.",
+        "direction": "Create a typography-first wordmark logo led by refined serif letterforms and subtle motif-derived detailing.",
     },
     {
         "candidate_id": "logo_candidate_2",
-        "title": "Elegant Wordmark",
-        "rationale": "A typography-led direction designed to feel boutique, polished, and contemporary.",
-        "direction": "Create a wordmark-first logo with elegant lettering, subtle motif integration, and restrained ornamentation inspired by the internal logo sample library.",
+        "title": "Wordmark Modern",
+        "rationale": "A clean modern wordmark for a boutique and contemporary brand expression.",
+        "direction": "Create a modern wordmark logo with controlled geometry, tight spacing, and motif cues integrated into letterform terminals.",
     },
     {
         "candidate_id": "logo_candidate_3",
-        "title": "Heritage Seal",
-        "rationale": "A seal-like artisan direction that feels collectible and rich without becoming cluttered.",
-        "direction": "Create a heritage seal or stamp-inspired logo with controlled ornament, balanced geometry, and a premium handcrafted authority.",
+        "title": "Wordmark Script",
+        "rationale": "A handcrafted script-led wordmark with premium flow and memorability.",
+        "direction": "Create a script-influenced wordmark logo with elegant stroke rhythm and restrained motif echoes.",
+    },
+    {
+        "candidate_id": "logo_candidate_4",
+        "title": "Graphic Emblem",
+        "rationale": "An icon-led emblem with strong silhouette and high recall.",
+        "direction": "Create a graphical emblem logo with one bold symbol derived directly from selected motifs.",
+    },
+    {
+        "candidate_id": "logo_candidate_5",
+        "title": "Graphic Monogram",
+        "rationale": "A monogram-focused symbol that feels premium and ownable.",
+        "direction": "Create a graphical monogram-style logo using initials and motif abstraction in a clean mark system.",
+    },
+    {
+        "candidate_id": "logo_candidate_6",
+        "title": "Graphic Seal",
+        "rationale": "A seal-like graphic logo balancing heritage tone with sharp modern finishing.",
+        "direction": "Create a graphical seal or badge logo with controlled ornament and motif-based structure.",
     },
 ]
 
@@ -662,49 +681,47 @@ async def _generate_phase_four_briefs(
     patterns = state.get("signature_patterns", []) or []
     pattern_names = [str(item.get("name", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("name", "")).strip()]
     pattern_descriptions = [str(item.get("description", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("description", "")).strip()]
-    context = state.get("context_bundle", {})
     try:
         result = await groq_json_completion(
             system_prompt=(
-                "You are a premium identity art director creating Phase 4 candidate briefs for one artisan brand.\n"
+                "You are a premium identity art director creating Phase 4 candidate briefs.\n"
                 "Return only JSON with this shape: "
                 "{\"logo_candidates\": [{\"candidate_id\": \"logo_candidate_1\", \"title\": \"...\", \"rationale\": \"...\", \"direction\": \"...\", \"difference_focus\": \"...\"}], "
                 "\"banner_candidates\": [{\"candidate_id\": \"banner_candidate_1\", \"title\": \"...\", \"rationale\": \"...\", \"direction\": \"...\", \"difference_focus\": \"...\"}]}\n"
                 "Rules:\n"
-                "- Generate exactly 3 logo candidates and 3 banner candidates.\n"
-                "- All 3 logo candidates must feel clearly different in structure, not small variations.\n"
-                "- logo_candidate_1 must be emblem-led or icon-led.\n"
-                "- logo_candidate_2 must be wordmark-led with typography doing most of the work.\n"
-                "- logo_candidate_3 must be seal, crest, badge, or stamp-led.\n"
+                "- Generate exactly 6 logo candidates and 3 banner candidates.\n"
+                "- logo_candidate_1, logo_candidate_2, logo_candidate_3 must be wordmark-led.\n"
+                "- logo_candidate_4, logo_candidate_5, logo_candidate_6 must be graphical/icon-led.\n"
+                "- All 6 logo candidates must be structurally different, not minor variations.\n"
                 "- All 3 banner candidates must feel clearly different in layout and pattern usage.\n"
                 "- banner_candidate_1 must be editorial and spacious.\n"
                 "- banner_candidate_2 must be pattern-led with framing or border logic.\n"
                 "- banner_candidate_3 must be boutique storytelling with a stronger craft atmosphere.\n"
                 "- Use the internal logo sample library as a quality bar.\n"
-                "- Use the saved motifs, saved patterns, and selected palette as hard anchors.\n"
+                "- For logo candidates, use only: brand name, tagline, selected palette, saved motifs, and logo sample library.\n"
+                "- For logo candidates, strictly use selected palette colors only.\n"
+                "- Do not use craft, region, artisan story, RAG context, or brand feel for logo candidates.\n"
+                "- For banner candidates, you may use saved patterns and visual DNA.\n"
                 "- Keep directions concrete enough for image generation.\n"
                 "- difference_focus must explain what makes this candidate visibly distinct from the others.\n"
-                "- Never make the 3 options just minor ornament or color changes.\n"
+                "- Never make options just minor ornament or color changes.\n"
             ),
             user_prompt=(
                 f"Brand name: {state.get('brand_name', '')}\n"
                 f"Tagline: {state.get('tagline', '')}\n"
-                f"Craft: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}\n"
-                f"Region: {context.get('region', '')}\n"
-                f"Brand feel: {state.get('brand_feel', 'earthy')}\n"
-                f"Palette: {json.dumps(state.get('palette', {}), ensure_ascii=False)}\n"
+                f"Selected palette (strict): {json.dumps(state.get('palette', {}), ensure_ascii=False)}\n"
                 f"Saved motifs: {json.dumps(motifs, ensure_ascii=False)}\n"
                 f"Saved pattern names: {json.dumps(pattern_names, ensure_ascii=False)}\n"
                 f"Saved pattern descriptions: {json.dumps(pattern_descriptions, ensure_ascii=False)}\n"
                 f"Visual DNA: {json.dumps(visual_dna, ensure_ascii=False)}\n"
                 f"Internal logo sample summary: {json.dumps(logo_library_summary, ensure_ascii=False)}\n"
             ),
-            max_tokens=1400,
+            max_tokens=2200,
             temperature=0.75,
         )
         logo_candidates = result.get("logo_candidates", [])
         banner_candidates = result.get("banner_candidates", [])
-        if len(logo_candidates) == 3 and len(banner_candidates) == 3:
+        if len(logo_candidates) == 6 and len(banner_candidates) == 3:
             return logo_candidates, banner_candidates
     except Exception as exc:
         logger.warning("Could not generate dynamic Phase 4 briefs; using fallback briefs. Error: %s", exc)
@@ -770,7 +787,6 @@ def _build_phase_four_prompt(
     direction: str,
     logo_library_summary: dict,
 ) -> str:
-    context = state.get("context_bundle", {})
     motifs = [str(item).strip() for item in state.get("visual_motifs", []) if str(item).strip()]
     patterns = state.get("signature_patterns", []) or []
     pattern_names = [str(item.get("name", "")).strip() for item in patterns if isinstance(item, dict) and str(item.get("name", "")).strip()]
@@ -786,19 +802,13 @@ def _build_phase_four_prompt(
     library_ornament = _compact_list([str(item).strip() for item in logo_library_summary.get("ornament_cues", []) if str(item).strip()], limit=2, item_limit=32)
     negative_cues = _compact_list([str(item).strip() for item in logo_library_summary.get("negative_cues", []) if str(item).strip()], limit=3, item_limit=28)
     prompt_lines = [
-        "Premium artisan brand identity generation.",
+        "Premium brand identity generation.",
         "Create one final polished option only. Do not show alternatives, moodboards, mockups, or extra objects.",
         f"Candidate direction: {_compact_text(direction, 220)}",
         f"Brand name: {state.get('brand_name', '')}",
         f"Tagline: {state.get('tagline', '')}",
-        f"Craft and region: {context.get('craft_name', state.get('craft_id', '').replace('_', ' ').title())}, {context.get('region', '')}",
-        f"Brand feel: {state.get('brand_feel', 'earthy')}",
         f"Selected palette only: {palette_text}",
         f"Motif anchors: {_compact_list(motifs, limit=3, item_limit=28)}",
-        f"Pattern anchors: {_compact_list(pattern_names, limit=2, item_limit=28)}",
-        f"Pattern behavior: {_compact_list(pattern_descriptions, limit=2, item_limit=44)}",
-        f"Visual world: {visual_world}",
-        f"Premium cues: {composition_cues}; {luxury_markers}",
         f"Sample quality bar: {library_summary}",
         f"Sample cues: typography {library_typography}; composition {library_composition}; ornament {library_ornament}",
     ]
@@ -808,9 +818,20 @@ def _build_phase_four_prompt(
                 "Output: a high-end logo presentation on a clean solid or subtle paper background.",
                 "The mark must feel ownable, sharp, balanced, and immediately brandable.",
                 "Prioritize silhouette, typography quality, spacing, and premium restraint.",
+                "Palette lock: use only selected palette hex colors. Do not introduce any extra hue, tint family, or random gradient.",
+                "Use only brand name, tagline, selected palette, motifs, and sample logo cues.",
+                "Do not use craft context, region context, artisan story, or RAG context.",
             ]
         )
     else:
+        prompt_lines.extend(
+            [
+                f"Pattern anchors: {_compact_list(pattern_names, limit=2, item_limit=28)}",
+                f"Pattern behavior: {_compact_list(pattern_descriptions, limit=2, item_limit=44)}",
+                f"Visual world: {visual_world}",
+                f"Premium cues: {composition_cues}; {luxury_markers}",
+            ]
+        )
         prompt_lines.extend(
             [
                 "Output: a premium wide ecommerce hero banner.",
@@ -846,7 +867,11 @@ async def _generate_phase_four_asset_candidates(
             direction=f"{direction}\nWhat must make this option distinct: {difference_focus}".strip(),
             logo_library_summary=logo_library_summary,
         )
-        style_modifier = FEEL_LOGO_STYLE.get(state.get("brand_feel", "earthy"), FEEL_LOGO_STYLE["earthy"]) if asset_type == "logo" else FEEL_BANNER_STYLE.get(state.get("brand_feel", "earthy"), FEEL_BANNER_STYLE["earthy"])
+        style_modifier = (
+            "strict selected-palette lock, premium vector clarity, no extra colors"
+            if asset_type == "logo"
+            else FEEL_BANNER_STYLE.get(state.get("brand_feel", "earthy"), FEEL_BANNER_STYLE["earthy"])
+        )
         image_bytes, mime = await generate_image(
             prompt + f"\nStyle modifier: {style_modifier}.",
             width_hint=1024 if asset_type == "logo" else 1536,
@@ -965,6 +990,7 @@ async def _build_visual_foundation(
                 "- Motifs must be concrete and visually distinct from each other.\n"
                 "- Generate 1 to 3 signature patterns using only the extracted motifs and provided selected palette.\n"
                 "- Pattern descriptions must state motif usage + palette usage clearly.\n"
+                "- Palette lock is strict: do not use colors outside selected palette.\n"
                 "- Keep outputs concise and directly usable by designers.\n"
             ),
             user_prompt=(
@@ -1103,7 +1129,6 @@ def _build_identity_generation_prompt(
     excluded_pairs: list[BrandIdentityPairPayload],
 ) -> str:
     context = state.get("context_bundle", {})
-    craft_data = state.get("craft_data", {})
     example_context = build_example_context(state)
     excluded_text = "\n".join(
         f"- {pair.name} :: {pair.tagline}" for pair in excluded_pairs
@@ -1125,18 +1150,13 @@ def _build_identity_generation_prompt(
         f"Preferred language: {state.get('preferred_language', 'en')}\n"
         f"Script preference: {context.get('script_preference', 'english')}\n"
         f"Artisan story core: {context.get('artisan_story', '')}\n"
-        f"Craft tone keywords: {', '.join(craft_data.get('brand_tone_keywords', []))}\n"
-        f"Craft selling points: {json.dumps(craft_data.get('selling_points', []), ensure_ascii=False)}\n"
-        f"Craft materials: {json.dumps(craft_data.get('materials', {}), ensure_ascii=False)}\n"
-        f"Craft motifs: {json.dumps(craft_data.get('motifs', {}), ensure_ascii=False)}\n"
-        f"RAG context:\n{state.get('rag_context', '')}\n\n"
-        f"Retrieved brand name references:\n{format_examples_for_prompt(example_context['brand_name'])}\n\n"
-        f"Retrieved tagline references:\n{format_examples_for_prompt(example_context['tagline'])}\n\n"
+        f"Sample brand names from pool:\n{format_examples_for_prompt(example_context['brand_name'])}\n\n"
+        f"Sample taglines from pool:\n{format_examples_for_prompt(example_context['tagline'])}\n\n"
         f"Already shown pairs that must not be repeated:\n{excluded_text}\n\n"
         f"{variation_note}\n\n"
         "Creative direction:\n"
         "- Prefer names that feel ownable, sharp, and emotionally resonant.\n"
-        "- Draw from regional/craft meaning, materiality, motif, memory, rhythm, lineage, or maker philosophy.\n"
+        "- Draw from context signals: craft, region, memory, materiality, lineage, and maker philosophy.\n"
         "- Avoid names that sound generic, corporate, templated, or like placeholder Sanskrit words.\n"
         "- Avoid weak fillers like Craft, Handmade, Studio, India Art, Heritage Crafts unless absolutely necessary.\n"
         "- Each pair should feel like a distinct brand world, not six variations of the same naming formula.\n"
@@ -1163,11 +1183,12 @@ async def _generate_identity_pairs(
             "- Avoid bland names that could fit any artisan from any craft.\n"
             "- At least 4 of the 6 names should come from clearly different naming angles, for example material-led, motif-led, lineage-led, region-led, or feeling-led.\n"
             "- Each tagline must stay under 8 words.\n"
-            "- Use the craft context, artisan context, RAG context, and retrieved examples as guidance only.\n"
+            "- Use only provided context and sample pool references as guidance.\n"
             "- Never copy the retrieved examples verbatim.\n"
             "- The second set must feel meaningfully different from the first set if exclusions are provided.\n"
             "- Keep taglines aligned with the requested script preference.\n"
             "- why_it_fits should be specific and useful, not generic praise.\n"
+            "- Prioritize uniqueness and avoid repeating common naming templates.\n"
         ),
         user_prompt=_build_identity_generation_prompt(state, set_number=set_number, excluded_pairs=excluded_pairs),
         max_tokens=1800,
@@ -1214,7 +1235,7 @@ async def _regenerate_tagline(state: BrandState) -> str:
             "You are an expert Indian artisan brand copywriter.\n"
             "Output only JSON: {\"tagline\": \"...\"}\n"
             "Rules: keep it under 8 words, premium tone, specific to craft, non-generic.\n"
-            "Use the retrieved tagline examples as quality references only. Do not copy them."
+            "Use only provided context and sample pool examples as quality references. Do not copy them."
         ),
         user_prompt=(
             f"Brand name: {state.get('brand_name')}\n"
@@ -1226,8 +1247,7 @@ async def _regenerate_tagline(state: BrandState) -> str:
             f"Artisan story: {context.get('artisan_story', '')}\n"
             f"Current tagline: {state.get('tagline', '')}\n"
             f"Visual context: {state.get('visual_context', '')}\n"
-            f"RAG context: {state.get('rag_context', '')}\n\n"
-            f"Retrieved tagline examples:\n{format_examples_for_prompt(example_context['tagline'])}"
+            f"Sample tagline pool:\n{format_examples_for_prompt(example_context['tagline'])}"
         ),
         max_tokens=120,
         temperature=0.7,
@@ -1244,7 +1264,7 @@ async def _regenerate_name_and_tagline(state: BrandState) -> tuple[str, str]:
             "Output only JSON: {\"brand_name\": \"...\", \"tagline\": \"...\"}\n"
             "Rules: brand_name should be premium 1-2 words, culturally rooted and distinct.\n"
             "Tagline must be under 8 words and aligned with the same identity.\n"
-            "Use the retrieved naming and tagline examples as quality references only. Do not copy them."
+            "Use only provided context and sample pool references as quality guidance. Do not copy them."
         ),
         user_prompt=(
             f"Current brand name: {state.get('brand_name')}\n"
@@ -1256,9 +1276,8 @@ async def _regenerate_name_and_tagline(state: BrandState) -> tuple[str, str]:
             f"Script preference: {context.get('script_preference', 'both')}\n"
             f"Artisan story: {context.get('artisan_story', '')}\n"
             f"Visual context: {state.get('visual_context', '')}\n"
-            f"RAG context: {state.get('rag_context', '')}\n\n"
-            f"Retrieved brand name examples:\n{format_examples_for_prompt(example_context['brand_name'])}\n\n"
-            f"Retrieved tagline examples:\n{format_examples_for_prompt(example_context['tagline'])}"
+            f"Sample brand name pool:\n{format_examples_for_prompt(example_context['brand_name'])}\n\n"
+            f"Sample tagline pool:\n{format_examples_for_prompt(example_context['tagline'])}"
         ),
         max_tokens=220,
         temperature=0.8,
