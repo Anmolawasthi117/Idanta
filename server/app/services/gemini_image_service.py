@@ -64,17 +64,33 @@ def _fallback_image(prompt: str, width: int = 1024, height: int = 1024) -> bytes
 
 
 def _truncate_prompt(prompt: str, max_length: int = MAX_PROMPT_LENGTH) -> str:
-    """Truncate prompt to fit in URL path while keeping it coherent."""
+    """Truncate prompt to fit in URL path while preserving critical constraints.
+
+    Many callers place hard requirements like palette locks and negative cues near
+    the end of the prompt, so we keep both the opening brief and the closing
+    constraint block when trimming.
+    """
     if len(prompt) <= max_length:
         return prompt
-    # Cut at the last full sentence or newline before the limit
-    truncated = prompt[:max_length]
+
+    head_budget = int(max_length * 0.68)
+    tail_budget = max_length - head_budget - 5
+    head = prompt[:head_budget]
+    tail = prompt[-tail_budget:] if tail_budget > 0 else ""
+
     for sep in ["\n", ". ", ", "]:
-        idx = truncated.rfind(sep)
-        if idx > max_length // 2:
-            truncated = truncated[:idx]
+        idx = head.rfind(sep)
+        if idx > head_budget // 2:
+            head = head[:idx]
             break
-    return truncated.strip()
+
+    for sep in ["\n", ". ", ", "]:
+        idx = tail.find(sep)
+        if 0 <= idx < max(len(tail) // 2, 1):
+            tail = tail[idx + len(sep):]
+            break
+
+    return f"{head.strip()}\n...\n{tail.strip()}".strip()
 
 
 async def _download_reference(url: str) -> tuple[bytes, str]:
@@ -150,4 +166,3 @@ async def generate_image(
     except Exception as exc:
         logger.error("Pollinations image generation failed: %s", exc)
         return _fallback_image(safe_prompt, width_hint, height_hint), "image/png"
-

@@ -485,6 +485,7 @@ export default function OnboardingChatPage() {
     if (!user?.name || !draftBrandId) return
     setIsIdentityLoading(true)
     try {
+      const existingReferenceImages = getSavedReferenceImages(visualFoundation, extractedData)
       let uploadedUrls: string[] = []
       if (selectedVisualFiles.length > 0) {
         const formData = new FormData()
@@ -492,7 +493,9 @@ export default function OnboardingChatPage() {
         uploadedUrls = await uploadBrandImages(formData)
       }
 
-      if (uploadedUrls.length === 0) {
+      const referenceImages = uploadedUrls.length > 0 ? uploadedUrls : existingReferenceImages
+
+      if (referenceImages.length === 0) {
         pushToast(copyFor(language, 'Phase 3 visuals banane ke liye pehle images select ya upload kijiye.', 'Please select or upload images before generating Phase 3 visuals.'))
         return
       }
@@ -500,11 +503,14 @@ export default function OnboardingChatPage() {
       const response = await analyzeVisualFoundationMutation.mutateAsync({
         ...buildIdentityPayload(extractedData, language, user.name, draftBrandId),
         brand_id: draftBrandId,
-        reference_images: uploadedUrls,
+        reference_images: referenceImages,
         generate_visual_assets: false,
       })
       setVisualFoundation(normalizeVisualFoundation(response))
-      setExtractedData((current) => ({ ...current, reference_images: uploadedUrls }))
+      setExtractedData((current) => ({ ...current, reference_images: referenceImages }))
+      setPhaseFourCandidates(null)
+      setSelectedLogoCandidateId(undefined)
+      setSelectedBannerCandidateId(undefined)
       pushToast(copyFor(language, 'Palette options ready ho gaye.', 'Palette options are ready.'))
     } catch (error) {
       pushToast(getErrorMessage(error))
@@ -896,8 +902,8 @@ export default function OnboardingChatPage() {
                   />
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="rounded-full bg-white px-3 py-1 text-sm text-stone-700">{copyFor(language, `${selectedVisualFiles.length} files selected`, `${selectedVisualFiles.length} files selected`)}</span>
-                    <Button onClick={() => void handleAnalyzeVisualFoundation()} loading={isIdentityLoading} disabled={!draftBrandId || selectedVisualFiles.length === 0}>
-                      {copyFor(language, 'Generate palette options', 'Generate palette options')}
+                    <Button onClick={() => void handleAnalyzeVisualFoundation()} loading={isIdentityLoading} disabled={!draftBrandId || (selectedVisualFiles.length === 0 && savedReferenceImages.length === 0)}>
+                      {copyFor(language, hasPaletteOptions ? 'Regenerate palette options' : 'Generate palette options', hasPaletteOptions ? 'Regenerate palette options' : 'Generate palette options')}
                     </Button>
                   </div>
                   {hasPaletteOptions ? (

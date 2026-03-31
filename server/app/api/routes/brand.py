@@ -13,6 +13,7 @@ import io
 import zipfile
 import asyncio
 import re
+import colorsys
 from collections import Counter
 
 import httpx
@@ -22,11 +23,16 @@ from pydantic import BaseModel, Field
 from PIL import Image
 
 from app.agents.nodes.context_builder import context_builder_node
-from app.services.asset_prompt_service import build_brand_asset_prompt, build_brand_visual_dna
+from app.services.asset_prompt_service import build_brand_visual_dna
 from app.services.asset_example_pool import build_example_context, format_examples_for_prompt
-from app.services.gemini_image_service import generate_image
 from app.services.logo_reference_service import get_logo_reference_library_summary
 from app.services.groq_client import groq_json_completion, groq_vision_completion
+from app.services.vector_brand_service import (
+    render_banner_svg,
+    render_logo_svg,
+    render_motif_preview_svg,
+    render_pattern_preview_svg,
+)
 
 from app.agents.graphs.brand_graph import run_brand_graph
 from app.agents.state import BrandState
@@ -40,19 +46,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 LIBRARY_DIR = Path("data/craft_library")
-FEEL_LOGO_STYLE = {
-    "earthy": "organic, rooted, warm, textured, artisan-luxury",
-    "royal": "ornate, regal, jewel-toned, heritage-inspired, premium",
-    "vibrant": "bold, playful, celebratory, high-contrast, folk-art energy",
-    "minimal": "restrained, refined, spacious, modern, editorial",
-}
-
-FEEL_BANNER_STYLE = {
-    "earthy": "muted terracotta, ochre, soft handmade textures, grounded craft atmosphere",
-    "royal": "deep jewel tones, elegant detailing, premium heritage mood, decorative richness",
-    "vibrant": "colorful celebratory craft textures, bright contrast, dynamic pattern rhythm",
-    "minimal": "airy composition, subtle material texture, modern luxury, one strong accent",
-}
 
 
 class RegenerateAssetRequest(BaseModel):
@@ -262,9 +255,11 @@ async def _rebuild_brand_kit(brand_id: str, state: BrandState) -> str:
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         if state.get("logo_url"):
-            archive.writestr("logo.png", await _download_public_file(state["logo_url"]))
+            logo_name = "logo.svg" if str(state["logo_url"]).split("?")[0].endswith(".svg") else "logo.png"
+            archive.writestr(logo_name, await _download_public_file(state["logo_url"]))
         if state.get("banner_url"):
-            archive.writestr("banner.png", await _download_public_file(state["banner_url"]))
+            banner_name = "banner.svg" if str(state["banner_url"]).split("?")[0].endswith(".svg") else "banner.png"
+            archive.writestr(banner_name, await _download_public_file(state["banner_url"]))
         archive.writestr("brand_story_en.txt", state.get("story_en", ""))
         archive.writestr("brand_story_hi.txt", state.get("story_hi", ""))
         archive.writestr("palette.json", json.dumps(state.get("palette", {}), indent=2))
@@ -286,31 +281,42 @@ async def _rebuild_brand_kit(brand_id: str, state: BrandState) -> str:
 
 
 async def _regenerate_logo_or_banner(state: BrandState, asset_type: str) -> str:
-    visual_dna = await build_brand_visual_dna(state)
-    enriched_state: BrandState = {
-        **state,
-        "logo_reference_library_summary": await get_logo_reference_library_summary(),
-    }
+    logo_reference_library_summary = await get_logo_reference_library_summary()
+    motifs = [str(item).strip() for item in state.get("visual_motifs", []) if str(item).strip()]
+    patterns = state.get("signature_patterns", []) or []
+    motif_name = motifs[0] if motifs else "Image-derived motif"
+    motif_description = ""
+    if patterns:
+        pattern = patterns[0]
+        motif_description = str(pattern.get("description", "") if isinstance(pattern, dict) else getattr(pattern, "description", "")).strip()
+    palette = state.get("palette", {}) or {}
     if asset_type == "logo":
-        prompt = (
-            build_brand_asset_prompt(enriched_state, visual_dna, "logo")
-            + f"\nStyle modifier: {FEEL_LOGO_STYLE.get(state.get('brand_feel', 'earthy'), FEEL_LOGO_STYLE['earthy'])}."
+        svg = render_logo_svg(
+            brand_name=state.get("brand_name", ""),
+            tagline=state.get("tagline", ""),
+            palette=palette,
+            motif_name=motif_name,
+            motif_description=motif_description,
+            candidate_id="logo_candidate_1",
+            sample_summary=str(logo_reference_library_summary.get("summary", "")),
         )
-        image_bytes, mime = await generate_image(prompt, width_hint=1024, height_hint=1024)
         return await upload_bytes(
-            data=image_bytes,
-            path=f"brands/{state['brand_id']}/logo.png",
-            content_type=mime,
+            data=svg.encode("utf-8"),
+            path=f"brands/{state['brand_id']}/logo.svg",
+            content_type="image/svg+xml",
         )
-    prompt = (
-        build_brand_asset_prompt(enriched_state, visual_dna, "banner")
-        + f"\nStyle modifier: {FEEL_BANNER_STYLE.get(state.get('brand_feel', 'earthy'), FEEL_BANNER_STYLE['earthy'])}."
+    svg = render_banner_svg(
+        brand_name=state.get("brand_name", ""),
+        tagline=state.get("tagline", ""),
+        palette=palette,
+        motif_name=motif_name,
+        motif_description=motif_description,
+        candidate_id="banner_candidate_1",
     )
-    image_bytes, mime = await generate_image(prompt, width_hint=1536, height_hint=768)
     return await upload_bytes(
-        data=image_bytes,
-        path=f"brands/{state['brand_id']}/banner.png",
-        content_type=mime,
+        data=svg.encode("utf-8"),
+        path=f"brands/{state['brand_id']}/banner.svg",
+        content_type="image/svg+xml",
     )
 
 
@@ -401,6 +407,20 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
 
 
+def _hex_to_hsv(hex_color: str) -> tuple[float, float, float]:
+    red, green, blue = _hex_to_rgb(hex_color)
+    return colorsys.rgb_to_hsv(red / 255.0, green / 255.0, blue / 255.0)
+
+
+def _brightness(hex_color: str) -> float:
+    red, green, blue = _hex_to_rgb(hex_color)
+    return (0.299 * red + 0.587 * green + 0.114 * blue) / 255.0
+
+
+def _saturation(hex_color: str) -> float:
+    return _hex_to_hsv(hex_color)[1]
+
+
 def _mix_hex(hex_a: str, hex_b: str, ratio_b: float) -> str:
     ratio = max(0.0, min(1.0, ratio_b))
     a = _hex_to_rgb(hex_a)
@@ -439,6 +459,17 @@ def _select_distinct_color(candidates: list[str], anchors: list[str], fallback: 
     return fallback
 
 
+def _distinct_colors_from_swatches(swatches: list[tuple[str, int]]) -> list[str]:
+    return [color for color, _ in swatches if re.fullmatch(r"#[0-9A-Fa-f]{6}", color)]
+
+
+def _first_matching_color(colors: list[str], predicate, anchors: list[str], fallback: str) -> str:
+    for color in colors:
+        if predicate(color) and all(_color_distance(color, anchor) >= 28 for anchor in anchors):
+            return color
+    return _select_distinct_color(colors, anchors, fallback)
+
+
 async def _extract_image_color_swatches(image_urls: list[str], *, max_images: int = 6, colors_per_image: int = 12) -> list[tuple[str, int]]:
     if not image_urls:
         return []
@@ -467,117 +498,80 @@ async def _extract_image_color_swatches(image_urls: list[str], *, max_images: in
 
 
 def _fallback_palette_options(swatches: list[tuple[str, int]]) -> tuple[list[BrandPaletteOptionPayload], str]:
-    dominant = [color for color, _ in swatches]
-    defaults = [
-        dominant[0] if len(dominant) > 0 else "#8B2635",
-        dominant[1] if len(dominant) > 1 else "#4A7C59",
-        dominant[2] if len(dominant) > 2 else "#C4963B",
-        dominant[3] if len(dominant) > 3 else "#2E4057",
-    ]
-    primary = defaults[0]
-    secondary = _select_distinct_color(defaults[1:] + [primary], [primary], defaults[1])
-    accent = _select_distinct_color(defaults[2:] + [secondary], [primary, secondary], defaults[2])
-    tertiary = _select_distinct_color(defaults[3:] + [accent], [primary, secondary, accent], defaults[3])
+    colors = _distinct_colors_from_swatches(swatches)
+    if not colors:
+        colors = ["#8B2635", "#4A7C59", "#C4963B", "#2E4057", "#F5E6C8"]
+
+    dominant = colors[0]
+    darkest = min(colors, key=_brightness)
+    lightest = max(colors, key=_brightness)
+    saturated = max(colors, key=_saturation)
+    midtone = _first_matching_color(colors, lambda color: 0.22 <= _brightness(color) <= 0.72, [dominant], colors[min(1, len(colors) - 1)])
+    support = _select_distinct_color(colors[1:] + [midtone, darkest], [dominant], midtone)
+    accent = _select_distinct_color([saturated] + colors, [dominant, support], saturated)
+    contrast_secondary = _first_matching_color(
+        colors,
+        lambda color: _brightness(color) >= 0.62 or _saturation(color) <= 0.28,
+        [darkest],
+        lightest,
+    )
+    bold_primary = _select_distinct_color([saturated] + colors, [darkest], saturated)
+    bold_secondary = _select_distinct_color([dominant, darkest, support] + colors, [bold_primary], dominant)
+    bold_accent = _select_distinct_color(colors, [bold_primary, bold_secondary], accent)
 
     fallback_sets = [
         {
             "option_id": "palette_option_1",
             "name": "Image Core",
-            "rationale": "Closest translation of dominant colors from the uploaded images.",
+            "rationale": "A faithful palette built from the most dominant tones found in the uploaded images.",
             "palette": {
-                "primary": primary,
-                "secondary": secondary,
+                "primary": dominant,
+                "secondary": support,
                 "accent": accent,
-                "background": _mix_hex(primary, "#FFFFFF", 0.86),
+                "background": _mix_hex(lightest, "#FFFFFF", 0.55),
             },
         },
         {
             "option_id": "palette_option_2",
             "name": "Image Contrast",
-            "rationale": "Builds stronger contrast using secondary tones found in the uploaded images.",
+            "rationale": "A sharper palette that uses the image's darker and lighter tones for a more premium contrast range.",
             "palette": {
-                "primary": secondary,
-                "secondary": tertiary,
-                "accent": accent,
-                "background": _mix_hex(secondary, "#FFFFFF", 0.9),
+                "primary": darkest,
+                "secondary": contrast_secondary,
+                "accent": _select_distinct_color([accent, saturated] + colors, [darkest, contrast_secondary], accent),
+                "background": _mix_hex(contrast_secondary, "#FFFFFF", 0.7),
             },
         },
         {
             "option_id": "palette_option_3",
             "name": "Image Accent",
-            "rationale": "Pushes image-derived accent tones for a bolder expression while keeping source fidelity.",
+            "rationale": "A bolder palette that promotes the strongest accent tone from the uploaded images without leaving the source color family.",
             "palette": {
-                "primary": accent,
-                "secondary": primary,
-                "accent": tertiary,
-                "background": _mix_hex(accent, "#FFFFFF", 0.9),
+                "primary": bold_primary,
+                "secondary": bold_secondary,
+                "accent": bold_accent,
+                "background": _mix_hex(lightest, "#FFFFFF", 0.62),
             },
         },
     ]
 
-    options = [
-        BrandPaletteOptionPayload(
-            option_id=item["option_id"],
-            name=item["name"],
-            rationale=item["rationale"],
-            palette=_coerce_palette(item["palette"]).model_dump(),
+    options = []
+    for item in fallback_sets:
+        options.append(
+            BrandPaletteOptionPayload(
+                option_id=item["option_id"],
+                name=item["name"],
+                rationale=item["rationale"],
+                palette=_coerce_palette(item["palette"]).model_dump(),
+            )
         )
-        for item in fallback_sets
-    ]
     return options, options[0].option_id
 
 
 async def _build_palette_options(image_urls: list[str], visual_summary: str) -> tuple[list[BrandPaletteOptionPayload], str]:
+    del visual_summary
     swatches = await _extract_image_color_swatches(image_urls)
-    fallback_options, fallback_recommended = _fallback_palette_options(swatches)
-    swatch_preview = [item[0] for item in swatches[:8]]
-    try:
-        result = await groq_json_completion(
-            system_prompt=(
-                "You are a senior color strategist.\n"
-                "Return only JSON with this shape: "
-                "{\"palette_options\": [{\"option_id\": \"palette_option_1\", \"name\": \"...\", \"rationale\": \"...\", "
-                "\"palette\": {\"primary\": \"#000000\", \"secondary\": \"#111111\", \"accent\": \"#222222\", \"background\": \"#f5f1e8\"}}], "
-                "\"recommended_palette_id\": \"palette_option_1\"}\n"
-                "Rules:\n"
-                "- Generate exactly 3 palette options.\n"
-                "- Use only uploaded-image evidence (swatches + visual summary). Do not use craft, user, story, or region context.\n"
-                "- Keep each option visually distinct while preserving source fidelity to the image swatches.\n"
-                "- All palette values must be valid 6-digit hex colors.\n"
-                "- Rationale should explain visual effect in 1 sentence.\n"
-                "- recommended_palette_id must match one of the 3 option_ids.\n"
-            ),
-            user_prompt=(
-                f"Extracted image swatches (hex): {json.dumps(swatch_preview, ensure_ascii=False)}\n"
-                f"Visual summary from uploaded images:\n{visual_summary}\n"
-            ),
-            max_tokens=1200,
-            temperature=0.45,
-        )
-        raw_options = result.get("palette_options", [])
-        options: list[BrandPaletteOptionPayload] = []
-        for index, item in enumerate(raw_options[:3], start=1):
-            palette = _coerce_palette(item.get("palette", {}), fallback_options[min(index - 1, len(fallback_options) - 1)].palette)
-            option_id = str(item.get("option_id") or f"palette_option_{index}").strip() or f"palette_option_{index}"
-            name = str(item.get("name") or f"Palette {index}").strip() or f"Palette {index}"
-            rationale = str(item.get("rationale") or fallback_options[min(index - 1, len(fallback_options) - 1)].rationale).strip()
-            options.append(
-                BrandPaletteOptionPayload(
-                    option_id=option_id,
-                    name=name,
-                    rationale=rationale,
-                    palette=palette,
-                )
-            )
-        if len(options) != 3:
-            return fallback_options, fallback_recommended
-        recommended_palette_id = str(result.get("recommended_palette_id") or "").strip()
-        if recommended_palette_id not in {option.option_id for option in options}:
-            recommended_palette_id = options[0].option_id
-        return options, recommended_palette_id
-    except Exception as exc:
-        logger.warning("Palette option generation failed; using fallback options. Error: %s", exc)
-        return fallback_options, fallback_recommended
+    return _fallback_palette_options(swatches)
 
 
 async def _generate_preview_image(
@@ -590,22 +584,26 @@ async def _generate_preview_image(
     palette: BrandPalettePayload,
     visual_summary: str,
 ) -> str:
-    prompt = (
-        "Create a premium design board preview. "
-        f"Focus on {category}: {title}. "
-        f"Description: {description}. "
-        f"Use a clean presentation on a soft studio board, showing the motif or pattern clearly as a visual concept, not product photography. "
-        f"Use this palette: primary {palette.primary}, secondary {palette.secondary}, accent {palette.accent}, background {palette.background or '#F5E6C8'}. "
-        "Strict palette lock: use only the provided palette colors in the output. Do not add random hues or off-palette gradients. "
-        f"Visual cues from uploaded images only: {visual_summary}. "
-        "Do not include craft labels, region names, or textual story context in the image. "
-        "Keep it elegant, minimal, high contrast, and easy for a client to compare."
-    )
-    image_bytes, mime = await generate_image(prompt, width_hint=1024, height_hint=1024)
+    palette_data = palette.model_dump() if hasattr(palette, "model_dump") else dict(palette)
+    if category == "motif":
+        svg = render_motif_preview_svg(
+            title=title,
+            description=description,
+            palette=palette_data,
+            visual_summary=visual_summary,
+            index=index,
+        )
+    else:
+        svg = render_pattern_preview_svg(
+            title=title,
+            description=description,
+            palette=palette_data,
+            index=index,
+        )
     return await upload_bytes(
-        data=image_bytes,
-        path=f"brands/{brand_id}/phase3/{category}_{index}.png",
-        content_type=mime,
+        data=svg.encode("utf-8"),
+        path=f"brands/{brand_id}/phase3/{category}_{index}.svg",
+        content_type="image/svg+xml",
     )
 
 
@@ -692,6 +690,7 @@ async def _generate_phase_four_briefs(
                 "- Generate exactly 6 logo candidates and 3 banner candidates.\n"
                 "- logo_candidate_1, logo_candidate_2, logo_candidate_3 must be wordmark-led.\n"
                 "- logo_candidate_4, logo_candidate_5, logo_candidate_6 must be graphical/icon-led.\n"
+                "- Make the 6 logo candidates cover clearly different premium identity families: serif wordmark, modern wordmark, script-led wordmark, emblem, monogram, and seal/badge.\n"
                 "- All 6 logo candidates must be structurally different, not minor variations.\n"
                 "- All 3 banner candidates must feel clearly different in layout and pattern usage.\n"
                 "- banner_candidate_1 must be editorial and spacious.\n"
@@ -700,6 +699,8 @@ async def _generate_phase_four_briefs(
                 "- Use the internal logo sample library as a quality bar.\n"
                 "- For logo candidates, use only: brand name, tagline, selected palette, saved motifs, and logo sample library.\n"
                 "- For logo candidates, strictly use selected palette colors only.\n"
+                "- Each logo direction must explain how the saved motifs are abstracted or integrated.\n"
+                "- Favor premium typography, sharp silhouette, and logo-sheet clarity over decorative clutter.\n"
                 "- Do not use craft, region, artisan story, RAG context, or brand feel for logo candidates.\n"
                 "- For banner candidates, you may use saved patterns and visual DNA.\n"
                 "- Keep directions concrete enough for image generation.\n"
@@ -804,6 +805,7 @@ def _build_phase_four_prompt(
     prompt_lines = [
         "Premium brand identity generation.",
         "Create one final polished option only. Do not show alternatives, moodboards, mockups, or extra objects.",
+        "Palette lock is absolute. Use only the selected palette hex values with no off-palette hues.",
         f"Candidate direction: {_compact_text(direction, 220)}",
         f"Brand name: {state.get('brand_name', '')}",
         f"Tagline: {state.get('tagline', '')}",
@@ -817,10 +819,12 @@ def _build_phase_four_prompt(
             [
                 "Output: a high-end logo presentation on a clean solid or subtle paper background.",
                 "The mark must feel ownable, sharp, balanced, and immediately brandable.",
-                "Prioritize silhouette, typography quality, spacing, and premium restraint.",
-                "Palette lock: use only selected palette hex colors. Do not introduce any extra hue, tint family, or random gradient.",
+                "Prioritize silhouette, typography quality, spacing, premium restraint, and motif integration discipline.",
+                "Use the saved motifs as the source language for the mark, not random decorative symbols.",
+                "Palette lock: use only selected palette hex colors. Do not introduce any extra hue, tint family, random gradient, or lighting wash.",
                 "Use only brand name, tagline, selected palette, motifs, and sample logo cues.",
                 "Do not use craft context, region context, artisan story, or RAG context.",
+                "Avoid mockups. Avoid 3D effects. Avoid busy backgrounds. Keep the logo itself as the hero.",
             ]
         )
     else:
@@ -836,7 +840,7 @@ def _build_phase_four_prompt(
             [
                 "Output: a premium wide ecommerce hero banner.",
                 "Use the saved pattern language as an intentional layout device, not generic wallpaper.",
-                "Keep a strong focal area for logo and tagline, elegant spacing, and premium hierarchy.",
+                "Keep a strong focal area for logo and tagline, elegant spacing, premium hierarchy, and exact palette consistency.",
             ]
         )
     prompt_lines.append(f"Avoid: {negative_cues}, generic AI look, stock clipart, crowded folk-art clutter, weak typography, muddy composition.")
@@ -858,29 +862,38 @@ async def _generate_phase_four_asset_candidates(
     )
 
     async def _generate_candidate(asset_type: str, variant: dict, index: int) -> BrandAssetCandidatePayload:
-        direction = str(variant.get("direction", "")).strip()
         difference_focus = str(variant.get("difference_focus", "")).strip()
-        prompt = _build_phase_four_prompt(
-            state=state,
-            visual_dna=visual_dna,
-            asset_type=asset_type,
-            direction=f"{direction}\nWhat must make this option distinct: {difference_focus}".strip(),
-            logo_library_summary=logo_library_summary,
-        )
-        style_modifier = (
-            "strict selected-palette lock, premium vector clarity, no extra colors"
-            if asset_type == "logo"
-            else FEEL_BANNER_STYLE.get(state.get("brand_feel", "earthy"), FEEL_BANNER_STYLE["earthy"])
-        )
-        image_bytes, mime = await generate_image(
-            prompt + f"\nStyle modifier: {style_modifier}.",
-            width_hint=1024 if asset_type == "logo" else 1536,
-            height_hint=1024 if asset_type == "logo" else 768,
-        )
+        motifs = [str(item).strip() for item in state.get("visual_motifs", []) if str(item).strip()]
+        patterns = state.get("signature_patterns", []) or []
+        motif_name = motifs[min(index - 1, len(motifs) - 1)] if motifs else "Image-derived motif"
+        motif_description = ""
+        if patterns:
+            pattern = patterns[min(index - 1, len(patterns) - 1)]
+            motif_description = str(pattern.get("description", "") if isinstance(pattern, dict) else getattr(pattern, "description", "")).strip()
+        palette = state.get("palette", {}) or {}
+        if asset_type == "logo":
+            svg = render_logo_svg(
+                brand_name=state.get("brand_name", ""),
+                tagline=state.get("tagline", ""),
+                palette=palette,
+                motif_name=motif_name,
+                motif_description=motif_description,
+                candidate_id=str(variant.get("candidate_id") or f"{asset_type}_candidate_{index}"),
+                sample_summary=str(logo_library_summary.get("summary", "")),
+            )
+        else:
+            svg = render_banner_svg(
+                brand_name=state.get("brand_name", ""),
+                tagline=state.get("tagline", ""),
+                palette=palette,
+                motif_name=motif_name,
+                motif_description=motif_description,
+                candidate_id=str(variant.get("candidate_id") or f"{asset_type}_candidate_{index}"),
+            )
         image_url = await upload_bytes(
-            data=image_bytes,
-            path=f"brands/{brand_id}/phase4/{asset_type}_{index}.png",
-            content_type=mime,
+            data=svg.encode("utf-8"),
+            path=f"brands/{brand_id}/phase4/{asset_type}_{index}.svg",
+            content_type="image/svg+xml",
         )
         return BrandAssetCandidatePayload(
             candidate_id=str(variant.get("candidate_id") or f"{asset_type}_candidate_{index}"),
@@ -987,9 +1000,11 @@ async def _build_visual_foundation(
                 "Rules:\n"
                 "- Extract 1 to 3 motifs only from uploaded-image evidence.\n"
                 "- Never use craft/user/story/region context.\n"
-                "- Motifs must be concrete and visually distinct from each other.\n"
+                "- Motifs must be concrete, recurring, and visually distinct from each other.\n"
+                "- Name motifs based on what is actually visible in the uploaded images, not generic craft assumptions.\n"
+                "- Each motif name should include a clear visual family cue such as floral, leaf, paisley, diamond, wave, lattice, sun, arch, stripe, or dot.\n"
                 "- Generate 1 to 3 signature patterns using only the extracted motifs and provided selected palette.\n"
-                "- Pattern descriptions must state motif usage + palette usage clearly.\n"
+                "- Pattern descriptions must clearly state motif usage, repeat logic, and palette-role usage.\n"
                 "- Palette lock is strict: do not use colors outside selected palette.\n"
                 "- Keep outputs concise and directly usable by designers.\n"
             ),
@@ -2031,10 +2046,22 @@ async def regenerate_brand(
         "artisan_story": brand.get("artisan_story"),
         "preferred_language": brand.get("preferred_language", "hi"),
         "reference_images": brand.get("reference_images", []),
+        "brand_name": brand.get("name", "") or "",
+        "tagline": brand.get("tagline", "") or "",
+        "identity_locked": bool((brand.get("name") or "").strip() and (brand.get("tagline") or "").strip()),
         "palette": brand.get("palette", {}) or {},
+        "visual_summary": brand.get("visual_summary", "") or "",
+        "visual_motifs": brand.get("visual_motifs", []) or [],
+        "motif_previews": brand.get("motif_previews", []) or [],
+        "signature_patterns": brand.get("signature_patterns", []) or [],
         "palette_options": brand.get("palette_options", []) or [],
         "recommended_palette_id": brand.get("recommended_palette_id", "") or "",
         "selected_palette_id": brand.get("selected_palette_id", "") or "",
+        "story_en": brand.get("story_en", "") or "",
+        "story_hi": brand.get("story_hi", "") or "",
+        "logo_url": brand.get("logo_url", "") or "",
+        "banner_url": brand.get("banner_url", "") or "",
+        "kit_zip_url": brand.get("kit_zip_url", "") or "",
     }
 
     background_tasks.add_task(run_brand_graph, initial_state)

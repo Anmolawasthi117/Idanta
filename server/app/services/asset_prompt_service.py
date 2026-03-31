@@ -30,7 +30,10 @@ Return ONLY valid JSON with this schema:
 
 Rules:
 - The output must feel specific to the craft and artisan, never generic
-- Use brand feel, region, motifs, heritage, buyer profile, and artisan story
+- Use brand feel, region, motifs, heritage, buyer profile, artisan story, and uploaded-image evidence
+- Treat the provided palette as the locked master palette for downstream motif, logo, and banner generation
+- Prioritize saved motifs and saved pattern language when they exist
+- Make the DNA useful for premium logo systems, not just decorative storytelling
 - Aim for modern premium output, not costume-drama or cheap souvenir styling
 - Avoid fake typography instructions or unreadable text gimmicks
 """
@@ -63,6 +66,10 @@ def _json(value: Any) -> str:
 
 def _join_lines(items: list[str]) -> str:
     return ", ".join(item for item in items if item) or "none"
+
+
+def _palette_lock_text(palette: dict[str, Any]) -> str:
+    return ", ".join(f"{key}:{value}" for key, value in palette.items() if value) or "none"
 
 
 def _resolve_brand_examples(state: BrandState, asset_type: str) -> list[Dict[str, Any]]:
@@ -189,22 +196,28 @@ def build_brand_asset_prompt(state: BrandState, visual_dna: Dict[str, Any], asse
     logo_library_summary = state.get("logo_reference_library_summary", {})
     asset_specs = {
         "logo": (
-            "Create a premium artisan brand logo presentation. "
-            "Show one clear centered logo direction on a clean plain background or subtle luxury paper surface. "
-            "Focus on emblem quality, symbol clarity, memorable authorship, and premium typography. "
-            "No packaging mockup, no product photo, no scene-building, no watermark, no extra decorative objects. "
-            "The result must feel like a curated identity design sample, not clipart and not a generic AI poster."
+            "Create one premium artisan brand logo presentation. "
+            "Show one centered logo direction on a calm solid or subtle paper background. "
+            "Focus on symbol clarity, strong silhouette, memorable authorship, and crisp premium typography. "
+            "No packaging mockup, no product photo, no scene-building, no watermark, and no extra decorative objects."
         ),
         "banner": (
-            "Create a premium ecommerce hero banner for the brand. "
-            "Use premium hierarchy, refined pattern integration, decorative restraint, and luxury craft atmosphere. "
+            "Create one premium ecommerce hero banner for the brand. "
+            "Use refined hierarchy, intentional pattern integration, decorative restraint, and luxury craft atmosphere. "
             "It should feel like a homepage hero visual designed by an expert creative director. "
-            "No watermark, no random text blocks, no generic collage chaos, no cheap marketplace styling."
+            "No watermark, no random text blocks, no generic collage chaos, and no cheap marketplace styling."
         ),
     }
 
     return f"""
 You are generating the {asset_type} asset for one artisan brand.
+
+Hard constraints:
+- Palette lock: use only these exact colors -> {_palette_lock_text(palette)}
+- Never introduce off-palette hues, random gradients, or unrelated color families
+- Motif source of truth: use saved visual motifs and saved signature patterns first; use craft context only as support
+- Sample-logo inspiration is a quality bar, not something to copy
+- Premium clarity matters more than decoration density
 
 Brand identity:
 - Brand name: {state.get("brand_name", "")}
@@ -253,7 +266,7 @@ Output goal:
 - It must feel premium, realistic, polished, and commercially usable
 - Learn from the reference qualities but do not produce a derivative copy of any one example
 - Strongly prefer design clarity over visual noise
-- If generating a logo, present one polished logo direction with a calm background and strong silhouette separation
+- If generating a logo, prioritize sharp readability, strong spacing, motif integration, and color discipline
 - If generating a banner, let the saved pattern language structure the composition instead of using random generic backgrounds
 """
 
