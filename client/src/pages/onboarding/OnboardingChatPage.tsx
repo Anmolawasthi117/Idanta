@@ -699,18 +699,18 @@ export default function OnboardingChatPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <Card className="space-y-4 bg-orange-50">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-orange-700">{copyFor(language, 'Brand onboarding', 'Brand onboarding')}</p>
-            <h1 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Ek step par focus kijiye', 'Focus on one step at a time')}</h1>
+            <h1 className="text-xl font-semibold text-stone-900 sm:text-2xl">{copyFor(language, 'Ek step par focus kijiye', 'Focus on one step at a time')}</h1>
           </div>
           <p className="text-sm text-stone-600">{copyFor(language, 'Progress save hota rahega.', 'Progress is saved as you go.')}</p>
         </div>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible">
           {stepItems.map((step) => (
-            <div key={step.id} className={`rounded-2xl border px-4 py-3 ${step.done ? 'border-[#1f5c5a]/20 bg-white' : step.active ? 'border-orange-300 bg-white' : 'border-transparent bg-white/60'}`}>
+            <div key={step.id} className={`min-w-[148px] rounded-2xl border px-4 py-3 md:min-w-0 ${step.done ? 'border-[#1f5c5a]/20 bg-white' : step.active ? 'border-orange-300 bg-white' : 'border-transparent bg-white/60'}`}>
               <p className={`text-xs font-semibold uppercase tracking-wide ${step.done ? 'text-[#1f5c5a]' : step.active ? 'text-orange-700' : 'text-stone-500'}`}>{step.label}</p>
               <p className="mt-1 text-sm font-medium text-stone-800">{step.title}</p>
             </div>
@@ -724,6 +724,7 @@ export default function OnboardingChatPage() {
             <div className="flex flex-col items-start gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
               <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">{copyFor(language, currentPhase === 1 ? 'Phase 1: Basic details' : 'Phase 2: Brand story', currentPhase === 1 ? 'Phase 1: Basic details' : 'Phase 2: Brand story')}</h1>
               <Button
+                className="w-full sm:w-auto"
                 variant={isVoiceMode ? 'primary' : 'secondary'}
                 onClick={() => {
                   const nextMode = !isVoiceMode
@@ -792,16 +793,16 @@ export default function OnboardingChatPage() {
                   <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Identity step', 'Identity step')}</p>
                   <h1 className="text-2xl font-semibold text-stone-900 sm:text-3xl">{copyFor(language, 'Apne brand ke naam aur tagline chuniye', 'Choose your brand name and tagline')}</h1>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant={currentIdentitySetIndex === 0 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(0)} disabled={!identitySets[0]}>{copyFor(language, 'Set 1', 'Set 1')}</Button>
-                  {identitySets[1] ? <Button variant={currentIdentitySetIndex === 1 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(1)}>{copyFor(language, 'Set 2', 'Set 2')}</Button> : null}
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+                  <Button className="w-full" variant={currentIdentitySetIndex === 0 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(0)} disabled={!identitySets[0]}>{copyFor(language, 'Set 1', 'Set 1')}</Button>
+                  {identitySets[1] ? <Button className="w-full" variant={currentIdentitySetIndex === 1 ? 'primary' : 'secondary'} onClick={() => setCurrentIdentitySetIndex(1)}>{copyFor(language, 'Set 2', 'Set 2')}</Button> : null}
                 </div>
               </div>
               <p className="text-sm text-stone-600">{copyFor(language, 'Pehle jo pasand aaye unme se max 3 shortlist karo, phir hum best option suggest karenge.', 'Shortlist up to 3 options you like, then we will suggest the best one.')}</p>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-sm font-medium text-[#1f5c5a]">{copyFor(language, `${shortlistedPairs.length}/3 shortlisted`, `${shortlistedPairs.length}/3 shortlisted`)}</span>
-                {!identitySets[1] ? <Button variant="secondary" onClick={() => void requestIdentitySet(2)} loading={isIdentityLoading}><Sparkles className="mr-2 h-4 w-4" />{copyFor(language, 'Doosra set dikhao', 'Show second set')}</Button> : null}
-                <Button onClick={() => void handleRankShortlist()} loading={isIdentityLoading} disabled={shortlistedPairs.length === 0}><ArrowRight className="mr-2 h-4 w-4" />{copyFor(language, 'Rank my picks', 'Rank my picks')}</Button>
+                {!identitySets[1] ? <Button className="w-full sm:w-auto" variant="secondary" onClick={() => void requestIdentitySet(2)} loading={isIdentityLoading}><Sparkles className="mr-2 h-4 w-4" />{copyFor(language, 'Doosra set dikhao', 'Show second set')}</Button> : null}
+                <Button className="w-full sm:w-auto" onClick={() => void handleRankShortlist()} loading={isIdentityLoading} disabled={shortlistedPairs.length === 0}><ArrowRight className="mr-2 h-4 w-4" />{copyFor(language, 'Rank my picks', 'Rank my picks')}</Button>
               </div>
             </Card>
           ) : null}
@@ -817,7 +818,7 @@ export default function OnboardingChatPage() {
               ) : null}
             </Card>
           ) : !finalSelectedPair ? (
-            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {activeIdentitySet.map((pair) => {
                 const isSelected = shortlistedPairs.some((item) => pairKey(item) === pairKey(pair))
                 return (
@@ -856,7 +857,7 @@ export default function OnboardingChatPage() {
                           <p className="text-2xl font-semibold text-stone-900">{pair.name}</p>
                           <p className="rounded-2xl bg-orange-50 px-4 py-3 text-sm font-medium text-orange-800">{pair.tagline}</p>
                         </div>
-                        <Button onClick={() => void handleFinalizeIdentity(pair)} loading={isIdentityLoading && isFinal} disabled={Boolean(finalSelectedPair) && !isFinal}>{isFinal ? copyFor(language, 'Finalized', 'Finalized') : copyFor(language, 'Choose this one', 'Choose this one')}</Button>
+                        <Button className="w-full sm:w-auto" onClick={() => void handleFinalizeIdentity(pair)} loading={isIdentityLoading && isFinal} disabled={Boolean(finalSelectedPair) && !isFinal}>{isFinal ? copyFor(language, 'Finalized', 'Finalized') : copyFor(language, 'Choose this one', 'Choose this one')}</Button>
                       </div>
                       <p className="text-sm leading-6 text-stone-600">{pair.explanation}</p>
                     </Card>
@@ -924,7 +925,7 @@ export default function OnboardingChatPage() {
                               </div>
                               <p className="mt-3 text-lg font-semibold text-stone-900">{option.name}</p>
                               <p className="mt-1 text-sm leading-6 text-stone-600">{option.rationale}</p>
-                              <div className="mt-4 grid grid-cols-4 gap-2">
+                              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {paletteSwatches(option).map(([label, value]) => (
                                   <div key={`${option.option_id}-${label}`} className="space-y-2">
                                     <div className="h-14 rounded-2xl border border-stone-200" style={{ backgroundColor: String(value) }} />
@@ -1002,7 +1003,7 @@ export default function OnboardingChatPage() {
                   <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Choose your logo and banner', 'Choose your logo and banner')}</h2>
                   <p className="mt-2 text-sm text-stone-600">{copyFor(language, 'Pehle 3 logo directions ko ek line me compare kijiye. Uske baad niche se 1 banner choose karke final brand page par badhiye.', 'Compare the 3 logo directions in one line first. Then choose 1 banner below and move to the final brand page.')}</p>
                 </div>
-                <Button onClick={() => void handleGeneratePhaseFourCandidates()} loading={isIdentityLoading} disabled={!draftBrandId}>
+                <Button className="w-full sm:w-auto" onClick={() => void handleGeneratePhaseFourCandidates()} loading={isIdentityLoading} disabled={!draftBrandId}>
                   {copyFor(language, normalizedPhaseFourCandidates ? 'Refresh Phase 4 options' : 'Generate Phase 4 options', normalizedPhaseFourCandidates ? 'Refresh Phase 4 options' : 'Generate Phase 4 options')}
                 </Button>
               </div>
@@ -1017,7 +1018,7 @@ export default function OnboardingChatPage() {
                       </div>
                       {selectedLogoCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Logo selected', 'Logo selected')}</span> : null}
                     </div>
-                    <div className="flex gap-4 overflow-x-auto pb-2">
+                    <div className="flex snap-x gap-4 overflow-x-auto pb-2">
                       {normalizedPhaseFourCandidates.logos.map((candidate) => {
                         const isSelected = candidate.candidate_id === selectedLogoCandidateId
                         return (
@@ -1025,7 +1026,7 @@ export default function OnboardingChatPage() {
                             key={candidate.candidate_id}
                             type="button"
                             onClick={() => setSelectedLogoCandidateId(candidate.candidate_id)}
-                            className={`min-w-[220px] flex-1 overflow-hidden rounded-3xl bg-white text-left shadow-sm ring-1 transition hover:-translate-y-0.5 ${isSelected ? 'ring-[#1f5c5a] shadow-md' : 'ring-stone-200 hover:ring-orange-200'}`}
+                            className={`min-w-[240px] snap-start flex-1 overflow-hidden rounded-3xl bg-white text-left shadow-sm ring-1 transition hover:-translate-y-0.5 ${isSelected ? 'ring-[#1f5c5a] shadow-md' : 'ring-stone-200 hover:ring-orange-200'}`}
                           >
                             <div className="flex h-40 items-center justify-center bg-stone-50 p-4">
                               <img src={candidate.image_url} alt={candidate.title} className="max-h-full max-w-full object-contain" />
@@ -1051,7 +1052,7 @@ export default function OnboardingChatPage() {
                       </div>
                       {selectedBannerCandidate ? <span className="rounded-full bg-[#1f5c5a]/10 px-3 py-1 text-xs font-semibold text-[#1f5c5a]">{copyFor(language, 'Banner selected', 'Banner selected')}</span> : null}
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {normalizedPhaseFourCandidates.banners.map((candidate) => {
                         const isSelected = candidate.candidate_id === selectedBannerCandidateId
                         return (
@@ -1075,8 +1076,8 @@ export default function OnboardingChatPage() {
                     </div>
                   </Card>
 
-                  <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-dashed border-orange-200 bg-orange-50 px-4 py-4">
-                    <Button onClick={() => void handleSelectPhaseFourAssets()} loading={isIdentityLoading} disabled={!selectedLogoCandidate || !selectedBannerCandidate}>
+                  <div className="flex flex-col gap-3 rounded-3xl border border-dashed border-orange-200 bg-orange-50 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center">
+                    <Button className="w-full sm:w-auto" onClick={() => void handleSelectPhaseFourAssets()} loading={isIdentityLoading} disabled={!selectedLogoCandidate || !selectedBannerCandidate}>
                       {copyFor(language, 'Continue to brand page', 'Continue to brand page')}
                     </Button>
                     <p className="text-sm text-stone-600">{copyFor(language, 'Ek logo aur ek banner choose karte hi hum aapko final brand page par le jayenge jahan story Hindi aur English dono me milegi.', 'Once you choose one logo and one banner, we will take you to the final brand page with the story in both Hindi and English.')}</p>
@@ -1095,7 +1096,7 @@ export default function OnboardingChatPage() {
       <Card className="space-y-3">
         <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Local draft', 'Local draft')}</p>
         <p className="text-sm text-stone-600">{isIdentityStage ? copyFor(language, 'Chat, shortlisted pairs aur final selection sab local draft me save ho rahe hain, taki reload ke baad bhi flow wahi se continue ho.', 'Your chat, shortlisted pairs, and final selection are all saved locally so the flow can continue after reload.') : copyFor(language, 'Aapka ongoing chat local draft me save ho raha hai, taki reload ke baad bhi context bana rahe.', 'Your ongoing chat is being saved locally so the context stays intact after reload.')}</p>
-        {(isComplete || messages.length > 1) ? <Button variant="secondary" onClick={resetOnboarding}>{copyFor(language, 'Onboarding dubara shuru karein', 'Restart onboarding')}</Button> : null}
+        {(isComplete || messages.length > 1) ? <Button className="w-full sm:w-auto" variant="secondary" onClick={resetOnboarding}>{copyFor(language, 'Onboarding dubara shuru karein', 'Restart onboarding')}</Button> : null}
       </Card>
     </div>
   )

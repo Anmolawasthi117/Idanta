@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import BrandAssetGrid from '../../components/brand/BrandAssetGrid'
 import PaletteDisplay from '../../components/brand/PaletteDisplay'
@@ -161,7 +161,7 @@ export default function BrandPage() {
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
-        <div className="relative h-56 overflow-hidden sm:h-72">
+        <div className="relative h-52 overflow-hidden sm:h-72">
           {brand.banner_url ? (
             <img src={brand.banner_url} alt={`${brand.name} banner`} className="h-full w-full object-cover" />
           ) : (
@@ -173,10 +173,10 @@ export default function BrandPage() {
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
-          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
-            <div className="flex items-end justify-between gap-4">
-              <div className="flex items-end gap-4">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-white/40 bg-white/95 shadow-xl sm:h-24 sm:w-24">
+          <div className="absolute inset-x-0 bottom-0 p-4 sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex items-end gap-3 sm:gap-4">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/40 bg-white/95 shadow-xl sm:h-24 sm:w-24">
                   {brand.logo_url ? (
                     <img src={brand.logo_url} alt={`${brand.name} logo`} className="max-h-full max-w-full object-contain p-2" />
                   ) : (
@@ -184,7 +184,7 @@ export default function BrandPage() {
                   )}
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold text-white sm:text-3xl">{brand.name}</p>
+                  <p className="text-xl font-semibold text-white sm:text-3xl">{brand.name}</p>
                   <p className="mt-2 inline-block rounded-full bg-white/95 px-3 py-1 text-sm font-semibold text-orange-700 shadow-sm">
                     {brand.tagline}
                   </p>
@@ -193,7 +193,7 @@ export default function BrandPage() {
                   </p>
                 </div>
               </div>
-              <span className="rounded-full border border-white/50 bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+              <span className="self-start rounded-full border border-white/50 bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
                 {brand.status}
               </span>
             </div>
@@ -202,12 +202,12 @@ export default function BrandPage() {
       </Card>
 
       <Card className="space-y-4 border-orange-200">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-orange-600">{copyFor(language, 'Brand identity', 'Brand identity')}</p>
             <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Edit name and tagline', 'Edit name and tagline')}</h2>
           </div>
-          <Button variant="secondary" onClick={() => handleRegenerateAsset('name')} loading={isAssetBusy('name')} disabled={Boolean(activeRegeneration)}>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={() => handleRegenerateAsset('name')} loading={isAssetBusy('name')} disabled={Boolean(activeRegeneration)}>
             <RefreshCw className="mr-2 h-4 w-4" />
             {copyFor(language, 'Regenerate name + logo', 'Regenerate name + logo')}
           </Button>
@@ -216,8 +216,8 @@ export default function BrandPage() {
           <Input label={copyFor(language, 'Brand name', 'Brand name')} value={editedName} onChange={(event) => setEditedName(event.target.value)} />
           <Input label={copyFor(language, 'Tagline', 'Tagline')} value={editedTagline} onChange={(event) => setEditedTagline(event.target.value)} />
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button onClick={handleSaveIdentity} loading={activeRegeneration === 'identity'} disabled={Boolean(activeRegeneration)}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <Button className="w-full sm:w-auto" onClick={handleSaveIdentity} loading={activeRegeneration === 'identity'} disabled={Boolean(activeRegeneration)}>
             {copyFor(language, 'Save and refresh logo', 'Save and refresh logo')}
           </Button>
           <Button
@@ -252,7 +252,7 @@ export default function BrandPage() {
           {brand.motif_previews?.length ? (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Motifs', 'Motifs')}</p>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {brand.motif_previews.map((motif) => (
                   <div key={`${motif.name}-${motif.image_url}`} className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50">
                     <img src={motif.image_url} alt={motif.name} className="h-56 w-full object-cover" />
@@ -265,7 +265,7 @@ export default function BrandPage() {
           {brand.signature_patterns?.length ? (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-stone-700">{copyFor(language, 'Patterns', 'Patterns')}</p>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {brand.signature_patterns.map((pattern) => (
                   <div key={`${pattern.name}-${pattern.image_url ?? pattern.description}`} className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50">
                     {pattern.image_url ? <img src={pattern.image_url} alt={pattern.name} className="h-56 w-full object-cover" /> : <div className="h-56 w-full bg-gradient-to-br from-stone-100 to-stone-200" />}
@@ -278,11 +278,11 @@ export default function BrandPage() {
       ) : null}
 
       <Card className="space-y-4">
-        <div className="flex gap-3">
-          <Button variant={storyTab === 'en' ? 'primary' : 'secondary'} onClick={() => setStoryTab('en')}>
+        <div className="grid grid-cols-2 gap-3">
+          <Button className="w-full" variant={storyTab === 'en' ? 'primary' : 'secondary'} onClick={() => setStoryTab('en')}>
             English
           </Button>
-          <Button variant={storyTab === 'hi' ? 'primary' : 'secondary'} onClick={() => setStoryTab('hi')}>
+          <Button className="w-full" variant={storyTab === 'hi' ? 'primary' : 'secondary'} onClick={() => setStoryTab('hi')}>
             Hindi
           </Button>
         </div>
@@ -295,7 +295,7 @@ export default function BrandPage() {
       </Card>
 
       <Card className="space-y-4 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-white p-3 shadow-sm">
               <Package className="h-6 w-6 text-orange-500" />
@@ -305,7 +305,7 @@ export default function BrandPage() {
               <h2 className="text-2xl font-semibold text-stone-900">{copyFor(language, 'Brand kit', 'Brand kit')}</h2>
             </div>
           </div>
-          <Button variant="secondary" onClick={handleRegenerateAll} loading={activeRegeneration === 'all'} disabled={Boolean(activeRegeneration)}>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={handleRegenerateAll} loading={activeRegeneration === 'all'} disabled={Boolean(activeRegeneration)}>
             <Sparkles className="mr-2 h-4 w-4" />
             {copyFor(language, 'Regenerate all', 'Regenerate all')}
           </Button>
@@ -314,7 +314,7 @@ export default function BrandPage() {
           {copyFor(language, 'Is kit me logo, banner, stories aur palette ek hi download me milenge.', 'This kit bundles logo, banner, stories, and palette in a single download.')}
         </p>
         <div className="rounded-2xl border border-orange-200 bg-white/80 p-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-100">
                 <Package className="h-6 w-6 text-orange-600" />
@@ -324,7 +324,7 @@ export default function BrandPage() {
                 <p className="text-sm text-stone-500">ZIP</p>
               </div>
             </div>
-            <Button onClick={() => handleDownload('kit')} loading={assetMutation.isPending} disabled={!brand.kit_zip_url || Boolean(activeRegeneration)}>
+            <Button className="w-full sm:w-auto" onClick={() => handleDownload('kit')} loading={assetMutation.isPending} disabled={!brand.kit_zip_url || Boolean(activeRegeneration)}>
               {copyFor(language, 'Download', 'Download')}
             </Button>
           </div>
@@ -363,9 +363,9 @@ export default function BrandPage() {
                   <div className="h-full w-1/3 animate-pulse rounded-full bg-orange-500" />
                 </div>
               ) : null}
-              <div className="flex gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <Button
-                  className="flex-1"
+                  className="w-full flex-1"
                   onClick={() => handleDownload(asset.downloadType)}
                   loading={assetMutation.isPending}
                   disabled={!asset.isAvailable || Boolean(activeRegeneration)}
@@ -373,7 +373,7 @@ export default function BrandPage() {
                   {copyFor(language, 'Download', 'Download')}
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="w-full flex-1"
                   variant="secondary"
                   onClick={() => handleRegenerateAsset(asset.regenerateType)}
                   loading={isAssetBusy(asset.regenerateType === 'logo' ? 'logo' : 'banner')}
@@ -398,7 +398,7 @@ export default function BrandPage() {
               <div className="h-full w-1/3 animate-pulse rounded-full bg-orange-500" />
             </div>
           ) : null}
-          <Button variant="secondary" onClick={() => handleRegenerateAsset('tagline')} loading={isAssetBusy('tagline')} disabled={assetMutation.isPending || Boolean(activeRegeneration)}>
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={() => handleRegenerateAsset('tagline')} loading={isAssetBusy('tagline')} disabled={assetMutation.isPending || Boolean(activeRegeneration)}>
             <RefreshCw className="mr-2 h-4 w-4" />
             {copyFor(language, 'Regenerate tagline only', 'Regenerate tagline only')}
           </Button>
@@ -406,4 +406,5 @@ export default function BrandPage() {
       </Card>
     </div>
   )
-}
+}
+

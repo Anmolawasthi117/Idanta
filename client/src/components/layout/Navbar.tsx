@@ -14,14 +14,14 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#1f5c5a]/10 bg-[#fbf8f2]/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <Link to="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1f5c5a] text-white shadow-sm">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-4">
+        <Link to="/dashboard" className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#1f5c5a] text-white shadow-sm sm:h-11 sm:w-11">
             <Sparkles className="h-5 w-5" />
           </div>
-          <div>
-            <p className="text-lg font-semibold text-stone-900">Idanta</p>
-            <p className="text-sm text-stone-500">{t('tagline')}</p>
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-stone-900 sm:text-lg">Idanta</p>
+            <p className="hidden text-sm text-stone-500 sm:block">{t('tagline')}</p>
           </div>
         </Link>
 
@@ -52,12 +52,12 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-sm font-medium text-stone-800">{user?.name ?? 'Artisan'}</p>
             <p className="text-xs text-stone-500">{user?.phone ?? ''}</p>
           </div>
-          <Button variant="ghost" onClick={clearAuth}>
+          <Button variant="ghost" className="px-3 py-2 text-sm sm:px-4 sm:text-base" onClick={clearAuth}>
             {t('logout')}
           </Button>
         </div>

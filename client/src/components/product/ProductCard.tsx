@@ -6,9 +6,9 @@ import { formatPrice } from '../../lib/utils'
 
 export default function ProductCard({ product }: { product: Product }) {
   return (
-    <Link to={`/products/${product.id}`} className="block min-w-[250px]">
+    <Link to={`/products/${product.id}`} className="block min-w-[220px] sm:min-w-[250px]">
       <Card className="h-full overflow-hidden p-0">
-        <div className="h-40 bg-stone-100">
+        <div className="h-36 bg-stone-100 sm:h-40">
           {product.branded_photo_url || product.photos[0] ? (
             <img
               src={product.branded_photo_url || product.photos[0]}

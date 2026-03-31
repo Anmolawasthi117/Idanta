@@ -25,8 +25,8 @@ export default function Button({
         variant === 'primary' && 'bg-[#1f5c5a] text-white shadow-sm hover:bg-[#184b49]',
         variant === 'secondary' && 'border border-[#1f5c5a]/15 bg-white text-[#1f5c5a] hover:bg-[#eef4f1]',
         variant === 'ghost' && 'text-stone-700 hover:bg-stone-100',
-        size === 'md' && 'px-4 py-3 text-base',
-        size === 'lg' && 'px-5 py-4 text-lg',
+        size === 'md' && 'px-4 py-3 text-sm sm:text-base',
+        size === 'lg' && 'px-5 py-4 text-base sm:text-lg',
         className,
       )}
       disabled={disabled || loading}
