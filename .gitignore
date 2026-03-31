@@ -29,6 +29,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+!client/src/lib/
+!client/src/lib/**
 
 # IDE
 .vscode/
