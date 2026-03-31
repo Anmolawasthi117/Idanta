@@ -1,6 +1,6 @@
-"""
+﻿"""
 Visual identity generation node for brand assets.
-Uses Gemini image generation for both logo and banner outputs.
+Uses the SVG renderer for both logo and banner outputs.
 """
 
 import asyncio
@@ -100,3 +100,4 @@ async def visual_identity_node(state: BrandState) -> BrandState:
         "logo_url": logo_url,
         "banner_url": banner_url,
     }
+

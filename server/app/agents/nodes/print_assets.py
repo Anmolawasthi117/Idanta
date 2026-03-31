@@ -1,5 +1,5 @@
 """
-Product asset generation node powered entirely by Gemini image generation.
+Product asset generation node powered by Pollinations image generation.
 """
 
 import logging
@@ -7,7 +7,7 @@ import logging
 from app.agents.state import ProductState
 from app.core.database import supabase
 from app.services.asset_prompt_service import build_product_asset_prompt, build_product_visual_dna
-from app.services.gemini_image_service import generate_image
+from app.services.pollinations_image_service import generate_image
 from app.services.storage_service import upload_bytes
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ async def _upload_image(image_bytes: bytes, product_id: str, filename: str, cont
 
 
 async def print_assets_node(state: ProductState) -> ProductState:
-    """Generate product asset images and a branded product photo with Gemini."""
+    """Generate product asset images and a branded product photo with Pollinations."""
     job_id = state["job_id"]
     product_id = state["product_id"]
     category = state.get("product_category", "other")
@@ -96,7 +96,7 @@ async def print_assets_node(state: ProductState) -> ProductState:
             content_type=branded_photo_mime,
         )
 
-    logger.info("Gemini product assets complete for job=%s, product=%s", job_id, product_id)
+    logger.info("Pollinations product assets complete for job=%s, product=%s", job_id, product_id)
     return {
         **state,
         "print_asset_paths": print_asset_paths,

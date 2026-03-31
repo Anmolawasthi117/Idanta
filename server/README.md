@@ -1,4 +1,4 @@
-# Idanta Server
+﻿# Idanta Server
 
 This is the FastAPI backend for Idanta. It is responsible for:
 
@@ -25,22 +25,21 @@ At a high level it does four things:
 
 ```text
 server/
-├── app/
-│   ├── agents/        # LangGraph state, nodes, and graphs
-│   ├── api/           # FastAPI routes and dependencies
-│   ├── core/          # config, DB, auth utilities
-│   ├── models/        # Pydantic models and domain enums
-│   ├── rag/           # embedding, indexing, retrieval
-│   └── services/      # LLM clients, image generation, prompt assembly, storage
-├── data/
-│   ├── craft_library/
-│   ├── logo_sample/
-│   ├── brand_verbal_pool.json
-│   ├── brand_visual_pool.json
-│   ├── design_pool.json
-│   └── database_schema.sql
-├── main.py
-└── requirements.txt
+â”œâ”€â”€ app/
+â”‚   â”œâ”€â”€ agents/        # LangGraph state, nodes, and graphs
+â”‚   â”œâ”€â”€ api/           # FastAPI routes and dependencies
+â”‚   â”œâ”€â”€ core/          # config, DB, auth utilities
+â”‚   â”œâ”€â”€ models/        # Pydantic models and domain enums
+â”‚   â”œâ”€â”€ rag/           # embedding, indexing, retrieval
+â”‚   â””â”€â”€ services/      # LLM clients, image generation, prompt assembly, storage
+â”œâ”€â”€ data/
+â”‚   â”œâ”€â”€ craft_library/
+â”‚   â”œâ”€â”€ logo_sample/
+â”‚   â”œâ”€â”€ brand_verbal_pool.json
+â”‚   â”œâ”€â”€ brand_visual_pool.json
+â”‚   â””â”€â”€ database_schema.sql
+â”œâ”€â”€ main.py
+â””â”€â”€ requirements.txt
 ```
 
 ## Startup Flow
@@ -517,8 +516,7 @@ Common required variables include:
 - `JWT_SECRET_KEY`
 - `GROQ_API_KEY`
 - `GROQ_MODEL`
-- `GEMINI_API_KEY`
-- `GEMINI_VISION_MODEL`
+- `POLLINATIONS_API_KEY`
 - `EMBEDDING_MODEL`
 - `RAG_TOP_K`
 - `CORS_ORIGINS`
@@ -567,4 +565,5 @@ A useful reading order is:
 9. `data/craft_library/*`
 
 That order gives the clearest picture of how requests turn into generation state and then into persisted assets.
+
 

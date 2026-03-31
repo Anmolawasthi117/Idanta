@@ -1,4 +1,4 @@
-# Idanta Client
+﻿# Idanta Client
 
 This is the React frontend for Idanta. It is the decision-making UI on top of the backend generation engine.
 
@@ -29,25 +29,25 @@ From `package.json`, the main client stack is:
 
 ```text
 client/
-├── public/
-├── src/
-│   ├── api/         # HTTP wrappers
-│   ├── components/  # reusable UI
-│   ├── hooks/       # query hooks and voice logic
-│   ├── lib/         # helpers, i18n, local drafts
-│   ├── pages/       # route screens
-│   ├── router/      # route configuration
-│   ├── store/       # Zustand stores
-│   └── types/       # TypeScript contracts
-├── package.json
-└── README.md
+â”œâ”€â”€ public/
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ api/         # HTTP wrappers
+â”‚   â”œâ”€â”€ components/  # reusable UI
+â”‚   â”œâ”€â”€ hooks/       # query hooks and voice logic
+â”‚   â”œâ”€â”€ lib/         # helpers, i18n, local drafts
+â”‚   â”œâ”€â”€ pages/       # route screens
+â”‚   â”œâ”€â”€ router/      # route configuration
+â”‚   â”œâ”€â”€ store/       # Zustand stores
+â”‚   â””â”€â”€ types/       # TypeScript contracts
+â”œâ”€â”€ package.json
+â””â”€â”€ README.md
 ```
 
 ## Mental Model
 
 The frontend is not where brand generation happens. The backend does the heavy generation work.
 
-The frontend’s job is to:
+The frontendâ€™s job is to:
 
 1. collect structured inputs
 2. show progressive choices
@@ -445,7 +445,7 @@ Create `client/.env` from `.env.example`.
 
 Main variable:
 
-- `VITE_API_URL=http://localhost:8000`
+- `VITE_API_URL=http://localhost:8000/api/v1`
 
 ## How To Read The Client Code
 
@@ -474,4 +474,5 @@ The codebase mostly follows these patterns:
 - local draft logic is separated from view rendering
 
 In practical terms, that means the onboarding page is large because it is the orchestrator, while smaller helper files keep the repeated logic out of the JSX where possible.
+
 
