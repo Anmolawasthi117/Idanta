@@ -533,13 +533,13 @@ def _fallback_palette_options(swatches: list[tuple[str, int]]) -> tuple[list[Bra
         },
         {
             "option_id": "palette_option_2",
-            "name": "Image Contrast",
-            "rationale": "A sharper palette that uses the image's darker and lighter tones for a more premium contrast range.",
+            "name": "Image Refined",
+            "rationale": "A softer premium palette that lifts the image colors into a lighter and more editorial direction.",
             "palette": {
                 "primary": darkest,
-                "secondary": contrast_secondary,
-                "accent": _select_distinct_color([accent, saturated] + colors, [darkest, contrast_secondary], accent),
-                "background": _mix_hex(contrast_secondary, "#FFFFFF", 0.7),
+                "secondary": _mix_hex(contrast_secondary, lightest, 0.48),
+                "accent": _mix_hex(accent, support, 0.42),
+                "background": _mix_hex(lightest, "#FFFFFF", 0.78),
             },
         },
         {
@@ -548,9 +548,9 @@ def _fallback_palette_options(swatches: list[tuple[str, int]]) -> tuple[list[Bra
             "rationale": "A bolder palette that promotes the strongest accent tone from the uploaded images without leaving the source color family.",
             "palette": {
                 "primary": bold_primary,
-                "secondary": bold_secondary,
-                "accent": bold_accent,
-                "background": _mix_hex(lightest, "#FFFFFF", 0.62),
+                "secondary": _mix_hex(bold_secondary, darkest, 0.28),
+                "accent": _mix_hex(bold_accent, lightest, 0.18),
+                "background": _mix_hex(_mix_hex(lightest, bold_primary, 0.16), "#FFFFFF", 0.7),
             },
         },
     ]

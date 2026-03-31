@@ -962,22 +962,14 @@ export default function OnboardingChatPage() {
                   >
                     {copyFor(language, hasGeneratedVisualAssets ? 'Refresh visuals' : 'Generate visuals', hasGeneratedVisualAssets ? 'Refresh visuals' : 'Generate visuals')}
                   </Button>
-                  {normalizedVisualFoundation ? <p className="text-sm leading-6 text-stone-600">{normalizedVisualFoundation.visual_summary}</p> : null}
                   {hasGeneratedVisualAssets ? (
                     <>
                       <div className="space-y-2">
                         <p className="text-sm font-semibold text-stone-800">{copyFor(language, 'Motif directions', 'Motif directions')}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {normalizedVisualFoundation?.visual_motifs.map((motif) => <span key={motif} className="rounded-full bg-white px-3 py-1 text-sm text-stone-700 shadow-sm">{motif}</span>)}
-                        </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           {normalizedVisualFoundation?.motif_previews.map((motif) => (
                             <div key={motif.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
-                              <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-48 w-full object-cover" />
-                              <div className="space-y-2 p-4">
-                                <p className="font-semibold text-stone-900">{motif.name}</p>
-                                {motif.description ? <p className="text-sm text-stone-600">{motif.description}</p> : null}
-                              </div>
+                              <img src={motif.image_url} alt={`${motif.name} motif preview`} className="h-64 w-full object-cover" />
                             </div>
                           ))}
                         </div>
@@ -987,11 +979,7 @@ export default function OnboardingChatPage() {
                         <div className="grid gap-4 md:grid-cols-2">
                           {normalizedVisualFoundation?.signature_patterns.map((pattern) => (
                             <div key={pattern.name} className="overflow-hidden rounded-3xl bg-white shadow-sm">
-                              {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-48 w-full object-cover" /> : null}
-                              <div className="p-4">
-                                <p className="font-semibold text-stone-900">{pattern.name}</p>
-                                <p className="mt-1 text-sm text-stone-600">{pattern.description}</p>
-                              </div>
+                              {pattern.image_url ? <img src={pattern.image_url} alt={`${pattern.name} pattern preview`} className="h-64 w-full object-cover" /> : null}
                             </div>
                           ))}
                         </div>

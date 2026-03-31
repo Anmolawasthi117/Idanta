@@ -255,11 +255,7 @@ export default function BrandPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 {brand.motif_previews.map((motif) => (
                   <div key={`${motif.name}-${motif.image_url}`} className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50">
-                    <img src={motif.image_url} alt={motif.name} className="h-40 w-full object-cover" />
-                    <div className="space-y-1 p-4">
-                      <p className="font-semibold text-stone-900">{motif.name}</p>
-                      {motif.description ? <p className="text-sm text-stone-600">{motif.description}</p> : null}
-                    </div>
+                    <img src={motif.image_url} alt={motif.name} className="h-56 w-full object-cover" />
                   </div>
                 ))}
               </div>
@@ -272,11 +268,7 @@ export default function BrandPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 {brand.signature_patterns.map((pattern) => (
                   <div key={`${pattern.name}-${pattern.image_url ?? pattern.description}`} className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50">
-                    {pattern.image_url ? <img src={pattern.image_url} alt={pattern.name} className="h-40 w-full object-cover" /> : <div className="h-40 w-full bg-gradient-to-br from-stone-100 to-stone-200" />}
-                    <div className="space-y-1 p-4">
-                      <p className="font-semibold text-stone-900">{pattern.name}</p>
-                      <p className="text-sm text-stone-600">{pattern.description}</p>
-                    </div>
+                    {pattern.image_url ? <img src={pattern.image_url} alt={pattern.name} className="h-56 w-full object-cover" /> : <div className="h-56 w-full bg-gradient-to-br from-stone-100 to-stone-200" />}
                   </div>
                 ))}
               </div>

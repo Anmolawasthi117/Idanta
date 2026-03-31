@@ -75,6 +75,18 @@ def _brand_initials(brand_name: str) -> str:
     return (parts[0][:1] + parts[1][:1]).upper()
 
 
+def _seed_from_text(*values: str) -> int:
+    seed = 0
+    for value in values:
+        for char in str(value or ""):
+            seed = (seed * 131 + ord(char)) % 1000003
+    return seed
+
+
+def _seed_float(seed: int, offset: int = 0) -> float:
+    return ((seed + offset * 977) % 1000) / 1000.0
+
+
 def _infer_motif_family(*texts: str) -> str:
     combined = " ".join(str(text or "").lower() for text in texts)
     keyword_map = {
@@ -126,79 +138,117 @@ def _symbol_group(family: str, colors: dict[str, str], *, variant: int = 0, opac
     background = colors["background"]
     stroke = _mix_hex(primary, "#000000", 0.12)
     common = f'fill-opacity="{opacity}" stroke="{stroke}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"'
+    seed = _seed_from_text(family, str(variant))
+    twist = (_seed_float(seed, 1) - 0.5) * 18
+    stretch = 0.82 + _seed_float(seed, 2) * 0.46
+    inner_scale = 0.48 + _seed_float(seed, 3) * 0.22
+    alt_opacity = opacity * (0.82 + _seed_float(seed, 4) * 0.14)
 
     if family == "leaf":
+        width = 104 + int(_seed_float(seed, 5) * 42)
+        height = 138 + int(_seed_float(seed, 6) * 38)
+        inner_width = int(width * 0.58)
+        inner_height = int(height * 0.68)
         return (
-            f'<path d="M0 -120 C75 -135 125 -55 0 125 C-125 -55 -75 -135 0 -120 Z" fill="{secondary}" {common}/>'
-            f'<path d="M0 -110 C52 -102 82 -45 0 92 C-82 -45 -52 -102 0 -110 Z" fill="{accent}" fill-opacity="{opacity * 0.92}"/>'
-            f'<path d="M0 -98 L0 102" stroke="{primary}" stroke-width="8" stroke-linecap="round" opacity="{opacity}"/>'
+            f'<g transform="rotate({twist})">'
+            f'<path d="M0 -{height} C{width} -{height + 10} {width + 26} -44 0 {height + 8} C-{width + 24} -44 -{width} -{height + 10} 0 -{height} Z" fill="{secondary}" {common}/>'
+            f'<path d="M0 -{int(height * 0.84)} C{inner_width} -{int(height * 0.8)} {inner_width + 12} -28 0 {inner_height} C-{inner_width + 12} -28 -{inner_width} -{int(height * 0.8)} 0 -{int(height * 0.84)} Z" fill="{accent}" fill-opacity="{alt_opacity}"/>'
+            f'<path d="M0 -{int(height * 0.86)} L0 {int(height * 0.8)}" stroke="{primary}" stroke-width="8" stroke-linecap="round" opacity="{opacity}"/>'
+            f'<path d="M0 -16 C{int(width * 0.34)} -6 {int(width * 0.42)} 24 {int(width * 0.16)} 62" stroke="{primary}" stroke-width="6" stroke-linecap="round" opacity="{opacity * 0.58}" fill="none"/>'
+            f'<path d="M0 0 C-{int(width * 0.34)} 12 -{int(width * 0.4)} 38 -{int(width * 0.1)} 74" stroke="{primary}" stroke-width="6" stroke-linecap="round" opacity="{opacity * 0.52}" fill="none"/>'
+            f'</g>'
         )
     if family == "paisley":
+        shoulder = 92 + int(_seed_float(seed, 7) * 32)
         return (
-            f'<path d="M-20 -140 C95 -138 118 -12 48 52 C5 90 -15 125 12 164 C-78 132 -128 66 -118 -10 C-109 -85 -76 -138 -20 -140 Z" fill="{secondary}" {common}/>'
-            f'<path d="M-6 -100 C48 -98 67 -36 28 6 C0 35 -15 57 -2 90 C-48 70 -71 37 -66 -8 C-61 -54 -42 -100 -6 -100 Z" fill="{accent}" fill-opacity="{opacity * 0.95}"/>'
-            f'<circle cx="18" cy="-40" r="20" fill="{primary}" fill-opacity="{opacity}"/>'
+            f'<g transform="rotate({twist})">'
+            f'<path d="M-18 -146 C{shoulder} -144 132 -18 52 52 C2 96 -20 130 10 176 C-84 144 -140 70 -128 -16 C-116 -94 -80 -144 -18 -146 Z" fill="{secondary}" {common}/>'
+            f'<path d="M-4 -104 C62 -102 78 -28 26 14 C0 36 -12 62 0 92 C-54 70 -76 36 -70 -10 C-64 -58 -38 -104 -4 -104 Z" fill="{accent}" fill-opacity="{alt_opacity}"/>'
+            f'<circle cx="20" cy="-34" r="{18 + int(_seed_float(seed, 8) * 8)}" fill="{primary}" fill-opacity="{opacity}"/>'
+            f'<circle cx="44" cy="20" r="10" fill="{primary}" fill-opacity="{opacity * 0.72}"/>'
+            f'</g>'
         )
     if family == "diamond":
+        outer = 126 + int(_seed_float(seed, 9) * 24)
+        inner = int(outer * inner_scale)
         return (
-            f'<rect x="-118" y="-118" width="236" height="236" rx="18" transform="rotate(45)" fill="{secondary}" {common}/>'
-            f'<rect x="-72" y="-72" width="144" height="144" rx="12" transform="rotate(45)" fill="{accent}" fill-opacity="{opacity * 0.95}"/>'
-            f'<path d="M0 -120 L0 120 M-120 0 L120 0" stroke="{primary}" stroke-width="10" opacity="{opacity}"/>'
+            f'<g transform="rotate({twist})">'
+            f'<rect x="-{outer}" y="-{outer}" width="{outer * 2}" height="{outer * 2}" rx="{18 + int(_seed_float(seed, 10) * 10)}" transform="rotate(45)" fill="{secondary}" {common}/>'
+            f'<rect x="-{inner}" y="-{inner}" width="{inner * 2}" height="{inner * 2}" rx="{10 + int(_seed_float(seed, 11) * 8)}" transform="rotate(45)" fill="{accent}" fill-opacity="{alt_opacity}"/>'
+            f'<path d="M0 -{outer + 10} L0 {outer + 10} M-{outer + 10} 0 L{outer + 10} 0" stroke="{primary}" stroke-width="10" opacity="{opacity}"/>'
+            f'</g>'
         )
     if family == "wave":
+        spread = 130 + int(_seed_float(seed, 12) * 26)
+        amp = 44 + int(_seed_float(seed, 13) * 16)
         return (
-            f'<path d="M-150 -58 C-110 -112 -48 -112 -8 -58 C32 -4 94 -4 134 -58" fill="none" stroke="{secondary}" stroke-width="24" stroke-linecap="round" opacity="{opacity}"/>'
-            f'<path d="M-150 8 C-110 -46 -48 -46 -8 8 C32 62 94 62 134 8" fill="none" stroke="{accent}" stroke-width="24" stroke-linecap="round" opacity="{opacity}"/>'
-            f'<path d="M-150 74 C-110 20 -48 20 -8 74 C32 128 94 128 134 74" fill="none" stroke="{primary}" stroke-width="20" stroke-linecap="round" opacity="{opacity}"/>'
+            f'<g transform="rotate({twist * 0.6}) scale({stretch} 1)">'
+            f'<path d="M-{spread} -{amp + 28} C-{int(spread * 0.7)} -{amp + 84} -{int(spread * 0.24)} -{amp + 86} 0 -{amp + 24} C{int(spread * 0.22)} {18 - amp} {int(spread * 0.7)} {12 - amp} {spread} -{amp + 28}" fill="none" stroke="{secondary}" stroke-width="22" stroke-linecap="round" opacity="{opacity}"/>'
+            f'<path d="M-{spread} 4 C-{int(spread * 0.68)} -54 -{int(spread * 0.2)} -52 8 4 C{int(spread * 0.3)} 58 {int(spread * 0.72)} 60 {spread} 4" fill="none" stroke="{accent}" stroke-width="24" stroke-linecap="round" opacity="{alt_opacity}"/>'
+            f'<path d="M-{spread} {amp + 44} C-{int(spread * 0.72)} {amp - 10} -{int(spread * 0.28)} {amp - 6} 4 {amp + 44} C{int(spread * 0.28)} {amp + 94} {int(spread * 0.72)} {amp + 92} {spread} {amp + 44}" fill="none" stroke="{primary}" stroke-width="18" stroke-linecap="round" opacity="{opacity}"/>'
+            f'</g>'
         )
     if family == "lattice":
+        outer = 148 + int(_seed_float(seed, 14) * 18)
+        inner = int(outer * 0.66)
         return (
-            f'<path d="M0 -146 L146 0 L0 146 L-146 0 Z" fill="{secondary}" {common}/>'
-            f'<path d="M0 -96 L96 0 L0 96 L-96 0 Z" fill="{background}" stroke="{primary}" stroke-width="8" opacity="{opacity}"/>'
-            f'<path d="M-146 0 L0 -146 L146 0 L0 146 Z" fill="none" stroke="{accent}" stroke-width="14" opacity="{opacity}"/>'
+            f'<g transform="rotate({twist})">'
+            f'<path d="M0 -{outer} L{outer} 0 L0 {outer} L-{outer} 0 Z" fill="{secondary}" {common}/>'
+            f'<path d="M0 -{inner} L{inner} 0 L0 {inner} L-{inner} 0 Z" fill="{background}" stroke="{primary}" stroke-width="8" opacity="{opacity}"/>'
+            f'<path d="M-{outer} 0 L0 -{outer} L{outer} 0 L0 {outer} Z" fill="none" stroke="{accent}" stroke-width="14" opacity="{opacity}"/>'
+            f'<path d="M-{int(inner * 1.1)} 0 L0 -{int(inner * 1.1)} L{int(inner * 1.1)} 0 L0 {int(inner * 1.1)} Z" fill="none" stroke="{primary}" stroke-width="6" opacity="{opacity * 0.46}"/>'
+            f'</g>'
         )
     if family == "sun":
         rays = []
-        for index in range(12):
-            angle = index * 30 + (variant * 6)
+        ray_count = 10 + int(_seed_float(seed, 15) * 5)
+        for index in range(ray_count):
+            angle = index * (360 / ray_count) + (variant * 6)
             rays.append(
-                f'<rect x="-10" y="-176" width="20" height="58" rx="10" transform="rotate({angle})" fill="{secondary}" fill-opacity="{opacity}"/>'
+                f'<rect x="-8" y="-{164 + int(_seed_float(seed, 16) * 14)}" width="16" height="{48 + int(_seed_float(seed, 17) * 16)}" rx="8" transform="rotate({angle})" fill="{secondary}" fill-opacity="{opacity}"/>'
             )
         return (
             "".join(rays)
-            + f'<circle cx="0" cy="0" r="92" fill="{accent}" {common}/>'
-            + f'<circle cx="0" cy="0" r="42" fill="{primary}" fill-opacity="{opacity}"/>'
+            + f'<circle cx="0" cy="0" r="{88 + int(_seed_float(seed, 18) * 12)}" fill="{accent}" {common}/>'
+            + f'<circle cx="0" cy="0" r="{38 + int(_seed_float(seed, 19) * 12)}" fill="{primary}" fill-opacity="{opacity}"/>'
         )
     if family == "arch":
+        height = 158 + int(_seed_float(seed, 20) * 20)
         return (
-            f'<path d="M-128 140 L-128 -10 C-128 -98 -58 -160 0 -160 C58 -160 128 -98 128 -10 L128 140 Z" fill="{secondary}" {common}/>'
-            f'<path d="M-80 140 L-80 18 C-80 -38 -38 -90 0 -90 C38 -90 80 -38 80 18 L80 140 Z" fill="{accent}" fill-opacity="{opacity * 0.95}"/>'
-            f'<path d="M0 -130 L0 140" stroke="{primary}" stroke-width="10" opacity="{opacity}"/>'
+            f'<g transform="rotate({twist * 0.35})">'
+            f'<path d="M-130 140 L-130 -10 C-130 -{int(height * 0.62)} -60 -{height} 0 -{height} C60 -{height} 130 -{int(height * 0.62)} 130 -10 L130 140 Z" fill="{secondary}" {common}/>'
+            f'<path d="M-82 140 L-82 20 C-82 -34 -38 -88 0 -88 C38 -88 82 -34 82 20 L82 140 Z" fill="{accent}" fill-opacity="{alt_opacity}"/>'
+            f'<path d="M0 -{int(height * 0.8)} L0 140" stroke="{primary}" stroke-width="10" opacity="{opacity}"/>'
+            f'</g>'
         )
     if family == "stripe":
         bands = []
-        colors_cycle = [secondary, accent, primary, accent]
-        for index, offset in enumerate(range(-180, 160, 80)):
+        colors_cycle = [secondary, accent, primary, accent, secondary]
+        for index, offset in enumerate(range(-190, 180, 72)):
             bands.append(
-                f'<rect x="{offset}" y="-180" width="42" height="360" rx="20" transform="rotate(32)" fill="{colors_cycle[index % len(colors_cycle)]}" fill-opacity="{opacity}"/>'
+                f'<rect x="{offset}" y="-186" width="{34 + int(_seed_float(seed, 21 + index) * 18)}" height="372" rx="18" transform="rotate({24 + twist + index * 2.2})" fill="{colors_cycle[index % len(colors_cycle)]}" fill-opacity="{opacity}"/>'
             )
         return "".join(bands)
     if family == "dot":
         dots = []
-        positions = [(-88, -88), (88, -88), (-88, 88), (88, 88), (0, -128), (0, 128), (-128, 0), (128, 0)]
-        dot_colors = [secondary, accent, secondary, accent, primary, primary, primary, primary]
+        positions = [(-88, -88), (88, -88), (-88, 88), (88, 88), (0, -128), (0, 128), (-128, 0), (128, 0), (0, 0)]
+        dot_colors = [secondary, accent, secondary, accent, primary, primary, primary, primary, accent]
         for (x_pos, y_pos), color in zip(positions, dot_colors):
-            dots.append(f'<circle cx="{x_pos}" cy="{y_pos}" r="22" fill="{color}" fill-opacity="{opacity}"/>')
-        return "".join(dots) + f'<circle cx="0" cy="0" r="94" fill="{secondary}" {common}/><circle cx="0" cy="0" r="42" fill="{accent}" fill-opacity="{opacity}"/>'
+            dots.append(f'<circle cx="{x_pos}" cy="{y_pos}" r="{16 + int(_seed_float(seed, abs(x_pos) + abs(y_pos)) * 14)}" fill="{color}" fill-opacity="{opacity}"/>')
+        return "".join(dots) + f'<circle cx="0" cy="0" r="92" fill="{secondary}" {common}/><circle cx="0" cy="0" r="38" fill="{accent}" fill-opacity="{alt_opacity}"/>'
 
     petals = []
-    for index in range(8):
-        angle = index * 45 + (variant * 4)
+    petal_count = 6 + int(_seed_float(seed, 22) * 5)
+    outer_y = 82 + int(_seed_float(seed, 23) * 22)
+    outer_rx = 24 + int(_seed_float(seed, 24) * 20)
+    outer_ry = 72 + int(_seed_float(seed, 25) * 26)
+    for index in range(petal_count):
+        angle = index * (360 / petal_count) + (variant * 4) + twist
         petal_color = secondary if index % 2 == 0 else accent
         petals.append(
-            f'<ellipse cx="0" cy="-86" rx="34" ry="86" transform="rotate({angle})" fill="{petal_color}" fill-opacity="{opacity}" stroke="{stroke}" stroke-width="5"/>'
+            f'<ellipse cx="0" cy="-{outer_y}" rx="{outer_rx}" ry="{outer_ry}" transform="rotate({angle})" fill="{petal_color}" fill-opacity="{opacity}" stroke="{stroke}" stroke-width="5"/>'
         )
-    return "".join(petals) + f'<circle cx="0" cy="0" r="44" fill="{primary}" fill-opacity="{opacity}"/>'
+    return "".join(petals) + f'<circle cx="0" cy="0" r="{34 + int(_seed_float(seed, 26) * 16)}" fill="{primary}" fill-opacity="{opacity}"/>'
 
 
 def render_motif_preview_svg(
@@ -213,15 +263,19 @@ def render_motif_preview_svg(
     colors = _palette_tokens(palette)
     family = _infer_motif_family(title, description)
     overlay = _mix_hex(colors["secondary"], colors["background"], 0.78)
+    ghost = _symbol_group(family, colors, variant=index + 7, opacity=0.16)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="{_escape(title)} motif preview">
   <rect width="1024" height="1024" rx="56" fill="{colors['background']}"/>
-  <circle cx="512" cy="512" r="310" fill="{overlay}" opacity="0.55"/>
-  <rect x="108" y="108" width="808" height="808" rx="42" fill="{colors['surface']}" stroke="{_mix_hex(colors['primary'], colors['background'], 0.4)}" stroke-width="4"/>
-  <g transform="translate(512 470)">
+  <rect x="74" y="74" width="876" height="876" rx="48" fill="{colors['surface']}" stroke="{_mix_hex(colors['primary'], colors['background'], 0.36)}" stroke-width="4"/>
+  <circle cx="512" cy="512" r="318" fill="{overlay}" opacity="0.44"/>
+  <g opacity="0.32">
+    <g transform="translate(220 218) scale(0.24) rotate(-16)">{ghost}</g>
+    <g transform="translate(812 226) scale(0.18) rotate(24)">{ghost}</g>
+    <g transform="translate(814 816) scale(0.22) rotate(-18)">{ghost}</g>
+  </g>
+  <g transform="translate(512 512)">
     {_symbol_group(family, colors, variant=index - 1, opacity=1.0)}
   </g>
-  <text x="512" y="858" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="52" font-weight="700" fill="{colors['ink']}">{_escape(title)}</text>
-  <text x="512" y="906" text-anchor="middle" font-family="'Trebuchet MS', Arial, sans-serif" font-size="24" fill="{_mix_hex(colors['ink'], colors['background'], 0.35)}">Image-derived motif direction</text>
 </svg>"""
 
 
@@ -234,21 +288,29 @@ def render_pattern_preview_svg(
 ) -> str:
     colors = _palette_tokens(palette)
     family = _infer_motif_family(title, description)
-    tile = _symbol_group(family, colors, variant=index, opacity=0.58)
+    tile = _symbol_group(family, colors, variant=index, opacity=0.52)
+    tile_secondary = _symbol_group(family, colors, variant=index + 9, opacity=0.24)
     stroke = _mix_hex(colors["primary"], colors["background"], 0.5)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="{_escape(title)} pattern preview">
   <defs>
-    <pattern id="tile" width="220" height="220" patternUnits="userSpaceOnUse">
-      <rect width="220" height="220" fill="{colors['background']}"/>
-      <g transform="translate(110 110) scale(0.32)">
+    <pattern id="tile" width="240" height="240" patternUnits="userSpaceOnUse">
+      <rect width="240" height="240" fill="{colors['background']}"/>
+      <g transform="translate(120 120) scale(0.3)">
         {tile}
       </g>
+      <g transform="translate(0 0) scale(0.18)">
+        {tile_secondary}
+      </g>
+    </pattern>
+    <pattern id="tileOverlay" width="240" height="240" patternUnits="userSpaceOnUse">
+      <rect width="240" height="240" fill="none"/>
+      <path d="M0 120 H240 M120 0 V240" stroke="{_mix_hex(colors['accent'], colors['background'], 0.56)}" stroke-width="2" opacity="0.26"/>
     </pattern>
   </defs>
   <rect width="1024" height="1024" rx="56" fill="{colors['surface']}"/>
-  <rect x="86" y="86" width="852" height="852" rx="36" fill="url(#tile)" stroke="{stroke}" stroke-width="6"/>
+  <rect x="72" y="72" width="880" height="880" rx="42" fill="url(#tile)" stroke="{stroke}" stroke-width="6"/>
+  <rect x="72" y="72" width="880" height="880" rx="42" fill="url(#tileOverlay)" opacity="0.7"/>
   <rect x="86" y="86" width="852" height="852" rx="36" fill="none" stroke="{_mix_hex(colors['accent'], colors['background'], 0.35)}" stroke-width="18" stroke-dasharray="18 22" opacity="0.55"/>
-  <text x="120" y="962" font-family="'Trebuchet MS', Arial, sans-serif" font-size="30" font-weight="700" fill="{colors['ink']}">{_escape(title)}</text>
 </svg>"""
 
 
