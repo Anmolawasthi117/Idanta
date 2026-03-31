@@ -44,7 +44,11 @@ Output ONLY a valid JSON object with this exact schema:
 Rules:
 - Brand names must feel premium, 1-2 words, and avoid generic filler like "Craft" or "Handmade"
 - Names should feel rooted in the craft's region, motifs, materials, and buyer context
-- The tagline language must follow the requested script preference exactly: Hindi, English, or bilingual
+- Across the generated naming options, include a healthy mix of English-led, Hindi-led, and Hinglish-led directions when possible
+- If multiple brand names are returned, avoid making all of them the same language mode
+- Hindi-led options should feel natural and premium, not archaic or overly literary
+- Hinglish-led options should use natural roman-script mixing and still feel premium and ownable
+- The tagline language should match the selected name's identity mode and can be Hindi, English, or Hinglish
 - Use the retrieved naming and tagline examples as quality references, not as strings to copy
 - Distinctiveness matters more than safety; avoid bland names that could fit any artisan
 - Derive the palette directly from uploaded-image visual context plus relevant craft color signals; do not use preset palette libraries

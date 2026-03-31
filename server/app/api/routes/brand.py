@@ -1213,6 +1213,9 @@ def _build_identity_generation_prompt(
         "- Draw from context signals: craft, region, memory, materiality, lineage, and maker philosophy.\n"
         "- Avoid names that sound generic, corporate, templated, or like placeholder Sanskrit words.\n"
         "- Avoid weak fillers like Craft, Handmade, Studio, India Art, Heritage Crafts unless absolutely necessary.\n"
+        "- Language mix is required across the full set: include English-led, Hindi-led, and Hinglish-led identity options.\n"
+        "- Hindi-led options should feel natural and premium in Hindi/Devanagari, not overly literary or archaic.\n"
+        "- Hinglish-led options should feel intentional, brandable, and natural in roman script, not gimmicky slang.\n"
         "- Each pair should feel like a distinct brand world, not six variations of the same naming formula.\n"
         "- Taglines should complement the name, not repeat it.\n"
         "- Prioritize names a premium customer would remember after hearing once."
@@ -1231,16 +1234,20 @@ async def _generate_identity_pairs(
             "Return only JSON with this shape: {\"pairs\": [{\"pair_id\": \"pair_1\", \"name\": \"...\", \"tagline\": \"...\", \"why_it_fits\": \"...\"}]}\n"
             "Rules:\n"
             "- Generate exactly 6 unique name and tagline pairs.\n"
+            "- Across the 6 pairs, include exactly 2 English-led pairs, 2 Hindi-led pairs, and 2 Hinglish-led pairs.\n"
             "- Each brand name must be 1-2 words and feel premium, rooted, memorable, and ownable.\n"
             "- Prefer names with emotional pull, sonic elegance, and clear distinctiveness.\n"
             "- Avoid generic filler like Craft, Handmade, India Art, Studio, Heritage, Creations unless truly essential.\n"
             "- Avoid bland names that could fit any artisan from any craft.\n"
             "- At least 4 of the 6 names should come from clearly different naming angles, for example material-led, motif-led, lineage-led, region-led, or feeling-led.\n"
             "- Each tagline must stay under 8 words.\n"
+            "- English-led pairs should read naturally in English.\n"
+            "- Hindi-led pairs should read naturally in Hindi and may use Devanagari.\n"
+            "- Hinglish-led pairs should mix Hindi and English naturally in roman script and still feel premium.\n"
             "- Use only provided context and sample pool references as guidance.\n"
             "- Never copy the retrieved examples verbatim.\n"
             "- The second set must feel meaningfully different from the first set if exclusions are provided.\n"
-            "- Keep taglines aligned with the requested script preference.\n"
+            "- The required language mix overrides script preference for candidate generation because the goal is to show a balanced mix of Hindi, English, and Hinglish options.\n"
             "- why_it_fits should be specific and useful, not generic praise.\n"
             "- Prioritize uniqueness and avoid repeating common naming templates.\n"
         ),
@@ -1289,6 +1296,7 @@ async def _regenerate_tagline(state: BrandState) -> str:
             "You are an expert Indian artisan brand copywriter.\n"
             "Output only JSON: {\"tagline\": \"...\"}\n"
             "Rules: keep it under 8 words, premium tone, specific to craft, non-generic.\n"
+            "You may write the tagline in English, Hindi, or Hinglish, but it must feel intentional and premium.\n"
             "Use only provided context and sample pool examples as quality references. Do not copy them."
         ),
         user_prompt=(
@@ -1318,6 +1326,7 @@ async def _regenerate_name_and_tagline(state: BrandState) -> tuple[str, str]:
             "Output only JSON: {\"brand_name\": \"...\", \"tagline\": \"...\"}\n"
             "Rules: brand_name should be premium 1-2 words, culturally rooted and distinct.\n"
             "Tagline must be under 8 words and aligned with the same identity.\n"
+            "The refreshed identity may be English-led, Hindi-led, or Hinglish-led, but it must feel naturally brandable and premium.\n"
             "Use only provided context and sample pool references as quality guidance. Do not copy them."
         ),
         user_prompt=(
