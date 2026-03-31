@@ -107,6 +107,44 @@ def _infer_motif_family(*texts: str) -> str:
     return "floral"
 
 
+def _has_any(text: str, keywords: list[str]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def _motif_key(*values: str) -> str:
+    return " ".join(str(value or "").strip() for value in values if str(value or "").strip()).strip()
+
+
+def _motif_profile(title: str, description: str, variant: int) -> dict[str, Any]:
+    combined = f"{title} {description}".lower()
+    family = _infer_motif_family(title, description)
+    seed = _seed_from_text(title, description, family, str(variant))
+    return {
+        "family": family,
+        "seed": seed,
+        "stepped": _has_any(combined, ["step", "stair", "tiered", "fort", "architectural"]),
+        "nested": _has_any(combined, ["nested", "inner", "double", "layered", "concentric"]),
+        "slim": _has_any(combined, ["slim", "narrow", "fine", "delicate"]),
+        "broad": _has_any(combined, ["broad", "wide", "bold", "thick"]),
+        "angular": _has_any(combined, ["angular", "sharp", "pointed", "geometric"]),
+        "curved": _has_any(combined, ["curved", "rounded", "soft", "flowing"]),
+        "dense": _has_any(combined, ["dense", "packed", "tight", "busy"]),
+        "airy": _has_any(combined, ["airy", "open", "spaced", "breathing"]),
+        "radial": _has_any(combined, ["radial", "circular", "sunburst", "rosette"]),
+        "mirrored": _has_any(combined, ["mirrored", "symmetry", "symmetric", "balanced"]),
+        "diagonal": _has_any(combined, ["diagonal", "slant", "angled"]),
+        "bordered": _has_any(combined, ["border", "frame", "edge", "outline"]),
+        "tall": _has_any(combined, ["tall", "elongated", "vertical", "towering"]),
+        "layered": _has_any(combined, ["layered", "stacked", "double", "tiered"]),
+        "pointed": _has_any(combined, ["pointed", "ogee", "arched", "spiked"]),
+        "scalloped": _has_any(combined, ["scalloped", "lobed", "petalled", "ruffled"]),
+        "petal": _has_any(combined, ["petal", "floral", "lotus", "rosette", "bloom"]),
+        "leaflike": _has_any(combined, ["leaf", "vine", "foliage", "sprig"]),
+        "dotted": _has_any(combined, ["dot", "bead", "seed", "speckled"]),
+        "crosshatched": _has_any(combined, ["grid", "mesh", "jaal", "lattice", "net"]),
+    }
+
+
 def _logo_layout_from_variant(candidate_id: str) -> str:
     candidate = str(candidate_id or "").lower()
     if "monogram" in candidate or candidate.endswith("_5"):
@@ -131,24 +169,40 @@ def _banner_layout_from_variant(candidate_id: str) -> str:
     return "editorial"
 
 
-def _symbol_group(family: str, colors: dict[str, str], *, variant: int = 0, opacity: float = 1.0) -> str:
+def _symbol_group(
+    family: str,
+    colors: dict[str, str],
+    *,
+    variant: int = 0,
+    opacity: float = 1.0,
+    motif_key: str = "",
+) -> str:
     primary = colors["primary"]
     secondary = colors["secondary"]
     accent = colors["accent"]
     background = colors["background"]
     stroke = _mix_hex(primary, "#000000", 0.12)
     common = f'fill-opacity="{opacity}" stroke="{stroke}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"'
-    seed = _seed_from_text(family, str(variant))
+    motif_signature = motif_key or family
+    profile = _motif_profile(family, motif_signature, variant)
+    seed = _seed_from_text(family, motif_signature, str(variant))
     twist = (_seed_float(seed, 1) - 0.5) * 18
     stretch = 0.82 + _seed_float(seed, 2) * 0.46
     inner_scale = 0.48 + _seed_float(seed, 3) * 0.22
     alt_opacity = opacity * (0.82 + _seed_float(seed, 4) * 0.14)
+    detail_opacity = opacity * (0.48 + _seed_float(seed, 27) * 0.18)
 
     if family == "leaf":
-        width = 104 + int(_seed_float(seed, 5) * 42)
-        height = 138 + int(_seed_float(seed, 6) * 38)
+        width = (88 if profile["slim"] else 118 if profile["broad"] else 104) + int(_seed_float(seed, 5) * 30)
+        height = (160 if profile["slim"] else 134) + int(_seed_float(seed, 6) * 24)
         inner_width = int(width * 0.58)
         inner_height = int(height * 0.68)
+        mirrored_leaf = (
+            f'<path d="M0 -{int(height * 0.72)} C-{int(width * 0.42)} -{int(height * 0.6)} -{int(width * 0.5)} -18 0 {int(height * 0.34)} C{int(width * 0.48)} -10 {int(width * 0.42)} -{int(height * 0.62)} 0 -{int(height * 0.72)} Z" '
+            f'fill="{background}" fill-opacity="{detail_opacity}" stroke="{primary}" stroke-width="5" opacity="{detail_opacity}"/>'
+            if profile["mirrored"] or profile["layered"]
+            else ""
+        )
         return (
             f'<g transform="rotate({twist})">'
             f'<path d="M0 -{height} C{width} -{height + 10} {width + 26} -44 0 {height + 8} C-{width + 24} -44 -{width} -{height + 10} 0 -{height} Z" fill="{secondary}" {common}/>'
@@ -156,52 +210,100 @@ def _symbol_group(family: str, colors: dict[str, str], *, variant: int = 0, opac
             f'<path d="M0 -{int(height * 0.86)} L0 {int(height * 0.8)}" stroke="{primary}" stroke-width="8" stroke-linecap="round" opacity="{opacity}"/>'
             f'<path d="M0 -16 C{int(width * 0.34)} -6 {int(width * 0.42)} 24 {int(width * 0.16)} 62" stroke="{primary}" stroke-width="6" stroke-linecap="round" opacity="{opacity * 0.58}" fill="none"/>'
             f'<path d="M0 0 C-{int(width * 0.34)} 12 -{int(width * 0.4)} 38 -{int(width * 0.1)} 74" stroke="{primary}" stroke-width="6" stroke-linecap="round" opacity="{opacity * 0.52}" fill="none"/>'
-            f'</g>'
+            + mirrored_leaf
+            + f'</g>'
         )
     if family == "paisley":
-        shoulder = 92 + int(_seed_float(seed, 7) * 32)
+        shoulder = (116 if profile["broad"] else 82 if profile["slim"] else 92) + int(_seed_float(seed, 7) * 24)
+        nested_drop = (
+            f'<path d="M-18 -82 C18 -80 36 -28 10 8 C-6 30 -10 54 -4 74 C-40 58 -50 30 -46 -4 C-42 -42 -30 -80 -18 -82 Z" fill="none" stroke="{primary}" stroke-width="6" opacity="{detail_opacity}"/>'
+            if profile["nested"] or profile["layered"]
+            else ""
+        )
+        dotted_cluster = (
+            f'<circle cx="-18" cy="48" r="10" fill="{accent}" fill-opacity="{detail_opacity}"/>'
+            f'<circle cx="-46" cy="78" r="8" fill="{primary}" fill-opacity="{detail_opacity}"/>'
+            if profile["dotted"] or profile["dense"]
+            else ""
+        )
         return (
             f'<g transform="rotate({twist})">'
             f'<path d="M-18 -146 C{shoulder} -144 132 -18 52 52 C2 96 -20 130 10 176 C-84 144 -140 70 -128 -16 C-116 -94 -80 -144 -18 -146 Z" fill="{secondary}" {common}/>'
             f'<path d="M-4 -104 C62 -102 78 -28 26 14 C0 36 -12 62 0 92 C-54 70 -76 36 -70 -10 C-64 -58 -38 -104 -4 -104 Z" fill="{accent}" fill-opacity="{alt_opacity}"/>'
             f'<circle cx="20" cy="-34" r="{18 + int(_seed_float(seed, 8) * 8)}" fill="{primary}" fill-opacity="{opacity}"/>'
             f'<circle cx="44" cy="20" r="10" fill="{primary}" fill-opacity="{opacity * 0.72}"/>'
-            f'</g>'
+            + nested_drop
+            + dotted_cluster
+            + f'</g>'
         )
     if family == "diamond":
-        outer = 126 + int(_seed_float(seed, 9) * 24)
-        inner = int(outer * inner_scale)
+        outer = (142 if profile["stepped"] else 118) + int(_seed_float(seed, 9) * 22)
+        inner = int(outer * (0.54 if profile["nested"] else inner_scale))
+        outer_rx = 10 if profile["angular"] else 22
+        inner_rx = 10 + int(_seed_float(seed, 11) * 8)
+        step_frame = (
+            f'<path d="M0 -{outer + 26} L{outer + 26} 0 L0 {outer + 26} L-{outer + 26} 0 Z" fill="none" stroke="{accent}" stroke-width="8" opacity="{detail_opacity}"/>'
+            if profile["stepped"] or profile["bordered"]
+            else ""
+        )
+        diagonal_grid = (
+            f'<path d="M-{int(inner * 0.9)} -{int(inner * 0.28)} L{int(inner * 0.9)} {int(inner * 0.28)} M-{int(inner * 0.28)} -{int(inner * 0.9)} L{int(inner * 0.28)} {int(inner * 0.9)}" stroke="{primary}" stroke-width="5" opacity="{detail_opacity}"/>'
+            if profile["crosshatched"] or profile["diagonal"]
+            else ""
+        )
         return (
             f'<g transform="rotate({twist})">'
-            f'<rect x="-{outer}" y="-{outer}" width="{outer * 2}" height="{outer * 2}" rx="{18 + int(_seed_float(seed, 10) * 10)}" transform="rotate(45)" fill="{secondary}" {common}/>'
-            f'<rect x="-{inner}" y="-{inner}" width="{inner * 2}" height="{inner * 2}" rx="{10 + int(_seed_float(seed, 11) * 8)}" transform="rotate(45)" fill="{accent}" fill-opacity="{alt_opacity}"/>'
+            f'<rect x="-{outer}" y="-{outer}" width="{outer * 2}" height="{outer * 2}" rx="{outer_rx}" transform="rotate(45)" fill="{secondary}" {common}/>'
+            f'<rect x="-{inner}" y="-{inner}" width="{inner * 2}" height="{inner * 2}" rx="{inner_rx}" transform="rotate(45)" fill="{accent}" fill-opacity="{alt_opacity}"/>'
             f'<path d="M0 -{outer + 10} L0 {outer + 10} M-{outer + 10} 0 L{outer + 10} 0" stroke="{primary}" stroke-width="10" opacity="{opacity}"/>'
-            f'</g>'
+            + (
+                f'<rect x="-{int(inner * 0.58)}" y="-{int(inner * 0.58)}" width="{int(inner * 1.16)}" height="{int(inner * 1.16)}" rx="4" transform="rotate(45)" fill="none" stroke="{primary}" stroke-width="6" opacity="{opacity * 0.6}"/>'
+                if profile["nested"] or profile["stepped"]
+                else ""
+            )
+            + step_frame
+            + diagonal_grid
+            + f'</g>'
         )
     if family == "wave":
         spread = 130 + int(_seed_float(seed, 12) * 26)
-        amp = 44 + int(_seed_float(seed, 13) * 16)
+        amp = (34 if profile["airy"] else 56 if profile["dense"] else 44) + int(_seed_float(seed, 13) * 12)
+        extra_wave = (
+            f'<path d="M-{spread} -4 C-{int(spread * 0.7)} -66 -{int(spread * 0.26)} -64 2 -6 C{int(spread * 0.22)} 44 {int(spread * 0.72)} 46 {spread} -4" fill="none" stroke="{background}" stroke-width="10" stroke-linecap="round" opacity="{detail_opacity}"/>'
+            if profile["layered"] or profile["nested"]
+            else ""
+        )
         return (
             f'<g transform="rotate({twist * 0.6}) scale({stretch} 1)">'
             f'<path d="M-{spread} -{amp + 28} C-{int(spread * 0.7)} -{amp + 84} -{int(spread * 0.24)} -{amp + 86} 0 -{amp + 24} C{int(spread * 0.22)} {18 - amp} {int(spread * 0.7)} {12 - amp} {spread} -{amp + 28}" fill="none" stroke="{secondary}" stroke-width="22" stroke-linecap="round" opacity="{opacity}"/>'
             f'<path d="M-{spread} 4 C-{int(spread * 0.68)} -54 -{int(spread * 0.2)} -52 8 4 C{int(spread * 0.3)} 58 {int(spread * 0.72)} 60 {spread} 4" fill="none" stroke="{accent}" stroke-width="24" stroke-linecap="round" opacity="{alt_opacity}"/>'
             f'<path d="M-{spread} {amp + 44} C-{int(spread * 0.72)} {amp - 10} -{int(spread * 0.28)} {amp - 6} 4 {amp + 44} C{int(spread * 0.28)} {amp + 94} {int(spread * 0.72)} {amp + 92} {spread} {amp + 44}" fill="none" stroke="{primary}" stroke-width="18" stroke-linecap="round" opacity="{opacity}"/>'
-            f'</g>'
+            + extra_wave
+            + f'</g>'
         )
     if family == "lattice":
         outer = 148 + int(_seed_float(seed, 14) * 18)
-        inner = int(outer * 0.66)
+        inner = int(outer * (0.56 if profile["dense"] else 0.72 if profile["airy"] else 0.66))
+        intersection_nodes = (
+            f'<circle cx="0" cy="-{int(inner * 0.96)}" r="10" fill="{primary}" fill-opacity="{detail_opacity}"/>'
+            f'<circle cx="{int(inner * 0.96)}" cy="0" r="10" fill="{primary}" fill-opacity="{detail_opacity}"/>'
+            f'<circle cx="0" cy="{int(inner * 0.96)}" r="10" fill="{primary}" fill-opacity="{detail_opacity}"/>'
+            f'<circle cx="-{int(inner * 0.96)}" cy="0" r="10" fill="{primary}" fill-opacity="{detail_opacity}"/>'
+            if profile["dense"] or profile["dotted"] or profile["crosshatched"]
+            else ""
+        )
         return (
             f'<g transform="rotate({twist})">'
             f'<path d="M0 -{outer} L{outer} 0 L0 {outer} L-{outer} 0 Z" fill="{secondary}" {common}/>'
             f'<path d="M0 -{inner} L{inner} 0 L0 {inner} L-{inner} 0 Z" fill="{background}" stroke="{primary}" stroke-width="8" opacity="{opacity}"/>'
             f'<path d="M-{outer} 0 L0 -{outer} L{outer} 0 L0 {outer} Z" fill="none" stroke="{accent}" stroke-width="14" opacity="{opacity}"/>'
             f'<path d="M-{int(inner * 1.1)} 0 L0 -{int(inner * 1.1)} L{int(inner * 1.1)} 0 L0 {int(inner * 1.1)} Z" fill="none" stroke="{primary}" stroke-width="6" opacity="{opacity * 0.46}"/>'
-            f'</g>'
+            + intersection_nodes
+            + f'</g>'
         )
     if family == "sun":
         rays = []
-        ray_count = 10 + int(_seed_float(seed, 15) * 5)
+        ray_count = (14 if profile["dense"] else 8 if profile["airy"] else 10) + int(_seed_float(seed, 15) * 3)
         for index in range(ray_count):
             angle = index * (360 / ray_count) + (variant * 6)
             rays.append(
@@ -213,20 +315,32 @@ def _symbol_group(family: str, colors: dict[str, str], *, variant: int = 0, opac
             + f'<circle cx="0" cy="0" r="{38 + int(_seed_float(seed, 19) * 12)}" fill="{primary}" fill-opacity="{opacity}"/>'
         )
     if family == "arch":
-        height = 158 + int(_seed_float(seed, 20) * 20)
+        height = (182 if profile["tall"] else 158) + int(_seed_float(seed, 20) * 20)
+        arch_cap = (
+            f'M-130 140 L-130 -10 C-130 -{int(height * 0.62)} -60 -{height} 0 -{height + 24} C60 -{height} 130 -{int(height * 0.62)} 130 -10 L130 140 Z'
+            if profile["pointed"] or profile["angular"]
+            else f'M-130 140 L-130 -10 C-130 -{int(height * 0.62)} -60 -{height} 0 -{height} C60 -{height} 130 -{int(height * 0.62)} 130 -10 L130 140 Z'
+        )
+        stepped_inner = (
+            f'<path d="M-56 140 L-56 8 L-26 -18 L-26 -54 L0 -78 L26 -54 L26 -18 L56 8 L56 140 Z" fill="{background}" fill-opacity="{detail_opacity}" stroke="{primary}" stroke-width="6" opacity="{detail_opacity}"/>'
+            if profile["stepped"] or profile["nested"]
+            else ""
+        )
         return (
             f'<g transform="rotate({twist * 0.35})">'
-            f'<path d="M-130 140 L-130 -10 C-130 -{int(height * 0.62)} -60 -{height} 0 -{height} C60 -{height} 130 -{int(height * 0.62)} 130 -10 L130 140 Z" fill="{secondary}" {common}/>'
+            f'<path d="{arch_cap}" fill="{secondary}" {common}/>'
             f'<path d="M-82 140 L-82 20 C-82 -34 -38 -88 0 -88 C38 -88 82 -34 82 20 L82 140 Z" fill="{accent}" fill-opacity="{alt_opacity}"/>'
             f'<path d="M0 -{int(height * 0.8)} L0 140" stroke="{primary}" stroke-width="10" opacity="{opacity}"/>'
-            f'</g>'
+            + stepped_inner
+            + f'</g>'
         )
     if family == "stripe":
         bands = []
         colors_cycle = [secondary, accent, primary, accent, secondary]
+        base_rotation = 38 if profile["diagonal"] else 18
         for index, offset in enumerate(range(-190, 180, 72)):
             bands.append(
-                f'<rect x="{offset}" y="-186" width="{34 + int(_seed_float(seed, 21 + index) * 18)}" height="372" rx="18" transform="rotate({24 + twist + index * 2.2})" fill="{colors_cycle[index % len(colors_cycle)]}" fill-opacity="{opacity}"/>'
+                f'<rect x="{offset}" y="-186" width="{34 + int(_seed_float(seed, 21 + index) * 18)}" height="372" rx="18" transform="rotate({base_rotation + twist + index * 2.2})" fill="{colors_cycle[index % len(colors_cycle)]}" fill-opacity="{opacity}"/>'
             )
         return "".join(bands)
     if family == "dot":
@@ -238,17 +352,34 @@ def _symbol_group(family: str, colors: dict[str, str], *, variant: int = 0, opac
         return "".join(dots) + f'<circle cx="0" cy="0" r="92" fill="{secondary}" {common}/><circle cx="0" cy="0" r="38" fill="{accent}" fill-opacity="{alt_opacity}"/>'
 
     petals = []
-    petal_count = 6 + int(_seed_float(seed, 22) * 5)
+    petal_count = (10 if profile["radial"] else 6) + int(_seed_float(seed, 22) * 3)
     outer_y = 82 + int(_seed_float(seed, 23) * 22)
-    outer_rx = 24 + int(_seed_float(seed, 24) * 20)
-    outer_ry = 72 + int(_seed_float(seed, 25) * 26)
+    outer_rx = (18 if profile["slim"] else 36 if profile["broad"] else 24) + int(_seed_float(seed, 24) * 10)
+    outer_ry = (92 if profile["slim"] else 66) + int(_seed_float(seed, 25) * 18)
     for index in range(petal_count):
         angle = index * (360 / petal_count) + (variant * 4) + twist
         petal_color = secondary if index % 2 == 0 else accent
         petals.append(
             f'<ellipse cx="0" cy="-{outer_y}" rx="{outer_rx}" ry="{outer_ry}" transform="rotate({angle})" fill="{petal_color}" fill-opacity="{opacity}" stroke="{stroke}" stroke-width="5"/>'
         )
-    return "".join(petals) + f'<circle cx="0" cy="0" r="{34 + int(_seed_float(seed, 26) * 16)}" fill="{primary}" fill-opacity="{opacity}"/>'
+    inner_ring = ""
+    if profile["nested"] or profile["layered"] or profile["scalloped"]:
+        inner_petals = []
+        inner_count = petal_count + (2 if profile["dense"] else 0)
+        inner_rx = max(int(outer_rx * 0.58), 12)
+        inner_ry = max(int(outer_ry * 0.48), 24)
+        inner_y = max(int(outer_y * 0.58), 44)
+        for index in range(inner_count):
+            angle = index * (360 / inner_count) + twist * 0.7
+            inner_petals.append(
+                f'<ellipse cx="0" cy="-{inner_y}" rx="{inner_rx}" ry="{inner_ry}" transform="rotate({angle})" fill="{background}" fill-opacity="{detail_opacity}" stroke="{primary}" stroke-width="4" opacity="{detail_opacity}"/>'
+            )
+        inner_ring = "".join(inner_petals)
+    return (
+        "".join(petals)
+        + inner_ring
+        + f'<circle cx="0" cy="0" r="{34 + int(_seed_float(seed, 26) * 16)}" fill="{primary}" fill-opacity="{opacity}"/>'
+    )
 
 
 def render_motif_preview_svg(
@@ -259,23 +390,54 @@ def render_motif_preview_svg(
     visual_summary: str,
     index: int,
 ) -> str:
-    del visual_summary
     colors = _palette_tokens(palette)
+    motif_key = _motif_key(title, description, visual_summary)
     family = _infer_motif_family(title, description)
+    seed = _seed_from_text(motif_key, str(index))
     overlay = _mix_hex(colors["secondary"], colors["background"], 0.78)
-    ghost = _symbol_group(family, colors, variant=index + 7, opacity=0.16)
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="{_escape(title)} motif preview">
-  <rect width="1024" height="1024" rx="56" fill="{colors['background']}"/>
-  <rect x="74" y="74" width="876" height="876" rx="48" fill="{colors['surface']}" stroke="{_mix_hex(colors['primary'], colors['background'], 0.36)}" stroke-width="4"/>
-  <circle cx="512" cy="512" r="318" fill="{overlay}" opacity="0.44"/>
+    ghost = _symbol_group(family, colors, variant=index + 7, opacity=0.16, motif_key=motif_key)
+    hero = _symbol_group(family, colors, variant=index - 1, opacity=1.0, motif_key=motif_key)
+    layout_mode = seed % 3
+    if layout_mode == 1:
+        hero_group = f"""
+  <g opacity="0.18">
+    <g transform="translate(244 786) scale(0.2) rotate(-24)">{ghost}</g>
+    <g transform="translate(766 244) scale(0.18) rotate(18)">{ghost}</g>
+  </g>
+  <g transform="translate(460 546) scale(1.02)">
+    {hero}
+  </g>
+  <g transform="translate(776 312) scale(0.34) rotate(10)">
+    {_symbol_group(family, colors, variant=index + 2, opacity=0.42, motif_key=motif_key)}
+  </g>
+"""
+    elif layout_mode == 2:
+        hero_group = f"""
+  <path d="M124 770 C248 626 368 560 512 546 C658 532 808 578 904 706" fill="none" stroke="{_mix_hex(colors['accent'], colors['background'], 0.34)}" stroke-width="10" opacity="0.58"/>
+  <g opacity="0.22">
+    <g transform="translate(228 234) scale(0.2) rotate(-18)">{ghost}</g>
+    <g transform="translate(804 798) scale(0.2) rotate(22)">{ghost}</g>
+  </g>
+  <g transform="translate(512 470) scale(0.9)">
+    {hero}
+  </g>
+"""
+    else:
+        hero_group = f"""
   <g opacity="0.32">
     <g transform="translate(220 218) scale(0.24) rotate(-16)">{ghost}</g>
     <g transform="translate(812 226) scale(0.18) rotate(24)">{ghost}</g>
     <g transform="translate(814 816) scale(0.22) rotate(-18)">{ghost}</g>
   </g>
   <g transform="translate(512 512)">
-    {_symbol_group(family, colors, variant=index - 1, opacity=1.0)}
+    {hero}
   </g>
+"""
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="{_escape(title)} motif preview">
+  <rect width="1024" height="1024" rx="56" fill="{colors['background']}"/>
+  <rect x="74" y="74" width="876" height="876" rx="48" fill="{colors['surface']}" stroke="{_mix_hex(colors['primary'], colors['background'], 0.36)}" stroke-width="4"/>
+  <circle cx="512" cy="512" r="318" fill="{overlay}" opacity="0.44"/>
+  {hero_group}
 </svg>"""
 
 
@@ -287,24 +449,31 @@ def render_pattern_preview_svg(
     index: int,
 ) -> str:
     colors = _palette_tokens(palette)
+    motif_key = _motif_key(title, description)
     family = _infer_motif_family(title, description)
-    tile = _symbol_group(family, colors, variant=index, opacity=0.52)
-    tile_secondary = _symbol_group(family, colors, variant=index + 9, opacity=0.24)
+    tile = _symbol_group(family, colors, variant=index, opacity=0.52, motif_key=motif_key)
+    tile_secondary = _symbol_group(family, colors, variant=index + 9, opacity=0.24, motif_key=motif_key)
+    tile_third = _symbol_group(family, colors, variant=index + 17, opacity=0.18, motif_key=motif_key)
+    seed = _seed_from_text(motif_key, str(index))
+    tile_size = 220 + (seed % 3) * 24
     stroke = _mix_hex(colors["primary"], colors["background"], 0.5)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="{_escape(title)} pattern preview">
   <defs>
-    <pattern id="tile" width="240" height="240" patternUnits="userSpaceOnUse">
-      <rect width="240" height="240" fill="{colors['background']}"/>
-      <g transform="translate(120 120) scale(0.3)">
+    <pattern id="tile" width="{tile_size}" height="{tile_size}" patternUnits="userSpaceOnUse">
+      <rect width="{tile_size}" height="{tile_size}" fill="{colors['background']}"/>
+      <g transform="translate({tile_size // 2} {tile_size // 2}) scale(0.3)">
         {tile}
       </g>
-      <g transform="translate(0 0) scale(0.18)">
+      <g transform="translate({int(tile_size * 0.14)} {int(tile_size * 0.12)}) scale(0.16)">
         {tile_secondary}
       </g>
+      <g transform="translate({int(tile_size * 0.82)} {int(tile_size * 0.78)}) scale(0.14)">
+        {tile_third}
+      </g>
     </pattern>
-    <pattern id="tileOverlay" width="240" height="240" patternUnits="userSpaceOnUse">
-      <rect width="240" height="240" fill="none"/>
-      <path d="M0 120 H240 M120 0 V240" stroke="{_mix_hex(colors['accent'], colors['background'], 0.56)}" stroke-width="2" opacity="0.26"/>
+    <pattern id="tileOverlay" width="{tile_size}" height="{tile_size}" patternUnits="userSpaceOnUse">
+      <rect width="{tile_size}" height="{tile_size}" fill="none"/>
+      <path d="M0 {tile_size // 2} H{tile_size} M{tile_size // 2} 0 V{tile_size}" stroke="{_mix_hex(colors['accent'], colors['background'], 0.56)}" stroke-width="2" opacity="0.2"/>
     </pattern>
   </defs>
   <rect width="1024" height="1024" rx="56" fill="{colors['surface']}"/>
@@ -358,12 +527,13 @@ def render_logo_svg(
 ) -> str:
     colors = _palette_tokens(palette)
     layout = _logo_layout_from_variant(candidate_id)
-    family = _infer_motif_family(motif_name, motif_description, sample_summary)
+    family = _infer_motif_family(motif_name, motif_description)
+    motif_key = _motif_key(motif_name, motif_description)
     border = _mix_hex(colors["primary"], colors["background"], 0.48)
     initials = _brand_initials(brand_name)
     ornament_opacity = 0.24 if "restrain" in sample_summary.lower() else 0.34
-    motif_group = _symbol_group(family, colors, variant=len(candidate_id), opacity=1.0)
-    subtle_group = _symbol_group(family, colors, variant=len(candidate_id) + 2, opacity=ornament_opacity)
+    motif_group = _symbol_group(family, colors, variant=len(candidate_id), opacity=1.0, motif_key=motif_key)
+    subtle_group = _symbol_group(family, colors, variant=len(candidate_id) + 2, opacity=ornament_opacity, motif_key=motif_key)
 
     if layout == "modern":
         content = f"""
@@ -440,52 +610,51 @@ def render_banner_svg(
     colors = _palette_tokens(palette)
     layout = _banner_layout_from_variant(candidate_id)
     family = _infer_motif_family(motif_name, motif_description)
-    motif_tile = _symbol_group(family, colors, variant=len(candidate_id), opacity=0.3)
-    logo_svg = render_logo_svg(
-        brand_name=brand_name,
-        tagline=tagline,
-        palette=palette,
-        motif_name=motif_name,
-        motif_description=motif_description,
-        candidate_id="logo_candidate_1" if layout == "editorial" else "logo_candidate_4",
+    motif_key = _motif_key(motif_name, motif_description)
+    motif_tile = _symbol_group(family, colors, variant=len(candidate_id), opacity=0.3, motif_key=motif_key)
+    motif_tile_alt = _symbol_group(family, colors, variant=len(candidate_id) + 3, opacity=0.18, motif_key=motif_key)
+    title_family = "Georgia, 'Times New Roman', serif" if layout != "story" else "'Trebuchet MS', Arial, sans-serif"
+    title_size = "92" if layout == "editorial" else "86" if layout == "pattern" else "80"
+    tagline_text = (
+        f'<text x="160" y="564" font-family="\'Trebuchet MS\', Arial, sans-serif" font-size="28" letter-spacing="4" fill="{_mix_hex(colors["ink"], colors["background"], 0.24)}">{_escape(tagline)}</text>'
+        if str(tagline or "").strip()
+        else ""
     )
-    logo_group = re.sub(r"^<svg[^>]*>|</svg>$", "", logo_svg.strip())
 
     if layout == "pattern":
         content = f"""
   <rect x="56" y="56" width="1424" height="656" rx="40" fill="none" stroke="{_mix_hex(colors['accent'], colors['background'], 0.22)}" stroke-width="10"/>
   <rect x="126" y="126" width="1284" height="516" rx="26" fill="none" stroke="{_mix_hex(colors['primary'], colors['background'], 0.42)}" stroke-width="3"/>
-  <g opacity="0.7">
-    <g transform="translate(1180 384) scale(0.62)">{motif_tile}</g>
-    <g transform="translate(1326 204) scale(0.32)">{motif_tile}</g>
-    <g transform="translate(1330 564) scale(0.32)">{motif_tile}</g>
+  <g opacity="0.72">
+    <g transform="translate(1178 384) scale(0.62)">{motif_tile}</g>
+    <g transform="translate(1326 204) scale(0.32)">{motif_tile_alt}</g>
+    <g transform="translate(1330 564) scale(0.32)">{motif_tile_alt}</g>
   </g>
-  <g transform="translate(208 118) scale(0.46)">
-    {logo_group}
-  </g>
+  <text x="160" y="304" font-family="{title_family}" font-size="{title_size}" font-weight="700" fill="{colors['ink']}">{_escape(brand_name)}</text>
+  {tagline_text}
+  <path d="M160 350 H620" stroke="{colors['accent']}" stroke-width="6" opacity="0.74"/>
 """
     elif layout == "story":
         content = f"""
   <rect x="0" y="440" width="1536" height="328" fill="{_mix_hex(colors['secondary'], colors['background'], 0.5)}"/>
   <g opacity="0.65">
     <g transform="translate(1188 250) scale(0.66)">{motif_tile}</g>
-    <g transform="translate(1332 518) scale(0.44)">{motif_tile}</g>
+    <g transform="translate(1332 518) scale(0.44)">{motif_tile_alt}</g>
   </g>
-  <g transform="translate(170 96) scale(0.4)">
-    {logo_group}
-  </g>
-  <text x="176" y="640" font-family="'Trebuchet MS', Arial, sans-serif" font-size="28" letter-spacing="4" fill="{_mix_hex(colors['ink'], colors['background'], 0.2)}">Craft-led identity system with motif continuity</text>
+  <text x="160" y="212" font-family="{title_family}" font-size="{title_size}" font-weight="700" fill="{colors['ink']}">{_escape(brand_name)}</text>
+  {tagline_text}
+  <text x="160" y="640" font-family="'Trebuchet MS', Arial, sans-serif" font-size="28" letter-spacing="4" fill="{_mix_hex(colors['ink'], colors['background'], 0.2)}">Image-derived motif continuity across the brand world</text>
 """
     else:
         content = f"""
   <g opacity="0.5">
     <g transform="translate(1170 354) scale(0.72)">{motif_tile}</g>
-    <g transform="translate(1342 160) scale(0.24)">{motif_tile}</g>
-    <g transform="translate(1358 586) scale(0.24)">{motif_tile}</g>
+    <g transform="translate(1342 160) scale(0.24)">{motif_tile_alt}</g>
+    <g transform="translate(1358 586) scale(0.24)">{motif_tile_alt}</g>
   </g>
-  <g transform="translate(138 120) scale(0.48)">
-    {logo_group}
-  </g>
+  <text x="150" y="262" font-family="{title_family}" font-size="{title_size}" font-weight="700" fill="{colors['ink']}">{_escape(brand_name)}</text>
+  {tagline_text}
+  <path d="M150 308 C262 278 356 274 468 308" fill="none" stroke="{colors['accent']}" stroke-width="7" opacity="0.62"/>
 """
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="768" viewBox="0 0 1536 768" role="img" aria-label="{_escape(brand_name)} banner">

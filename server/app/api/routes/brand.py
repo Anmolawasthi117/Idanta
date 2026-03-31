@@ -931,6 +931,38 @@ async def _extract_visual_summary_from_images(image_urls: list[str]) -> str:
         return "Uploaded images suggest an artisan-made visual world with handcrafted texture, repeatable motifs, and a palette that should stay rooted, premium, and usable for brand design."
 
 
+async def _extract_motif_evidence_from_images(image_urls: list[str]) -> str:
+    if not image_urls:
+        return "No uploaded-image motif evidence available."
+    try:
+        return await groq_vision_completion(
+            system_prompt=(
+                "You are a senior ornament and pattern analyst.\n"
+                "Study only the uploaded images and extract recurring motifs exactly as they appear in the visuals.\n"
+                "Describe recurring fragments, shapes, contour behavior, repetition logic, symmetry, density, spacing, and where they appear.\n"
+                "Do not invent motifs. Do not generalize from craft category, region, or story. Stay tied to visible image evidence.\n"
+                "Write short evidence notes that a designer could use to redraw the motifs accurately."
+            ),
+            user_prompt=(
+                "Identify the recurring motifs visible in these images. For each recurring motif, mention:\n"
+                "1. its most visible shape family\n"
+                "2. its contour behavior and internal structure\n"
+                "3. whether it repeats as border, grid, scatter, medallion, stripe, or isolated fragment\n"
+                "4. what makes it distinct from the other recurring motifs in the images\n"
+                "Keep the output factual and image-led."
+            ),
+            image_urls=image_urls[:6],
+            max_tokens=900,
+            temperature=0.25,
+        )
+    except Exception as exc:
+        logger.warning("Motif evidence extraction failed; using fallback evidence. Error: %s", exc)
+        return (
+            "Recurring visual fragments are present in the uploaded images, but dedicated motif extraction failed. "
+            "Use the visible repeated shapes, contour rhythms, and surface repeats from the uploaded images as the only motif source."
+        )
+
+
 def _fallback_visual_foundation(image_urls: list[str], visual_summary: str, selected_palette: dict | None = None) -> BrandVisualFoundationResponse:
     motifs = [
         "Dominant contour motif",
@@ -976,6 +1008,7 @@ async def _build_visual_foundation(
 ) -> BrandVisualFoundationResponse:
     del state
     palette_options, recommended_palette_id = await _build_palette_options(image_urls, visual_summary)
+    motif_evidence = await _extract_motif_evidence_from_images(image_urls)
     selected_palette_payload = (
         _coerce_palette(selected_palette)
         if selected_palette
@@ -993,7 +1026,7 @@ async def _build_visual_foundation(
     try:
         result = await groq_json_completion(
             system_prompt=(
-                "You are a senior visual analyst building image-only motif and pattern directions.\n"
+                "You are a senior visual analyst building image-derived motif and pattern directions.\n"
                 "Return only JSON with this shape: "
                 "{\"visual_motifs\": [\"motif1\", \"motif2\", \"motif3\"], "
                 "\"signature_patterns\": [{\"name\": \"...\", \"description\": \"...\"}]}\n"
@@ -1002,18 +1035,21 @@ async def _build_visual_foundation(
                 "- Never use craft/user/story/region context.\n"
                 "- Motifs must be concrete, recurring, and visually distinct from each other.\n"
                 "- Name motifs based on what is actually visible in the uploaded images, not generic craft assumptions.\n"
-                "- Each motif name should include a clear visual family cue such as floral, leaf, paisley, diamond, wave, lattice, sun, arch, stripe, or dot.\n"
+                "- Each motif name must be a redrawable fragment, not a vague theme.\n"
+                "- Each motif name should capture family + structure + distinguishing cue from the images, for example: nested diamond lattice, scalloped floral rosette, stepped arch border, droplet paisley sprig.\n"
+                "- Prefer 4 to 9 words per motif name so the renderer can preserve the distinct structure.\n"
                 "- Generate 1 to 3 signature patterns using only the extracted motifs and provided selected palette.\n"
-                "- Pattern descriptions must clearly state motif usage, repeat logic, and palette-role usage.\n"
+                "- Pattern descriptions must clearly state motif usage, repeat logic, spacing rhythm, and palette-role usage.\n"
                 "- Palette lock is strict: do not use colors outside selected palette.\n"
                 "- Keep outputs concise and directly usable by designers.\n"
             ),
             user_prompt=(
                 f"Selected palette (must be used): {json.dumps(selected_palette_payload.model_dump(), ensure_ascii=False)}\n"
+                f"Dedicated motif evidence from uploaded images:\n{motif_evidence}\n\n"
                 f"Visual summary from uploaded images:\n{visual_summary}\n"
             ),
             max_tokens=1200,
-            temperature=0.5,
+            temperature=0.35,
         )
         patterns = [
             BrandPatternPayload(
@@ -1081,19 +1117,22 @@ async def _attach_visual_previews(
     motif_previews: list[BrandMotifPreviewPayload] = []
     for index, motif in enumerate(foundation.visual_motifs[:3], start=1):
         try:
+            pattern_hint = ""
+            if index - 1 < len(foundation.signature_patterns):
+                pattern_hint = foundation.signature_patterns[index - 1].description
             image_url = await _generate_preview_image(
                 brand_id=brand_id,
                 category="motif",
                 index=index,
                 title=motif,
-                description=f"An isolated motif exploration for {motif}.",
+                description=pattern_hint or motif,
                 palette=selected_palette,
                 visual_summary=foundation.visual_summary,
             )
             motif_previews.append(
                 BrandMotifPreviewPayload(
                     name=motif,
-                    description="Motif direction extracted only from uploaded references.",
+                    description=None,
                     image_url=image_url,
                 )
             )
